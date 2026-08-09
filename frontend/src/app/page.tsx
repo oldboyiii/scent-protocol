@@ -39,7 +39,7 @@ export default function Home() {
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 py-16 text-center">
-        <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-scent-gold via-white to-scent-rose bg-clip-text text-transparent">
+        <h2 className="text-5xl md:text-6xl font-bold mb-6 pb-1 leading-normal bg-gradient-to-r from-scent-gold via-white to-scent-rose bg-clip-text text-transparent">
           Digital Perfume House
         </h2>
         <p className="text-xl text-white/60 max-w-2xl mx-auto mb-8">
