@@ -11,10 +11,11 @@ export const ARC_CONFIG = {
 };
 
 export async function addArcNetwork() {
-  if (typeof window === "undefined" || !window.ethereum) return false;
-
+  const w = window as any;
+  if (typeof window === "undefined" || !w.ethereum) return false;
+  
   try {
-    await window.ethereum.request({
+    await w.ethereum.request({
       method: "wallet_addEthereumChain",
       params: [
         {
@@ -34,10 +35,11 @@ export async function addArcNetwork() {
 }
 
 export async function switchToArc() {
-  if (typeof window === "undefined" || !window.ethereum) return false;
-
+  const w = window as any;
+  if (typeof window === "undefined" || !w.ethereum) return false;
+  
   try {
-    await window.ethereum.request({
+    await w.ethereum.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: `0x${ARC_CONFIG.chainId.toString(16)}` }],
     });
