@@ -67,7 +67,11 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
       setStep("Generating AI description...");
       const desc = await generateDescription(perfume);
 
-      onMinted(tokenId, perfume, desc);
+            const serializablePerfume: PerfumeData = {
+        ...perfume,
+        createdAt: Number(perfume.createdAt),
+      };
+      onMinted(tokenId, serializablePerfume, desc);
       setStep("Done!");
     } catch (error: any) {
       console.error(error);
