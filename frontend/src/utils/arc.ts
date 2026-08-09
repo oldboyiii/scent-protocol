@@ -13,7 +13,7 @@ export const ARC_CONFIG = {
 export async function addArcNetwork() {
   const w = window as any;
   if (typeof window === "undefined" || !w.ethereum) return false;
-  
+
   try {
     await w.ethereum.request({
       method: "wallet_addEthereumChain",
@@ -37,7 +37,7 @@ export async function addArcNetwork() {
 export async function switchToArc() {
   const w = window as any;
   if (typeof window === "undefined" || !w.ethereum) return false;
-  
+
   try {
     await w.ethereum.request({
       method: "wallet_switchEthereumChain",
