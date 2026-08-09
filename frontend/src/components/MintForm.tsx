@@ -89,7 +89,19 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
       if (tokenId === 0) throw new Error("TokenId not found in transaction logs");
 
       setStep("Fetching perfume data...");
-      const perfume: PerfumeData = await contract.getPerfume(tokenId);
+            const rawPerfume = await contract.getPerfume(tokenId);
+      const perfume: PerfumeData = {
+        name: rawPerfume.name,
+        gender: Number(rawPerfume.gender),
+        pType: Number(rawPerfume.pType),
+        topNotes: [...rawPerfume.topNotes],
+        heartNotes: [...rawPerfume.heartNotes],
+        baseNotes: [...rawPerfume.baseNotes],
+        concentration: Number(rawPerfume.concentration),
+        rarity: Number(rawPerfume.rarity),
+        createdAt: Number(rawPerfume.createdAt),
+        creator: rawPerfume.creator,
+      };
 
       setStep("Generating AI description...");
       const desc = await generateDescription(perfume);
