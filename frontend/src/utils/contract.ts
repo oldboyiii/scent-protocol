@@ -63,6 +63,6 @@ export interface PerfumeData {
   baseNotes: string[];
   concentration: number;
   rarity: number;
-  createdAt: bigint;
+  createdAt: number;
   creator: string;
 }
