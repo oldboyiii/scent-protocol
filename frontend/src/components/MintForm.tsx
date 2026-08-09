@@ -47,19 +47,46 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
       const tx = await contract.createPerfume(gender, pType);
       const receipt = await tx.wait();
 
-      const iface = contract.interface;
-      let tokenId = 0;
+            let tokenId = 0;
+      
+      // Method 1: Parse PerfumeCreated event
       for (const log of receipt.logs) {
+        if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) continue;
         try {
-          const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+          const parsed = contract.interface.parseLog({
+            topics: [...log.topics],
+            data: log.data,
+          });
           if (parsed && parsed.name === "PerfumeCreated") {
-            tokenId = Number(parsed.args.tokenId);
+            const tid = parsed.args.tokenId ?? parsed.args[0];
+            tokenId = Number(tid);
             break;
           }
         } catch {}
       }
+      
+      // Method 2: Fallback — parse Transfer event from address(0)
+      if (tokenId === 0) {
+        for (const log of receipt.logs) {
+          if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) continue;
+          try {
+            const parsed = contract.interface.parseLog({
+              topics: [...log.topics],
+              data: log.data,
+            });
+            if (parsed && parsed.name === "Transfer") {
+              const from = parsed.args.from ?? parsed.args[0];
+              const tid = parsed.args.tokenId ?? parsed.args[2];
+              if (from === "0x0000000000000000000000000000000000000000") {
+                tokenId = Number(tid);
+                break;
+              }
+            }
+          } catch {}
+        }
+      }
 
-      if (tokenId === 0) throw new Error("TokenId not found in logs");
+      if (tokenId === 0) throw new Error("TokenId not found in transaction logs");
 
       setStep("Fetching perfume data...");
       const perfume: PerfumeData = await contract.getPerfume(tokenId);
