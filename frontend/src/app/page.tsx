@@ -4,6 +4,7 @@ import { useState } from "react";
 import WalletButton from "@/components/WalletButton";
 import MintForm from "@/components/MintForm";
 import PerfumeCard from "@/components/PerfumeCard";
+import InfoSection from "@/components/InfoSection";
 import { PerfumeData } from "@/utils/contract";
 
 interface MintedPerfume {
@@ -39,11 +40,9 @@ export default function Home() {
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 py-16 text-center">
-        <h2 className="text-5xl md:text-6xl font-bold mb-6">
-  <span className="inline-block pb-3 leading-tight bg-gradient-to-r from-scent-gold via-white to-scent-rose bg-clip-text text-transparent">
-    Digital Perfume House
-  </span>
-</h2>
+        <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-scent-gold via-white to-scent-rose bg-clip-text text-transparent">
+          Digital Perfume House
+        </h2>
         <p className="text-xl text-white/60 max-w-2xl mx-auto mb-8">
           Create unique AI-generated fragrances. Built on Arc.
           Every formula is an NFT certificate of ownership.
@@ -63,6 +62,8 @@ export default function Home() {
           </span>
         </div>
       </section>
+
+      <InfoSection />
 
       {/* Mint Section */}
       <section className="max-w-6xl mx-auto px-4 pb-16 flex justify-center">
