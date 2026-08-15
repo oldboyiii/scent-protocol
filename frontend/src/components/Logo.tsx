@@ -18,11 +18,11 @@ export default function Logo({ size = 40 }: LogoProps) {
         className="rounded-lg group-hover:scale-105 transition-transform duration-300"
         priority
       />
-      <div className="hidden sm:flex flex-col pb-0.5">
-        <span className="text-xl font-bold tracking-tight text-amber-400 leading-relaxed">
+      <div className="hidden sm:flex flex-col pb-1">
+        <span className="text-xl font-bold tracking-tight text-amber-400 leading-normal">
           ScentProtocol
         </span>
-        <span className="text-[10px] text-gray-400 uppercase tracking-widest leading-none">
+        <span className="text-[10px] text-gray-400 uppercase tracking-widest">
           AI Perfume House
         </span>
       </div>
