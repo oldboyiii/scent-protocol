@@ -19,10 +19,10 @@ export default function Logo({ size = 40 }: LogoProps) {
         priority
       />
       <div className="hidden sm:flex flex-col leading-tight">
-        <span className="text-xl font-bold tracking-tight text-amber-500">
+        <span className="text-xl font-bold tracking-tight text-amber-400">
           ScentProtocol
         </span>
-        <span className="text-[10px] text-gray-500 uppercase tracking-widest">
+        <span className="text-[10px] text-gray-400 uppercase tracking-widest">
           AI Perfume House
         </span>
       </div>
