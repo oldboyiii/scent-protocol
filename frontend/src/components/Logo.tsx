@@ -18,8 +18,11 @@ export default function Logo({ size = 40 }: LogoProps) {
         className="rounded-lg group-hover:scale-105 transition-transform duration-300"
         priority
       />
-      <div className="hidden sm:flex flex-col pb-5">
-        <span className="text-lg font-bold text-amber-400 leading-snug">
+      <div className="hidden sm:flex flex-col">
+        <span 
+          className="text-lg font-bold text-amber-400"
+          style={{ lineHeight: '1.6', paddingBottom: '2px' }}
+        >
           ScentProtocol
         </span>
         <span className="text-[10px] text-gray-400 uppercase tracking-wider">
