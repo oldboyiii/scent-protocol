@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ethers } from "ethers";
+import { useToast } from "@/components/ToastProvider";
 import {
   getContract,
   getUSDCContract,
@@ -13,17 +14,18 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
   const [gender, setGender] = useState(0);
   const [pType, setPType] = useState(2);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState("");
+
+  const { addToast, updateToast } = useToast();
 
   const mint = async () => {
     const w = window as any;
     if (!w.ethereum) {
-      alert("Connect MetaMask first");
+      addToast("Please connect MetaMask first", "error");
       return;
     }
 
     setLoading(true);
-    setStep("Getting signer...");
+    const toastId = addToast("Confirm the transaction in your wallet...", "loading");
 
     try {
       const provider = new ethers.BrowserProvider(w.ethereum);
@@ -34,16 +36,16 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
       const usdc = getUSDCContract(signer);
 
       const mintPrice = await contract.mintPrice();
-      setStep("Checking USDC allowance...");
+      updateToast(toastId, "Checking USDC allowance...", "loading");
 
       const allowance = await usdc.allowance(userAddress, CONTRACT_ADDRESS);
       if (allowance < mintPrice) {
-        setStep("Approving USDC...");
+        updateToast(toastId, "Approving USDC spend...", "loading");
         const tx = await usdc.approve(CONTRACT_ADDRESS, mintPrice * BigInt(100));
         await tx.wait();
       }
 
-      setStep("Minting perfume...");
+      updateToast(toastId, "Minting your Scent NFT...", "loading");
       const tx = await contract.createPerfume(gender, pType);
       const receipt = await tx.wait();
 
@@ -86,7 +88,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
 
       if (tokenId === 0) throw new Error("TokenId not found in transaction logs");
 
-      setStep("Fetching perfume data...");
+      updateToast(toastId, "Fetching your perfume data...", "loading");
       const rawPerfume = await contract.getPerfume(tokenId);
       const perfume: PerfumeData = {
         name: rawPerfume.name,
@@ -101,24 +103,21 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
         creator: rawPerfume.creator,
       };
 
-      setStep("Crafting description...");
       const desc = generateDescription(perfume);
 
       onMinted(tokenId, perfume, desc);
-      setStep("Done!");
+      updateToast(toastId, `Scent #${tokenId} minted successfully!`, "success");
     } catch (error: any) {
       console.error(error);
-      alert("Error: " + (error.reason || error.message));
+      updateToast(toastId, error?.reason || error?.message || "Transaction failed. Please try again.", "error");
     } finally {
       setLoading(false);
-      setStep("");
     }
   };
 
   function generateDescription(perfume: PerfumeData): string {
     const genderText = ["unisex", "masculine", "feminine"][perfume.gender] || "unisex";
     const typeText = ["Parfum", "Eau de Parfum", "Eau de Toilette", "Eau de Cologne"][perfume.pType] || "fragrance";
-    const rarityText = ["a classic", "a rare", "an epic", "a legendary"][perfume.rarity] || "a unique";
 
     const top = perfume.topNotes.join(", ");
     const heart = perfume.heartNotes.join(", ");
@@ -213,7 +212,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
         disabled={loading}
         className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading ? step || "Processing..." : "Create for 10 USDC"}
+        {loading ? "Processing..." : "Create for 10 USDC"}
       </button>
 
       <p className="text-xs text-white/40 text-center mt-4">
