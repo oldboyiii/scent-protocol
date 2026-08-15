@@ -7,7 +7,7 @@ import Link from "next/link";
 export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/20 backdrop-blur-md">
-      <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-4">
+      <div className="max-w-6xl mx-auto flex items-start justify-between py-3 px-4 overflow-visible">
         <Logo size={40} />
         
         <nav className="flex items-center gap-6">
