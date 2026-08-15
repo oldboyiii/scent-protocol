@@ -158,12 +158,12 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
   }
 
   return (
-    <div className="p-8 max-w-md w-full bg-white/80 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl backdrop-blur-xl shadow-lg">
-      <h2 className="text-2xl font-bold mb-6 text-center text-slate-900 dark:text-white">Create Your Scent</h2>
+    <div className="glass-card p-8 max-w-md w-full">
+      <h2 className="text-2xl font-bold mb-6 text-center">Create Your Scent</h2>
 
       <div className="space-y-4 mb-6">
         <div>
-          <label className="block text-sm text-slate-500 dark:text-white/60 mb-2">Gender</label>
+          <label className="block text-sm text-white/60 mb-2">Gender</label>
           <div className="grid grid-cols-3 gap-2">
             {["Unisex", "Male", "Female"].map((g, i) => (
               <button
@@ -171,8 +171,8 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
                 onClick={() => setGender(i)}
                 className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   gender === i
-                    ? "bg-amber-600 text-white"
-                    : "bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-white/60 hover:bg-slate-300 dark:hover:bg-white/10"
+                    ? "bg-arc-600 text-white"
+                    : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
                 {g}
@@ -182,7 +182,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
         </div>
 
         <div>
-          <label className="block text-sm text-slate-500 dark:text-white/60 mb-2">Type</label>
+          <label className="block text-sm text-white/60 mb-2">Type</label>
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Parfum", desc: "20-30%" },
@@ -195,8 +195,8 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
                 onClick={() => setPType(i)}
                 className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   pType === i
-                    ? "bg-amber-600 text-white"
-                    : "bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-white/60 hover:bg-slate-300 dark:hover:bg-white/10"
+                    ? "bg-arc-600 text-white"
+                    : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
                 <div>{t.label}</div>
@@ -210,12 +210,12 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
       <button
         onClick={mint}
         disabled={loading}
-        className="w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? "Processing..." : "Create for 10 USDC"}
       </button>
 
-      <p className="text-xs text-slate-400 dark:text-white/40 text-center mt-4">
+      <p className="text-xs text-white/40 text-center mt-4">
         Gas in USDC • Finality &lt;1 sec • Built on Arc
       </p>
     </div>
