@@ -144,7 +144,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
     const rarityPhrases = [
       "A timeless everyday companion.",
       "A collector's piece for the discerning nose.",
-      "A masterpiece of perfermery, rarely encountered.",
+      "A masterpiece of perfumery, rarely encountered.",
       "A once-in-a-lifetime fragrance, forged in digital gold.",
     ];
 
@@ -158,7 +158,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
   }
 
   return (
-    <div className="glass-card p-8 max-w-md w-full animate-fade-up">
+    <div className="glass-card p-8 max-w-md w-full">
       <h2 className="text-2xl font-bold mb-6 text-center">Create Your Scent</h2>
 
       <div className="space-y-4 mb-6">
