@@ -24,24 +24,20 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center gap-8">
       {/* Inner Header */}
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-4xl animate-fade-up">
         <div className="glass-card flex items-center justify-between px-6 py-4">
           <Logo size={36} />
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-white">ScentProtocol</p>
-              <p className="text-xs text-white/50">Built on Arc</p>
-            </div>
-            <WalletButton />
-          </div>
+          <WalletButton />
         </div>
       </div>
 
-      {/* Info Section — сразу после хедера, как на оригинале */}
-      <InfoSection />
+      {/* Info Section */}
+      <div className="w-full animate-fade-up-delay">
+        <InfoSection />
+      </div>
 
       {/* Hero */}
-      <section className="text-center max-w-2xl mx-auto">
+      <section className="text-center max-w-2xl mx-auto animate-fade-up">
         <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6">
           Digital Perfume House
         </h1>
@@ -65,7 +61,9 @@ export default function Home() {
       </section>
 
       {/* Mint Form */}
-      <MintForm onMinted={handleMinted} />
+      <div className="animate-fade-up-delay">
+        <MintForm onMinted={handleMinted} />
+      </div>
 
       {/* Minted Cards */}
       {minted.length > 0 && (
