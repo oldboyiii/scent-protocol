@@ -9,7 +9,7 @@ interface LogoProps {
 
 export default function Logo({ size = 40 }: LogoProps) {
   return (
-    <Link href="/" className="flex items-center gap-3 group">
+    <Link href="/" className="flex items-center gap-3 group overflow-visible">
       <Image
         src="/scentprotocol-logo.jpg"
         alt="ScentProtocol"
@@ -18,11 +18,11 @@ export default function Logo({ size = 40 }: LogoProps) {
         className="rounded-lg group-hover:scale-105 transition-transform duration-300"
         priority
       />
-      <div className="hidden sm:flex flex-col pb-5">
-        <span className="text-lg font-bold text-amber-400 leading-snug">
+      <div className="hidden sm:flex flex-col overflow-visible">
+        <span className="text-xl font-bold tracking-tight text-amber-400 leading-[1.8] inline-block overflow-visible">
           ScentProtocol
         </span>
-        <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+        <span className="text-[10px] text-gray-400 uppercase tracking-widest">
           AI Perfume House
         </span>
       </div>
