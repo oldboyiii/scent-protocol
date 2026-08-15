@@ -10,7 +10,7 @@ interface Props {
 
 export default function PerfumeCard({ tokenId, perfume, aiDescription }: Props) {
   return (
-    <div className="glass-card p-6 hover:bg-white/10 transition-all duration-300">
+    <div className="glass-card p-6 hover:bg-white/10 transition-all duration-300 animate-fade-up hover-lift">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-xl font-bold text-scent-gold">{perfume.name}</h3>
