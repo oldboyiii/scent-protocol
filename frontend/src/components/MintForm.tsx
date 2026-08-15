@@ -210,7 +210,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
       <button
         onClick={mint}
         disabled={loading}
-        className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed ${loading ? "animate-pulse-glow" : ""}`}
       >
         {loading ? "Processing..." : "Create for 10 USDC"}
       </button>
