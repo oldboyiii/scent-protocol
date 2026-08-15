@@ -23,7 +23,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center gap-8">
-      {/* Inner Header — как на оригинальном скрине */}
+      {/* Inner Header */}
       <div className="w-full max-w-4xl">
         <div className="glass-card flex items-center justify-between px-6 py-4">
           <Logo size={36} />
@@ -36,6 +36,9 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Info Section — сразу после хедера, как на оригинале */}
+      <InfoSection />
 
       {/* Hero */}
       <section className="text-center max-w-2xl mx-auto">
@@ -61,8 +64,10 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Mint Form */}
       <MintForm onMinted={handleMinted} />
 
+      {/* Minted Cards */}
       {minted.length > 0 && (
         <div className="w-full max-w-md space-y-4">
           {minted.map((item) => (
@@ -75,8 +80,6 @@ export default function Home() {
           ))}
         </div>
       )}
-
-      <InfoSection />
     </div>
   );
 }
