@@ -144,7 +144,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
     const rarityPhrases = [
       "A timeless everyday companion.",
       "A collector's piece for the discerning nose.",
-      "A masterpiece of perfumery, rarely encountered.",
+      "A masterpiece of perfermery, rarely encountered.",
       "A once-in-a-lifetime fragrance, forged in digital gold.",
     ];
 
@@ -158,7 +158,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
   }
 
   return (
-    <div className="glass-card p-8 max-w-md w-full animate-fade-up hover-lift">
+    <div className="glass-card p-8 max-w-md w-full animate-fade-up">
       <h2 className="text-2xl font-bold mb-6 text-center">Create Your Scent</h2>
 
       <div className="space-y-4 mb-6">
@@ -210,7 +210,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
       <button
         onClick={mint}
         disabled={loading}
-                className={`btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed ${loading ? "animate-pulse-glow" : ""}`}
+        className={`w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${loading ? "animate-glow" : ""}`}
       >
         {loading ? "Processing..." : "Create for 10 USDC"}
       </button>
