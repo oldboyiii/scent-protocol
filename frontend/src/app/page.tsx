@@ -37,9 +37,14 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Hero — наверху, как было */}
-      <section className="text-center max-w-2xl mx-auto mt-8 animate-fade-up overflow-visible">
-        <h1 className="text-5xl md:text-6xl font-bold g-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-[1.5] pb-3 block overflow-visible">
+      {/* Info Section */}
+      <div className="w-full animate-fade-up-delay">
+        <InfoSection />
+      </div>
+
+      {/* Hero */}
+      <section className="text-center max-w-2xl mx-auto mt-8 animate-fade-up">
+        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6">
           Digital Perfume House
         </h1>
         <p className="text-lg text-white/70 mb-6">
@@ -61,13 +66,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Info Section — после Hero */}
-      <div className="w-full animate-fade-up-delay">
-        <InfoSection />
-      </div>
-
       {/* Mint Form */}
-      <div className="animate-fade-up-delay">
+      <div className="animate-fade-up-delay w-full flex justify-center">
         <MintForm onMinted={handleMinted} />
       </div>
 
@@ -87,3 +87,4 @@ export default function Home() {
     </div>
   );
 }
+
