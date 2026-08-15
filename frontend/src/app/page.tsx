@@ -27,7 +27,13 @@ export default function Home() {
       <div className="w-full max-w-4xl animate-fade-up">
         <div className="glass-card flex items-center justify-between px-6 py-4">
           <Logo size={36} />
-          <WalletButton />
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-bold text-white">ScentProtocol</p>
+              <p className="text-xs text-white/50">Built on Arc</p>
+            </div>
+            <WalletButton />
+          </div>
         </div>
       </div>
 
