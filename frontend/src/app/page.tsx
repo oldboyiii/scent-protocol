@@ -42,9 +42,9 @@ export default function Home() {
         <InfoSection />
       </div>
 
-      {/* Hero — с leading-normal и overflow-visible */}
+      {/* Hero */}
       <section className="text-center max-w-2xl mx-auto animate-fade-up overflow-visible">
-                <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-[1.3]">
+        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-[1.3] pb-2 block overflow-visible">
           Digital Perfume House
         </h1>
         <p className="text-lg text-white/70 mb-6">
