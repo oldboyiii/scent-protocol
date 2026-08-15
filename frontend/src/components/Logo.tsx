@@ -18,7 +18,7 @@ export default function Logo({ size = 40 }: LogoProps) {
         className="rounded-lg group-hover:scale-105 transition-transform duration-300"
         priority
       />
-      <div className="hidden sm:flex flex-col leading-tight">
+      <div className="hidden sm:flex flex-col">
         <span className="text-xl font-bold tracking-tight text-amber-400">
           ScentProtocol
         </span>
