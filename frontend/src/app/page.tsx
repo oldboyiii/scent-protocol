@@ -9,6 +9,7 @@ import Logo from "@/components/Logo";
 import { PerfumeData } from "@/utils/contract";
 
 interface MintedPerfume {
+  key={tokenId}
   tokenId: number;
   perfume: PerfumeData;
   description: string;
