@@ -158,7 +158,7 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
   }
 
   return (
-    <div className="glass-card p-8 max-w-lg w-full">
+    <div className="glass-card p-8 max-w-lg w-full min-w-[420px]">
       <h2 className="text-2xl font-bold mb-6 text-center">Create Your Scent</h2>
 
       <div className="space-y-4 mb-6">
