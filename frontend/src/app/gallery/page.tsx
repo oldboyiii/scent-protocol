@@ -29,24 +29,29 @@ export default function GalleryPage() {
         const contract = new ethers.Contract(CONTRACT_ADDRESS, MINI_ABI, provider);
 
         const results: GalleryItem[] = [];
+        const maxTokenId = 50; // Проверяем первые 50 токенов
+        const batchSize = 10;
 
-        // Перебираем tokenId от 1 до 200, ПРОПУСКАЕМ ошибки (continue), не break
-        for (let tokenId = 1; tokenId <= 200; tokenId++) {
-          try {
-            const perfume = await contract.getPerfume(tokenId);
-            if (perfume.name) {
-              results.push({
-                tokenId,
-                name: perfume.name,
-                rarity: Number(perfume.rarity),
-                gender: Number(perfume.gender),
-                pType: Number(perfume.pType),
-              });
-            }
-          } catch {
-            // Токен не существует или ошибка — пропускаем, идём дальше
-            continue;
+        for (let start = 1; start <= maxTokenId; start += batchSize) {
+          const end = Math.min(start + batchSize - 1, maxTokenId);
+          const batch = [];
+
+          for (let tokenId = start; tokenId <= end; tokenId++) {
+            batch.push(
+              contract.getPerfume(tokenId)
+                .then((perfume: any) => ({
+                  tokenId,
+                  name: perfume.name,
+                  rarity: Number(perfume.rarity),
+                  gender: Number(perfume.gender),
+                  pType: Number(perfume.pType),
+                }))
+                .catch(() => null)
+            );
           }
+
+          const batchResults = await Promise.all(batch);
+          results.push(...batchResults.filter((r): r is GalleryItem => r !== null));
         }
 
         setItems(results.reverse());
