@@ -16,40 +16,22 @@ interface GalleryItem {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [debug, setDebug] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchGallery() {
-      const logs: string[] = [];
       try {
         let contract;
-
-        // Используем MetaMask provider если есть, иначе fallback
         const w = window as any;
         if (w.ethereum) {
           const browserProvider = new ethers.BrowserProvider(w.ethereum);
           contract = getContract(browserProvider);
-          logs.push("Using MetaMask provider");
         } else {
           const fallbackProvider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
           contract = getContract(fallbackProvider);
-          logs.push("Using fallback RPC");
         }
-
-        // Пробуем totalSupply
-        let total = 0;
-        try {
-          const supply = await contract.totalSupply();
-          total = Number(supply);
-          logs.push(`totalSupply = ${total}`);
-        } catch (e: any) {
-          logs.push(`totalSupply: ${e.reason || e.message?.slice(0, 60)}`);
-        }
-
-        const maxId = total > 0 ? total : 50;
-        logs.push(`Checking 1..${maxId}`);
 
         const results: GalleryItem[] = [];
+        const maxId = 50;
 
         for (let start = 1; start <= maxId; start += 10) {
           const end = Math.min(start + 9, maxId);
@@ -70,25 +52,18 @@ export default function GalleryPage() {
                   }
                   return null;
                 })
-                .catch((e: any) => {
-                  logs.push(`#${tokenId} error: ${e.reason || e.message?.slice(0, 40)}`);
-                  return null;
-                })
+                .catch(() => null)
             );
           }
 
           const batchResults = await Promise.all(batch);
-          const found = batchResults.filter((r): r is GalleryItem => r !== null);
-          results.push(...found);
-          logs.push(`Batch ${start}-${end}: found ${found.length}`);
+          results.push(...batchResults.filter((r): r is GalleryItem => r !== null));
         }
 
-        logs.push(`Total found: ${results.length}`);
         setItems(results.reverse());
-      } catch (e: any) {
-        logs.push(`Fatal: ${e.message?.slice(0, 100)}`);
+      } catch (e) {
+        console.error(e);
       } finally {
-        setDebug(logs);
         setLoading(false);
       }
     }
@@ -108,12 +83,6 @@ export default function GalleryPage() {
       </h1>
       <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
 
-      <div className="mb-6 p-4 bg-black/30 rounded-lg text-xs font-mono text-white/50 space-y-1 max-h-48 overflow-y-auto">
-        {debug.map((d, i) => (
-          <div key={i}>{d}</div>
-        ))}
-      </div>
-
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -121,7 +90,7 @@ export default function GalleryPage() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-10 text-white/40">
+        <div className="text-center py-20 text-white/40">
           <p>No fragrances found on-chain.</p>
         </div>
       ) : (
