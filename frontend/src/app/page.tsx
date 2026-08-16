@@ -22,18 +22,30 @@ export default function Home() {
   const handleMinted = (tokenId: number, perfume: PerfumeData, desc: string) => {
     setMinted((prev) => [...prev, { tokenId, perfume, description: desc }]);
 
-    // Сохраняем в localStorage для страницы /collection
-    const existing = JSON.parse(localStorage.getItem("scent_collection") || "[]");
-    const updated = [
-      {
-        tokenId,
+      // === СОХРАНЕНИЕ В localStorage (полная карточка) ===
+  const existing = JSON.parse(localStorage.getItem("scent_collection") || "[]");
+  const updated = [
+    {
+      tokenId,
+      perfume: {
         name: perfume.name,
+        gender: perfume.gender,
+        pType: perfume.pType,
+        topNotes: perfume.topNotes,
+        heartNotes: perfume.heartNotes,
+        baseNotes: perfume.baseNotes,
+        concentration: perfume.concentration,
         rarity: perfume.rarity,
-        timestamp: Date.now(),
+        createdAt: perfume.createdAt,
+        creator: perfume.creator,
       },
-      ...existing.filter((s: any) => s.tokenId !== tokenId),
-    ];
-    localStorage.setItem("scent_collection", JSON.stringify(updated));
+      description: desc,
+      timestamp: Date.now(),
+    },
+    ...existing.filter((s: any) => s.tokenId !== tokenId),
+  ];
+  localStorage.setItem("scent_collection", JSON.stringify(updated));
+  // =====================================================
 
     // Конфетти
     setShowConfetti(true);
