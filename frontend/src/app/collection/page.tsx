@@ -2,12 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PerfumeData } from "@/utils/contract";
 
 interface StoredScent {
   tokenId: number;
-  perfume: PerfumeData;
-  description: string;
+  perfume?: {
+    name: string;
+    gender: number;
+    pType: number;
+    topNotes: string[];
+    heartNotes: string[];
+    baseNotes: string[];
+    concentration: number;
+    rarity: number;
+    createdAt: number;
+    creator: string;
+  };
+  description?: string;
+  name?: string;
+  rarity?: number;
   timestamp: number;
 }
 
@@ -45,44 +57,63 @@ export default function CollectionPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {scents.map((s) => (
-            <div key={s.tokenId} className="glass-card p-6 card-appear">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <span className="text-sm text-white/50">Scent #{s.tokenId}</span>
-                  <h2 className="text-2xl font-bold text-white">{s.perfume.name}</h2>
+          {scents.map((s) => {
+            const hasFullData = !!s.perfume;
+            const perfume = s.perfume;
+            const name = perfume?.name || s.name || `Scent #${s.tokenId}`;
+            const rarity = perfume?.rarity ?? s.rarity ?? 0;
+
+            return (
+              <div key={s.tokenId} className="glass-card p-6 card-appear">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <span className="text-sm text-white/50">Scent #{s.tokenId}</span>
+                    <h2 className="text-2xl font-bold text-white">{name}</h2>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold bg-white/10 uppercase ${rarityColor[rarity] || rarityColor[0]}`}>
+                    {rarityLabel[rarity] || "Common"}
+                  </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold bg-white/10 uppercase ${rarityColor[s.perfume.rarity]}`}>
-                  {rarityLabel[s.perfume.rarity]}
-                </span>
-              </div>
 
-              {/* Meta */}
-              <p className="text-sm text-white/50 mb-4">
-                {genderText[s.perfume.gender]} · {typeText[s.perfume.pType]} · {s.perfume.concentration}% concentration
-              </p>
+                {hasFullData ? (
+                  <>
+                    {/* Meta */}
+                    <p className="text-sm text-white/50 mb-4">
+                      {genderText[perfume!.gender]} · {typeText[perfume!.pType]} · {perfume!.concentration}% concentration
+                    </p>
 
-              {/* Notes Pyramid */}
-              <div className="space-y-3 mb-4">
-                <NoteRow label="Top Notes" notes={s.perfume.topNotes} color="text-yellow-300" />
-                <NoteRow label="Heart Notes" notes={s.perfume.heartNotes} color="text-pink-300" />
-                <NoteRow label="Base Notes" notes={s.perfume.baseNotes} color="text-amber-600" />
-              </div>
+                    {/* Notes Pyramid */}
+                    <div className="space-y-3 mb-4">
+                      <NoteRow label="Top Notes" notes={perfume!.topNotes} color="text-yellow-300" />
+                      <NoteRow label="Heart Notes" notes={perfume!.heartNotes} color="text-pink-300" />
+                      <NoteRow label="Base Notes" notes={perfume!.baseNotes} color="text-amber-600" />
+                    </div>
 
-              {/* AI Description */}
-              <div className="bg-white/5 rounded-lg p-4 mb-4">
-                <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Description</p>
-                <p className="text-white/80 text-sm italic leading-relaxed">&ldquo;{s.description}&rdquo;</p>
-              </div>
+                    {/* AI Description */}
+                    {s.description && (
+                      <div className="bg-white/5 rounded-lg p-4 mb-4">
+                        <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Description</p>
+                        <p className="text-white/80 text-sm italic leading-relaxed">&ldquo;{s.description}&rdquo;</p>
+                      </div>
+                    )}
 
-              {/* Footer */}
-              <div className="flex items-center justify-between text-xs text-white/40">
-                <span>By {s.perfume.creator.slice(0, 6)}...{s.perfume.creator.slice(-4)}</span>
-                <span>{new Date(s.timestamp).toLocaleString()}</span>
+                    {/* Footer */}
+                    <div className="flex items-center justify-between text-xs text-white/40">
+                      <span>By {perfume!.creator.slice(0, 6)}...{perfume!.creator.slice(-4)}</span>
+                      <span>{new Date(s.timestamp).toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : (
+                  /* Fallback для старых данных */
+                  <div className="text-sm text-white/50">
+                    <p>Minted {new Date(s.timestamp).toLocaleDateString()}</p>
+                    <p className="text-white/30 mt-1">Full details available after re-mint with updated app.</p>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -103,4 +134,3 @@ function NoteRow({ label, notes, color }: { label: string; notes: string[]; colo
     </div>
   );
 }
-
