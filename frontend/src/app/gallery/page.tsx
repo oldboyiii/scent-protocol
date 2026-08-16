@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESS, ABI } from "@/utils/contract";
+import { CONTRACT_ADDRESS } from "@/utils/contract";
+
+const MINI_ABI = [
+  "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[] topNotes, string[] heartNotes, string[] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
+];
 
 interface GalleryItem {
   tokenId: number;
@@ -21,7 +26,7 @@ export default function GalleryPage() {
     async function fetchGallery() {
       try {
         const provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, MINI_ABI, provider);
 
         const filter = contract.filters.Transfer(ethers.ZeroAddress);
         const events = await contract.queryFilter(filter, 0, "latest");
