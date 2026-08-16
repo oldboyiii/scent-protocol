@@ -35,3 +35,5 @@ export default function Navbar() {
     </header>
   );
 }
+<Link href="/about">About</Link>
+<Link href="/faq">FAQ</Link>
