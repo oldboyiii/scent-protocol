@@ -6,6 +6,7 @@ import { ethers } from "ethers";
 import { CONTRACT_ADDRESS } from "@/utils/contract";
 
 const MINI_ABI = [
+  "function totalSupply() view returns (uint256)",
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[] topNotes, string[] heartNotes, string[] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
 ];
 
@@ -20,45 +21,67 @@ interface GalleryItem {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [debug, setDebug] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchGallery() {
+      const logs: string[] = [];
       try {
         const provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
         const contract = new ethers.Contract(CONTRACT_ADDRESS, MINI_ABI, provider);
 
-        const results: GalleryItem[] = [];
-        const maxTokenId = 50; // Проверяем первые 50 токенов
-        const batchSize = 10;
+        logs.push(`Contract: ${CONTRACT_ADDRESS.slice(0, 12)}...`);
 
-        for (let start = 1; start <= maxTokenId; start += batchSize) {
-          const end = Math.min(start + batchSize - 1, maxTokenId);
+        // Пробуем totalSupply
+        let total = 0;
+        try {
+          const supply = await contract.totalSupply();
+          total = Number(supply);
+          logs.push(`totalSupply = ${total}`);
+        } catch (e: any) {
+          logs.push(`totalSupply error: ${e.message || e}`);
+        }
+
+        const maxId = total > 0 ? total : 50;
+        logs.push(`Checking 1..${maxId}`);
+
+        const results: GalleryItem[] = [];
+
+        for (let start = 1; start <= maxId; start += 10) {
+          const end = Math.min(start + 9, maxId);
           const batch = [];
 
           for (let tokenId = start; tokenId <= end; tokenId++) {
             batch.push(
               contract.getPerfume(tokenId)
-                .then((perfume: any) => ({
-                  tokenId,
-                  name: perfume.name,
-                  rarity: Number(perfume.rarity),
-                  gender: Number(perfume.gender),
-                  pType: Number(perfume.pType),
-                }))
+                .then((p: any) => {
+                  if (p && p.name) {
+                    return {
+                      tokenId,
+                      name: p.name,
+                      rarity: Number(p.rarity),
+                      gender: Number(p.gender),
+                      pType: Number(p.pType),
+                    };
+                  }
+                  return null;
+                })
                 .catch(() => null)
             );
           }
 
           const batchResults = await Promise.all(batch);
-          results.push(...batchResults.filter((r): r is GalleryItem => r !== null));
+          const found = batchResults.filter((r): r is GalleryItem => r !== null);
+          results.push(...found);
+          logs.push(`Batch ${start}-${end}: found ${found.length}`);
         }
 
+        logs.push(`Total found: ${results.length}`);
         setItems(results.reverse());
       } catch (e: any) {
-        console.error("Gallery fetch error:", e);
-        setError(e.message || "Failed to load gallery");
+        logs.push(`Fatal error: ${e.message || e}`);
       } finally {
+        setDebug(logs);
         setLoading(false);
       }
     }
@@ -71,29 +94,19 @@ export default function GalleryPage() {
   const genderIcon = ["⚲", "♂", "♀"];
   const typeLabel = ["Parfum", "EDP", "EDT", "EDC"];
 
-  if (error) {
-    return (
-      <div className="max-w-6xl mx-auto py-16 px-4 text-center">
-        <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent">
-          Gallery
-        </h1>
-        <p className="text-red-400 mb-4">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-amber-600 rounded-lg text-white hover:bg-amber-700"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-6xl mx-auto py-16 px-4">
       <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent">
         Gallery
       </h1>
       <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
+
+      {/* Debug info */}
+      <div className="mb-6 p-4 bg-black/30 rounded-lg text-xs font-mono text-white/50 space-y-1">
+        {debug.map((d, i) => (
+          <div key={i}>{d}</div>
+        ))}
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -102,7 +115,7 @@ export default function GalleryPage() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 text-white/40">
+        <div className="text-center py-10 text-white/40">
           <p>No fragrances found on-chain.</p>
         </div>
       ) : (
