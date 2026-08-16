@@ -6,6 +6,7 @@ import PerfumeCard from "@/components/PerfumeCard";
 import InfoSection from "@/components/InfoSection";
 import Logo from "@/components/Logo";
 import WalletButton from "@/components/WalletButton";
+import Confetti from "@/components/Confetti";
 import { PerfumeData } from "@/utils/contract";
 
 interface MintedPerfume {
@@ -16,13 +17,33 @@ interface MintedPerfume {
 
 export default function Home() {
   const [minted, setMinted] = useState<MintedPerfume[]>([]);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const handleMinted = (tokenId: number, perfume: PerfumeData, desc: string) => {
     setMinted((prev) => [...prev, { tokenId, perfume, description: desc }]);
+
+    // Сохраняем в localStorage для страницы /collection
+    const existing = JSON.parse(localStorage.getItem("scent_collection") || "[]");
+    const updated = [
+      {
+        tokenId,
+        name: perfume.name,
+        rarity: perfume.rarity,
+        timestamp: Date.now(),
+      },
+      ...existing.filter((s: any) => s.tokenId !== tokenId),
+    ];
+    localStorage.setItem("scent_collection", JSON.stringify(updated));
+
+    // Конфетти
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 5000);
   };
 
   return (
     <div className="flex flex-col items-center gap-8">
+      <Confetti active={showConfetti} />
+
       {/* Inner Header */}
       <div className="w-full max-w-4xl animate-fade-up">
         <div className="glass-card flex items-center justify-between px-6 py-4">
@@ -37,7 +58,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Hero — наверху, как было */}
+      {/* Hero */}
       <section className="text-center max-w-2xl mx-auto mt-8 animate-fade-up overflow-visible">
         <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-[1.5] pb-3 block overflow-visible">
           Digital Perfume House
@@ -61,7 +82,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Info Section — после Hero */}
+      {/* Info Section */}
       <div className="w-full animate-fade-up-delay">
         <InfoSection />
       </div>
@@ -87,16 +108,3 @@ export default function Home() {
     </div>
   );
 }
-import Confetti from "@/components/Confetti";
-
-// внутри Home:
-const [showConfetti, setShowConfetti] = useState(false);
-
-const handleMinted = (...) => {
-  // ... твой код
-  setShowConfetti(true);
-  setTimeout(() => setShowConfetti(false), 5000);
-};
-
-// в JSX:
-<Confetti active={showConfetti} />
