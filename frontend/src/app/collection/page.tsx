@@ -43,7 +43,7 @@ export default function CollectionPage() {
 
   return (
     <div className="max-w-4xl mx-auto py-16 px-4">
-      <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent">
+      <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-normal pb-1">
         My Collection
       </h1>
       <p className="text-white/50 mb-8">Your minted fragrances, stored locally in your browser.</p>
@@ -65,7 +65,6 @@ export default function CollectionPage() {
 
             return (
               <div key={s.tokenId} className="glass-card p-6 card-appear">
-                {/* Header */}
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <span className="text-sm text-white/50">Scent #{s.tokenId}</span>
@@ -78,19 +77,16 @@ export default function CollectionPage() {
 
                 {hasFullData ? (
                   <>
-                    {/* Meta */}
                     <p className="text-sm text-white/50 mb-4">
                       {genderText[perfume!.gender]} · {typeText[perfume!.pType]} · {perfume!.concentration}% concentration
                     </p>
 
-                    {/* Notes Pyramid */}
                     <div className="space-y-3 mb-4">
                       <NoteRow label="Top Notes" notes={perfume!.topNotes} color="text-yellow-300" />
                       <NoteRow label="Heart Notes" notes={perfume!.heartNotes} color="text-pink-300" />
                       <NoteRow label="Base Notes" notes={perfume!.baseNotes} color="text-amber-600" />
                     </div>
 
-                    {/* AI Description */}
                     {s.description && (
                       <div className="bg-white/5 rounded-lg p-4 mb-4">
                         <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Description</p>
@@ -98,14 +94,12 @@ export default function CollectionPage() {
                       </div>
                     )}
 
-                    {/* Footer */}
                     <div className="flex items-center justify-between text-xs text-white/40">
                       <span>By {perfume!.creator.slice(0, 6)}...{perfume!.creator.slice(-4)}</span>
                       <span>{new Date(s.timestamp).toLocaleString()}</span>
                     </div>
                   </>
                 ) : (
-                  /* Fallback для старых данных */
                   <div className="text-sm text-white/50">
                     <p>Minted {new Date(s.timestamp).toLocaleDateString()}</p>
                     <p className="text-white/30 mt-1">Full details available after re-mint with updated app.</p>
