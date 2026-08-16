@@ -3,8 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESS, ABI } from "@/utils/contract";
+import { CONTRACT_ADDRESS } from "@/utils/contract";
 import Link from "next/link";
+
+const MINI_ABI = [
+  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[] topNotes, string[] heartNotes, string[] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
+];
 
 interface PerfumeData {
   name: string;
@@ -29,7 +33,7 @@ export default function NFTPage() {
     async function fetchPerfume() {
       try {
         const provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, MINI_ABI, provider);
         const data = await contract.getPerfume(tokenId);
         setPerfume({
           name: data.name,
@@ -96,7 +100,6 @@ export default function NFTPage() {
           {genderText[perfume.gender]} · {typeText[perfume.pType]} · {perfume.concentration}% concentration
         </p>
 
-        {/* Notes Pyramid */}
         <div className="space-y-4 mb-6">
           <NoteRow label="Top Notes" notes={perfume.topNotes} color="text-yellow-300" />
           <NoteRow label="Heart Notes" notes={perfume.heartNotes} color="text-pink-300" />
