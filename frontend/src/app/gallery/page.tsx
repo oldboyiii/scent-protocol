@@ -9,9 +9,6 @@ const MINI_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[] topNotes, string[] heartNotes, string[] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
 ];
 
-// Topic0 для Transfer(address,address,uint256)
-const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-
 interface GalleryItem {
   tokenId: number;
   name: string;
@@ -29,39 +26,11 @@ export default function GalleryPage() {
     async function fetchGallery() {
       try {
         const provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-
-        // Получаем текущий блок и ограничиваем диапазон 50000 блоками
-        const latestBlock = await provider.getBlockNumber();
-        const fromBlock = Math.max(0, latestBlock - 50000);
-
-        console.log("Querying logs from block", fromBlock, "to", latestBlock);
-
-        const logs = await provider.getLogs({
-          address: CONTRACT_ADDRESS,
-          topics: [TRANSFER_TOPIC, ethers.zeroPadValue("0x0000", 32)],
-          fromBlock: fromBlock,
-          toBlock: "latest",
-        });
-
-        console.log("Gallery logs found:", logs.length);
-
-        const tokenIds = logs
-          .map((log) => {
-            try {
-              return Number(log.topics[3]);
-            } catch {
-              return null;
-            }
-          })
-          .filter((id): id is number => id !== null);
-
-        const uniqueTokenIds = [...new Set(tokenIds)].sort((a, b) => b - a).slice(0, 50);
-        console.log("Unique token IDs:", uniqueTokenIds);
-
         const contract = new ethers.Contract(CONTRACT_ADDRESS, MINI_ABI, provider);
-        const results: GalleryItem[] = [];
 
-        for (const tokenId of uniqueTokenIds) {
+        // Перебираем tokenId от 1 до 100 — просто и надёжно
+        const results: GalleryItem[] = [];
+        for (let tokenId = 1; tokenId <= 100; tokenId++) {
           try {
             const perfume = await contract.getPerfume(tokenId);
             results.push({
@@ -71,12 +40,13 @@ export default function GalleryPage() {
               gender: Number(perfume.gender),
               pType: Number(perfume.pType),
             });
-          } catch (e) {
-            console.warn(`Failed to fetch perfume #${tokenId}:`, e);
+          } catch {
+            // Токен не существует — пропускаем
+            break;
           }
         }
 
-        setItems(results);
+        setItems(results.reverse());
       } catch (e: any) {
         console.error("Gallery fetch error:", e);
         setError(e.message || "Failed to load gallery");
@@ -126,7 +96,6 @@ export default function GalleryPage() {
       ) : items.length === 0 ? (
         <div className="text-center py-20 text-white/40">
           <p>No fragrances found on-chain.</p>
-          <p className="text-sm text-white/20 mt-2">Contract: {CONTRACT_ADDRESS.slice(0, 8)}...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
