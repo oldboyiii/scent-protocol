@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESS } from "@/utils/contract";
-
-const MINI_ABI = [
-  "function totalSupply() view returns (uint256)",
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[] topNotes, string[] heartNotes, string[] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
-];
+import { getContract } from "@/utils/contract";
 
 interface GalleryItem {
   tokenId: number;
@@ -27,10 +22,19 @@ export default function GalleryPage() {
     async function fetchGallery() {
       const logs: string[] = [];
       try {
-        const provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, MINI_ABI, provider);
+        let contract;
 
-        logs.push(`Contract: ${CONTRACT_ADDRESS.slice(0, 12)}...`);
+        // Используем MetaMask provider если есть, иначе fallback
+        const w = window as any;
+        if (w.ethereum) {
+          const browserProvider = new ethers.BrowserProvider(w.ethereum);
+          contract = getContract(browserProvider);
+          logs.push("Using MetaMask provider");
+        } else {
+          const fallbackProvider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+          contract = getContract(fallbackProvider);
+          logs.push("Using fallback RPC");
+        }
 
         // Пробуем totalSupply
         let total = 0;
@@ -39,7 +43,7 @@ export default function GalleryPage() {
           total = Number(supply);
           logs.push(`totalSupply = ${total}`);
         } catch (e: any) {
-          logs.push(`totalSupply error: ${e.message || e}`);
+          logs.push(`totalSupply: ${e.reason || e.message?.slice(0, 60)}`);
         }
 
         const maxId = total > 0 ? total : 50;
@@ -66,7 +70,10 @@ export default function GalleryPage() {
                   }
                   return null;
                 })
-                .catch(() => null)
+                .catch((e: any) => {
+                  logs.push(`#${tokenId} error: ${e.reason || e.message?.slice(0, 40)}`);
+                  return null;
+                })
             );
           }
 
@@ -79,7 +86,7 @@ export default function GalleryPage() {
         logs.push(`Total found: ${results.length}`);
         setItems(results.reverse());
       } catch (e: any) {
-        logs.push(`Fatal error: ${e.message || e}`);
+        logs.push(`Fatal: ${e.message?.slice(0, 100)}`);
       } finally {
         setDebug(logs);
         setLoading(false);
@@ -101,8 +108,7 @@ export default function GalleryPage() {
       </h1>
       <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
 
-      {/* Debug info */}
-      <div className="mb-6 p-4 bg-black/30 rounded-lg text-xs font-mono text-white/50 space-y-1">
+      <div className="mb-6 p-4 bg-black/30 rounded-lg text-xs font-mono text-white/50 space-y-1 max-h-48 overflow-y-auto">
         {debug.map((d, i) => (
           <div key={i}>{d}</div>
         ))}
