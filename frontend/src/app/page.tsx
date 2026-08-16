@@ -87,3 +87,16 @@ export default function Home() {
     </div>
   );
 }
+import Confetti from "@/components/Confetti";
+
+// внутри Home:
+const [showConfetti, setShowConfetti] = useState(false);
+
+const handleMinted = (...) => {
+  // ... твой код
+  setShowConfetti(true);
+  setTimeout(() => setShowConfetti(false), 5000);
+};
+
+// в JSX:
+<Confetti active={showConfetti} />
