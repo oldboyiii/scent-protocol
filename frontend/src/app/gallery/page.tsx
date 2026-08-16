@@ -30,21 +30,25 @@ export default function GalleryPage() {
       try {
         const provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
 
-        // Читаем логи Transfer напрямую через getLogs
+        // Получаем текущий блок и ограничиваем диапазон 50000 блоками
+        const latestBlock = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, latestBlock - 50000);
+
+        console.log("Querying logs from block", fromBlock, "to", latestBlock);
+
         const logs = await provider.getLogs({
           address: CONTRACT_ADDRESS,
-          topics: [TRANSFER_TOPIC, ethers.zeroPadValue("0x0000", 32)], // from = zero address (mint)
-          fromBlock: 0,
+          topics: [TRANSFER_TOPIC, ethers.zeroPadValue("0x0000", 32)],
+          fromBlock: fromBlock,
           toBlock: "latest",
         });
 
         console.log("Gallery logs found:", logs.length);
 
-        // Извлекаем tokenId из topic3
         const tokenIds = logs
           .map((log) => {
             try {
-              return Number(log.topics[3]); // indexed tokenId
+              return Number(log.topics[3]);
             } catch {
               return null;
             }
