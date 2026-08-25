@@ -1,133 +1,250 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 
-interface ShareCardProps {
-  tokenId: number;
+interface Perfume {
   name: string;
-  rarity: number;
   gender: number;
   pType: number;
   topNotes: string[];
   heartNotes: string[];
   baseNotes: string[];
   concentration: number;
+  rarity: number;
 }
 
-const RARITY_LABEL = ["Common", "Rare", "Epic", "Legendary"];
-const RARITY_GRADIENT = [
-  "from-gray-600 to-gray-900",
-  "from-blue-600 to-blue-900",
-  "from-purple-600 to-purple-900",
-  "from-amber-600 to-amber-900",
-];
-const GENDER_ICON = ["⚲", "♂", "♀"];
-const TYPE_LABEL = ["Parfum", "EDP", "EDT", "EDC"];
+const GENDER = ["Male", "Female", "Unisex"];
+const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
+const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
-export default function ShareCard({ tokenId, name, rarity, gender, pType, topNotes, heartNotes, baseNotes, concentration }: ShareCardProps) {
-  const [showModal, setShowModal] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
+const RARITY_COLORS: Record<number, { bg: string; accent: string; hex: string }> = {
+  0: { bg: "#64748b", accent: "#94a3b8", hex: "#64748b" },
+  1: { bg: "#3b82f6", accent: "#60a5fa", hex: "#3b82f6" },
+  2: { bg: "#a855f7", accent: "#c084fc", hex: "#a855f7" },
+  3: { bg: "#f59e0b", accent: "#fbbf24", hex: "#f59e0b" },
+};
 
-  const handleShare = async () => {
-    if (!cardRef.current) return;
+export default function ShareCard({
+  tokenId,
+  perfume,
+}: {
+  tokenId: number;
+  perfume: Perfume;
+}) {
+  const [open, setOpen] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // Простое копирование текста, т.к. html-to-image требует npm
-    const text = `🧪 ${name} — Scent #${tokenId}
+  const rarity = RARITY_COLORS[perfume.rarity] || RARITY_COLORS[0];
+  const url = `https://scentprotocol.vercel.app/nft/${tokenId}`;
 
-${GENDER_ICON[gender]} ${TYPE_LABEL[pType]} · ${concentration}% · ${RARITY_LABEL[rarity]}
+  const tweetText = encodeURIComponent(
+    `🧪 ${perfume.name} — Scent #${tokenId}
 
-Top: ${topNotes.join(", ")}
-Heart: ${heartNotes.join(", ")}
-Base: ${baseNotes.join(", ")}
+` +
+      `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
 
-Minted on ScentProtocol | Built on Arc`;
+` +
+      `Top: ${perfume.topNotes.join(", ")}
+` +
+      `Heart: ${perfume.heartNotes.join(", ")}
+` +
+      `Base: ${perfume.baseNotes.join(", ")}
 
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Card text copied! Paste anywhere.");
-    } catch {
-      alert(text);
-    }
+` +
+      `Minted on ScentProtocol | Built on Arc 🌐`
+  );
+  const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(url)}`;
+
+  const copyText =
+    `🧪 ${perfume.name} — Scent #${tokenId}
+
+` +
+    `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
+
+` +
+    `Top: ${perfume.topNotes.join(", ")}
+` +
+    `Heart: ${perfume.heartNotes.join(", ")}
+` +
+    `Base: ${perfume.baseNotes.join(", ")}
+
+` +
+    `Minted on ScentProtocol | Built on Arc
+${url}`;
+
+  const drawCard = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    const W = 1200;
+    const H = 630;
+    canvas.width = W;
+    canvas.height = H;
+
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, "#0f172a");
+    grad.addColorStop(1, "#1e293b");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Accent border glow
+    ctx.shadowColor = rarity.hex;
+    ctx.shadowBlur = 40;
+    ctx.strokeStyle = rarity.hex;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(20, 20, W - 40, H - 40);
+    ctx.shadowBlur = 0;
+
+    // Inner card
+    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    ctx.fillRect(40, 40, W - 80, H - 80);
+
+    // Logo / brand
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 28px sans-serif";
+    ctx.fillText("🜂 ScentProtocol", 80, 100);
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.font = "20px sans-serif";
+    ctx.fillText("Built on Arc", 80, 130);
+
+    // Token ID
+    ctx.fillStyle = rarity.accent;
+    ctx.font = "bold 22px sans-serif";
+    ctx.fillText(`SCENT #${tokenId}`, 80, 190);
+
+    // Name
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 72px sans-serif";
+    ctx.fillText(perfume.name, 80, 280);
+
+    // Tags line
+    ctx.font = "28px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    const tags = `${GENDER[perfume.gender]}  ·  ${TYPE[perfume.pType]}  ·  ${perfume.concentration}%  ·  ${RARITY[perfume.rarity]}`;
+    ctx.fillText(tags, 80, 340);
+
+    // Divider
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(80, 380);
+    ctx.lineTo(W - 80, 380);
+    ctx.stroke();
+
+    // Notes
+    ctx.font = "bold 24px sans-serif";
+    ctx.fillStyle = rarity.accent;
+    ctx.fillText("PYRAMID OF NOTES", 80, 430);
+
+    ctx.font = "24px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillText(`Top:     ${perfume.topNotes.join(", ")}`, 80, 475);
+    ctx.fillText(`Heart:   ${perfume.heartNotes.join(", ")}`, 80, 515);
+    ctx.fillText(`Base:    ${perfume.baseNotes.join(", ")}`, 80, 555);
+
+    // URL bottom-right
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = "20px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(url, W - 80, H - 60);
+    ctx.textAlign = "left";
+
+    return canvas.toDataURL("image/png");
+  }, [perfume, tokenId, rarity, url]);
+
+  const handleDownload = () => {
+    const dataUrl = drawCard();
+    if (!dataUrl) return;
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `scent-${tokenId}.png`;
+    link.click();
+    setOpen(false);
+  };
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(copyText);
+    setOpen(false);
+  };
+
+  const handleTweet = () => {
+    window.open(tweetUrl, "_blank", "width=600,height=400");
+    setOpen(false);
   };
 
   return (
     <>
       <button
-        onClick={() => setShowModal(true)}
-        className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors flex items-center gap-2"
+        onClick={() => setOpen(true)}
+        className="text-xs text-white/50 hover:text-white transition-colors underline underline-offset-2"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
         Share Card
       </button>
 
-      {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80" onClick={() => setShowModal(false)}>
-          <div className="relative" onClick={(e) => e.stopPropagation()}>
-            {/* The Card */}
-            <div
-              ref={cardRef}
-              className={`w-80 p-6 rounded-2xl bg-gradient-to-br ${RARITY_GRADIENT[rarity]} border border-white/20 shadow-2xl`}
+      {open && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-white">Share Your Scent</h3>
+
+            {/* Preview card */}
+            <div className={`rounded-xl p-5 bg-gradient-to-br from-[${rarity.hex}]/20 border border-white/10`} style={{ borderColor: rarity.hex + "40" }}>
+              <p className="text-white/60 text-xs uppercase tracking-wider mb-1">Scent #{tokenId}</p>
+              <h4 className="text-xl font-bold text-white mb-3">{perfume.name}</h4>
+              <div className="flex flex-wrap gap-2 text-xs text-white/80">
+                <span className="px-2 py-0.5 rounded-full bg-white/10">{GENDER[perfume.gender]}</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/10">{TYPE[perfume.pType]}</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/10">{perfume.concentration}%</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/10">{RARITY[perfume.rarity]}</span>
+              </div>
+              <div className="mt-3 text-xs text-white/70 space-y-0.5">
+                <p>Top: {perfume.topNotes.join(", ")}</p>
+                <p>Heart: {perfume.heartNotes.join(", ")}</p>
+                <p>Base: {perfume.baseNotes.join(", ")}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleTweet}
+                className="py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
+              >
+                🐦 Tweet
+              </button>
+              <button
+                onClick={handleDownload}
+                className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-colors"
+              >
+                🖼️ Save PNG
+              </button>
+              <button
+                onClick={handleCopy}
+                className="py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors col-span-2"
+              >
+                📋 Copy Text
+              </button>
+            </div>
+
+            <button
+              onClick={() => setOpen(false)}
+              className="w-full text-xs text-white/40 hover:text-white/70 transition-colors"
             >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs text-white/50 font-mono">SCENT #{tokenId}</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-bold text-white uppercase tracking-wider">
-                  {RARITY_LABEL[rarity]}
-                </span>
-              </div>
-
-              <h2 className="text-2xl font-bold text-white mb-1">{name}</h2>
-              <p className="text-xs text-white/60 mb-4">
-                {GENDER_ICON[gender]} {TYPE_LABEL[pType]} · {concentration}% concentration
-              </p>
-
-              <div className="space-y-2 mb-4">
-                <NoteLine label="TOP" notes={topNotes} />
-                <NoteLine label="HEART" notes={heartNotes} />
-                <NoteLine label="BASE" notes={baseNotes} />
-              </div>
-
-              <div className="border-t border-white/10 pt-3 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 rounded bg-amber-500 flex items-center justify-center text-[10px] font-bold text-black">S</div>
-                  <span className="text-[10px] text-white/40">ScentProtocol</span>
-                </div>
-                <span className="text-[10px] text-white/30">Built on Arc</span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={handleShare}
-                className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors"
-              >
-                Copy Text
-              </button>
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
-              >
-                Close
-              </button>
-            </div>
+              Close
+            </button>
           </div>
+
+          {/* Hidden canvas for image generation */}
+          <canvas ref={canvasRef} style={{ display: "none" }} />
         </div>
       )}
     </>
-  );
-}
-
-function NoteLine({ label, notes }: { label: string; notes: string[] }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] text-white/30 w-10 shrink-0">{label}</span>
-      <div className="flex flex-wrap gap-1">
-        {notes.map((n, i) => (
-          <span key={i} className="px-2 py-0.5 rounded bg-white/10 text-[11px] text-white/80">
-            {n}
-          </span>
-        ))}
-      </div>
-    </div>
   );
 }
