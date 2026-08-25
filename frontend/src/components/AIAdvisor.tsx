@@ -2,122 +2,135 @@
 
 import { useState } from "react";
 
-interface AIAdvisorProps {
-  onSelect: (gender: number, type: number) => void;
+interface Suggestion {
+  gender: number;
+  pType: number;
+  reason: string;
 }
 
-const MOOD_MAP: Record<string, { gender: number; type: number; reason: string }> = {
-  "summer": { gender: 2, type: 2, reason: "Light, fresh scents work best in heat. Unisex EDT recommended." },
-  "winter": { gender: 0, type: 0, reason: "Cold weather calls for rich, concentrated warmth. Male Parfum." },
-  "date": { gender: 1, type: 1, reason: "Romantic evenings need depth and longevity. Female EDP." },
-  "office": { gender: 2, type: 2, reason: "Subtle and professional. Unisex EDT is perfect." },
-  "party": { gender: 2, type: 1, reason: "Make an impression. Unisex EDP has presence." },
-  "fresh": { gender: 2, type: 3, reason: "Crisp and airy. Unisex EDC for everyday." },
-  "strong": { gender: 0, type: 0, reason: "Bold and commanding. Male Parfum." },
-  "sweet": { gender: 1, type: 1, reason: "Warm and inviting. Female EDP." },
-  "elegant": { gender: 1, type: 0, reason: "Sophistication in every drop. Female Parfum." },
-  "sport": { gender: 0, type: 3, reason: "Energetic and light. Male EDC." },
+const KEYWORDS: Record<string, { gender?: number; pType?: number; tags: string[] }> = {
+  "summer": { pType: 2, tags: ["fresh", "light", "citrus"] },
+  "fresh": { pType: 2, tags: ["citrus", "aquatic", "green"] },
+  "light": { pType: 2, tags: ["airy", "soft"] },
+  "winter": { pType: 0, tags: ["warm", "woody", "spicy"] },
+  "warm": { pType: 0, tags: ["amber", "vanilla", "spicy"] },
+  "date": { pType: 1, tags: ["seductive", "floral", "sweet"] },
+  "evening": { pType: 1, tags: ["rich", "mysterious", "oud"] },
+  "night": { pType: 1, tags: ["dark", "intense", "musk"] },
+  "work": { pType: 2, tags: ["clean", "professional", "subtle"] },
+  "office": { pType: 2, tags: ["clean", "professional", "subtle"] },
+  "sport": { pType: 3, tags: ["energetic", "fresh", "minty"] },
+  "gym": { pType: 3, tags: ["energetic", "fresh", "minty"] },
+  "elegant": { pType: 1, tags: ["sophisticated", "refined", "classic"] },
+  "luxury": { pType: 0, tags: ["rich", "exclusive", "rare"] },
+  "casual": { pType: 2, tags: ["easy-going", "versatile"] },
+  "beach": { pType: 3, tags: ["salty", "sunny", "tropical"] },
+  "party": { pType: 1, tags: ["bold", "sparkling", "sweet"] },
+  "romantic": { gender: 2, pType: 1, tags: ["rose", "jasmine", "soft"] },
+  "masculine": { gender: 1, pType: 1, tags: ["woody", "leathery", "aromatic"] },
+  "feminine": { gender: 2, pType: 1, tags: ["floral", "fruity", "sweet"] },
 };
 
-const GENDER = ["Male", "Female", "Unisex"];
-const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
+const TYPE_NAMES = ["Parfum", "Eau de Parfum", "Eau de Toilette", "Eau de Cologne"];
+const GENDER_NAMES = ["Unisex", "Male", "Female"];
+
+interface AIAdvisorProps {
+  onSelect: (gender: number, pType: number) => void;
+}
 
 export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   const [input, setInput] = useState("");
-  const [result, setResult] = useState<{
-    gender: number;
-    type: number;
-    reason: string;
-  } | null>(null);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const analyze = () => {
-    const lower = input.toLowerCase();
-    for (const [key, value] of Object.entries(MOOD_MAP)) {
-      if (lower.includes(key)) {
-        setResult(value);
-        return;
+    setLoading(true);
+    setTimeout(() => {
+      const lower = input.toLowerCase();
+      let gender: number | undefined;
+      let pType: number | undefined;
+      const matchedTags: string[] = [];
+
+      for (const [word, data] of Object.entries(KEYWORDS)) {
+        if (lower.includes(word)) {
+          if (data.gender !== undefined) gender = data.gender;
+          if (data.pType !== undefined) pType = data.pType;
+          matchedTags.push(...data.tags);
+        }
       }
-    }
-    // Default
-    setResult({
-      gender: 2,
-      type: 2,
-      reason: "No specific mood detected. Defaulting to versatile Unisex EDT.",
-    });
+
+      if (gender === undefined) gender = 0;
+      if (pType === undefined) pType = 2;
+
+      const uniqueTags = [...new Set(matchedTags)].slice(0, 3);
+      const reason = uniqueTags.length > 0
+        ? `Detected mood: ${uniqueTags.join(", ")}. Recommended ${GENDER_NAMES[gender]} ${TYPE_NAMES[pType].toLowerCase()}.`
+        : `Based on your vibe, I recommend a ${GENDER_NAMES[gender].toLowerCase()} ${TYPE_NAMES[pType].toLowerCase()}.`;
+
+      setSuggestion({ gender, pType, reason });
+      setLoading(false);
+    }, 800);
   };
 
-  const quickTags = [
-    "summer", "winter", "date", "office",
-    "party", "fresh", "strong", "sweet",
-  ];
-
   return (
-    <div className="glass-card rounded-2xl p-6 max-w-xl mx-auto space-y-4">
-      <div className="flex items-center gap-3 mb-2">
+    <div className="glass-card p-6 max-w-xl w-full">
+      <div className="flex items-center gap-2 mb-4">
         <span className="text-2xl">🤖</span>
-        <div>
-          <h3 className="text-lg font-bold text-white">AI Perfume Advisor</h3>
-          <p className="text-sm text-white/50">Describe the occasion or mood</p>
-        </div>
+        <h3 className="text-lg font-bold text-white">Scent AI Advisor</h3>
       </div>
+      <p className="text-sm text-white/50 mb-4">
+        Describe your mood, occasion, or vibe — AI will recommend the perfect fragrance type.
+      </p>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 mb-4">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && analyze()}
-          placeholder="e.g. summer date, office, party..."
-          className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-amber-500/50 transition-colors"
+          placeholder="e.g. summer date, winter evening, gym..."
+          className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500"
         />
         <button
           onClick={analyze}
-          className="px-5 py-2.5 rounded-xl bg-amber-500/20 text-amber-300 font-semibold hover:bg-amber-500/30 transition-colors border border-amber-500/30"
+          disabled={loading || !input.trim()}
+          className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
         >
-          Analyze
+          {loading ? "..." : "Analyze"}
         </button>
       </div>
 
+      {suggestion && (
+        <div className="bg-white/5 rounded-lg p-4 mb-4 animate-fade-up">
+          <p className="text-sm text-white/80 italic mb-3">&ldquo;{suggestion.reason}&rdquo;</p>
+          <div className="flex items-center gap-3">
+            <div className="px-3 py-1 rounded-full bg-white/10 text-xs text-amber-300">
+              {GENDER_NAMES[suggestion.gender]}
+            </div>
+            <div className="px-3 py-1 rounded-full bg-white/10 text-xs text-amber-300">
+              {TYPE_NAMES[suggestion.pType]}
+            </div>
+          </div>
+          <button
+            onClick={() => onSelect(suggestion.gender, suggestion.pType)}
+            className="mt-3 w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+          >
+            Apply &rarr; Create Your Scent
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
-        {quickTags.map((tag) => (
+        {["summer date", "winter evening", "office", "party", "romantic"].map((tag) => (
           <button
             key={tag}
-            onClick={() => {
-              setInput(tag);
-              const lower = tag.toLowerCase();
-              for (const [key, value] of Object.entries(MOOD_MAP)) {
-                if (lower.includes(key)) {
-                  setResult(value);
-                  return;
-                }
-              }
-            }}
-            className="px-3 py-1 rounded-full text-xs bg-white/5 text-white/60 hover:bg-white/10 hover:text-white border border-white/10 transition-colors capitalize"
+            onClick={() => { setInput(tag); }}
+            className="px-3 py-1 rounded-full bg-white/5 text-xs text-white/50 hover:bg-white/10 hover:text-white transition-colors"
           >
             {tag}
           </button>
         ))}
       </div>
-
-      {result && (
-        <div className="rounded-xl bg-white/5 border border-white/10 p-4 space-y-3">
-          <p className="text-sm text-white/70">{result.reason}</p>
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 text-sm font-semibold border border-amber-500/20">
-              {GENDER[result.gender]}
-            </span>
-            <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 text-sm font-semibold border border-amber-500/20">
-              {TYPE[result.type]}
-            </span>
-          </div>
-          <button
-            onClick={() => onSelect(result.gender, result.type)}
-            className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-colors"
-          >
-            Apply to Mint Form →
-          </button>
-        </div>
-      )}
     </div>
   );
 }
