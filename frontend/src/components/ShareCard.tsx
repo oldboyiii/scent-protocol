@@ -38,7 +38,7 @@ export default function ShareCard({
   const url = `https://scentprotocol.vercel.app/nft/${tokenId}`;
 
   const tweetText = encodeURIComponent(
-    `🧪 ${perfume.name} — Scent #${tokenId}
+    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}
 
 ` +
       `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
@@ -51,12 +51,15 @@ export default function ShareCard({
       `Base: ${perfume.baseNotes.join(", ")}
 
 ` +
-      `Minted on ScentProtocol | Built on Arc 🌐`
+      `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.
+
+` +
+      `Mint yours →`
   );
   const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(url)}`;
 
   const copyText =
-    `🧪 ${perfume.name} — Scent #${tokenId}
+    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}
 
 ` +
     `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
@@ -69,8 +72,10 @@ export default function ShareCard({
     `Base: ${perfume.baseNotes.join(", ")}
 
 ` +
-    `Minted on ScentProtocol | Built on Arc
-${url}`;
+    `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.
+
+` +
+    `Mint yours → ${url}`;
 
   const drawCard = useCallback(() => {
     const canvas = canvasRef.current;
@@ -105,7 +110,7 @@ ${url}`;
     // Brand
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 28px sans-serif";
-    ctx.fillText("🜂 ScentProtocol", 80, 100);
+    ctx.fillText("ScentProtocol", 80, 100);
     ctx.fillStyle = "rgba(255,255,255,0.5)";
     ctx.font = "20px sans-serif";
     ctx.fillText("Built on Arc", 80, 130);
