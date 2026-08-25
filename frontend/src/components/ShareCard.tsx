@@ -17,11 +17,11 @@ const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
-const RARITY_COLORS: Record<number, { bg: string; accent: string; hex: string }> = {
-  0: { bg: "#64748b", accent: "#94a3b8", hex: "#64748b" },
-  1: { bg: "#3b82f6", accent: "#60a5fa", hex: "#3b82f6" },
-  2: { bg: "#a855f7", accent: "#c084fc", hex: "#a855f7" },
-  3: { bg: "#f59e0b", accent: "#fbbf24", hex: "#f59e0b" },
+const RARITY_HEX: Record<number, string> = {
+  0: "#94a3b8",
+  1: "#60a5fa",
+  2: "#c084fc",
+  3: "#fbbf24",
 };
 
 export default function ShareCard({
@@ -34,7 +34,7 @@ export default function ShareCard({
   const [open, setOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const rarity = RARITY_COLORS[perfume.rarity] || RARITY_COLORS[0];
+  const rarityHex = RARITY_HEX[perfume.rarity] || RARITY_HEX[0];
   const url = `https://scentprotocol.vercel.app/nft/${tokenId}`;
 
   const tweetText = encodeURIComponent(
@@ -83,26 +83,26 @@ ${url}`;
     canvas.width = W;
     canvas.height = H;
 
-    // Background gradient
+    // Background
     const grad = ctx.createLinearGradient(0, 0, W, H);
     grad.addColorStop(0, "#0f172a");
-    grad.addColorStop(1, "#1e293b");
+    grad.addColorStop(1, "#1e1b4b");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
     // Accent border glow
-    ctx.shadowColor = rarity.hex;
-    ctx.shadowBlur = 40;
-    ctx.strokeStyle = rarity.hex;
-    ctx.lineWidth = 6;
-    ctx.strokeRect(20, 20, W - 40, H - 40);
+    ctx.shadowColor = rarityHex;
+    ctx.shadowBlur = 60;
+    ctx.strokeStyle = rarityHex;
+    ctx.lineWidth = 8;
+    ctx.strokeRect(24, 24, W - 48, H - 48);
     ctx.shadowBlur = 0;
 
     // Inner card
-    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
     ctx.fillRect(40, 40, W - 80, H - 80);
 
-    // Logo / brand
+    // Brand
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 28px sans-serif";
     ctx.fillText("🜂 ScentProtocol", 80, 100);
@@ -111,8 +111,8 @@ ${url}`;
     ctx.fillText("Built on Arc", 80, 130);
 
     // Token ID
-    ctx.fillStyle = rarity.accent;
-    ctx.font = "bold 22px sans-serif";
+    ctx.fillStyle = rarityHex;
+    ctx.font = "bold 24px sans-serif";
     ctx.fillText(`SCENT #${tokenId}`, 80, 190);
 
     // Name
@@ -120,14 +120,14 @@ ${url}`;
     ctx.font = "bold 72px sans-serif";
     ctx.fillText(perfume.name, 80, 280);
 
-    // Tags line
+    // Tags
     ctx.font = "28px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     const tags = `${GENDER[perfume.gender]}  ·  ${TYPE[perfume.pType]}  ·  ${perfume.concentration}%  ·  ${RARITY[perfume.rarity]}`;
     ctx.fillText(tags, 80, 340);
 
     // Divider
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.strokeStyle = rarityHex;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(80, 380);
@@ -136,7 +136,7 @@ ${url}`;
 
     // Notes
     ctx.font = "bold 24px sans-serif";
-    ctx.fillStyle = rarity.accent;
+    ctx.fillStyle = rarityHex;
     ctx.fillText("PYRAMID OF NOTES", 80, 430);
 
     ctx.font = "24px sans-serif";
@@ -145,7 +145,7 @@ ${url}`;
     ctx.fillText(`Heart:   ${perfume.heartNotes.join(", ")}`, 80, 515);
     ctx.fillText(`Base:    ${perfume.baseNotes.join(", ")}`, 80, 555);
 
-    // URL bottom-right
+    // URL
     ctx.fillStyle = "rgba(255,255,255,0.4)";
     ctx.font = "20px sans-serif";
     ctx.textAlign = "right";
@@ -153,7 +153,7 @@ ${url}`;
     ctx.textAlign = "left";
 
     return canvas.toDataURL("image/png");
-  }, [perfume, tokenId, rarity, url]);
+  }, [perfume, tokenId, rarityHex, url]);
 
   const handleDownload = () => {
     const dataUrl = drawCard();
@@ -186,17 +186,28 @@ ${url}`;
 
       {open && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full space-y-5"
+            className="rounded-2xl p-6 max-w-sm w-full space-y-5"
+            style={{
+              background: "linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%)",
+              border: `2px solid ${rarityHex}60`,
+              boxShadow: `0 0 40px ${rarityHex}30`,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold text-white">Share Your Scent</h3>
 
             {/* Preview card */}
-            <div className={`rounded-xl p-5 bg-gradient-to-br from-[${rarity.hex}]/20 border border-white/10`} style={{ borderColor: rarity.hex + "40" }}>
+            <div
+              className="rounded-xl p-5"
+              style={{
+                background: `linear-gradient(135deg, ${rarityHex}20 0%, transparent 100%)`,
+                border: `1px solid ${rarityHex}40`,
+              }}
+            >
               <p className="text-white/60 text-xs uppercase tracking-wider mb-1">Scent #{tokenId}</p>
               <h4 className="text-xl font-bold text-white mb-3">{perfume.name}</h4>
               <div className="flex flex-wrap gap-2 text-xs text-white/80">
@@ -241,7 +252,6 @@ ${url}`;
             </button>
           </div>
 
-          {/* Hidden canvas for image generation */}
           <canvas ref={canvasRef} style={{ display: "none" }} />
         </div>
       )}
