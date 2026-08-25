@@ -7,6 +7,8 @@ import InfoSection from "@/components/InfoSection";
 import Logo from "@/components/Logo";
 import WalletButton from "@/components/WalletButton";
 import Confetti from "@/components/Confetti";
+import AIAdvisor from "@/components/AIAdvisor";
+import RoadmapSection from "@/components/RoadmapSection";
 import { PerfumeData } from "@/utils/contract";
 
 interface MintedPerfume {
@@ -18,42 +20,50 @@ interface MintedPerfume {
 export default function Home() {
   const [minted, setMinted] = useState<MintedPerfume[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [advisorGender, setAdvisorGender] = useState<number | null>(null);
+  const [advisorType, setAdvisorType] = useState<number | null>(null);
 
   const handleMinted = (tokenId: number, perfume: PerfumeData, desc: string) => {
     setMinted((prev) => [...prev, { tokenId, perfume, description: desc }]);
 
-      // === СОХРАНЕНИЕ В localStorage (полная карточка) ===
-  const existing = JSON.parse(localStorage.getItem("scent_collection") || "[]");
-  const updated = [
-    {
-      tokenId,
-      perfume: {
+    const existing = JSON.parse(localStorage.getItem("scent_collection") || "[]");
+    const updated = [
+      {
+        tokenId,
         name: perfume.name,
-        gender: perfume.gender,
-        pType: perfume.pType,
-        topNotes: perfume.topNotes,
-        heartNotes: perfume.heartNotes,
-        baseNotes: perfume.baseNotes,
-        concentration: perfume.concentration,
         rarity: perfume.rarity,
-        createdAt: perfume.createdAt,
-        creator: perfume.creator,
+        timestamp: Date.now(),
+        perfume: {
+          name: perfume.name,
+          gender: perfume.gender,
+          pType: perfume.pType,
+          topNotes: perfume.topNotes,
+          heartNotes: perfume.heartNotes,
+          baseNotes: perfume.baseNotes,
+          concentration: perfume.concentration,
+          rarity: perfume.rarity,
+          createdAt: perfume.createdAt,
+          creator: perfume.creator,
+        },
+        description: desc,
       },
-      description: desc,
-      timestamp: Date.now(),
-    },
-    ...existing.filter((s: any) => s.tokenId !== tokenId),
-  ];
-  localStorage.setItem("scent_collection", JSON.stringify(updated));
-  // =====================================================
+      ...existing.filter((s: any) => s.tokenId !== tokenId),
+    ];
+    localStorage.setItem("scent_collection", JSON.stringify(updated));
 
-    // Конфетти
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
   };
 
+  const handleAdvisorSelect = (gender: number, pType: number) => {
+    setAdvisorGender(gender);
+    setAdvisorType(pType);
+    // Скролл к форме
+    document.getElementById("mint-form")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
-    <div className="flex flex-col items-center gap-8 pt-20">
+    <div className="flex flex-col items-center gap-8">
       <Confetti active={showConfetti} />
 
       {/* Inner Header */}
@@ -94,14 +104,23 @@ export default function Home() {
         </div>
       </section>
 
+      {/* AI Advisor */}
+      <div className="w-full flex justify-center animate-fade-up-delay">
+        <AIAdvisor onSelect={handleAdvisorSelect} />
+      </div>
+
       {/* Info Section */}
       <div className="w-full animate-fade-up-delay">
         <InfoSection />
       </div>
 
       {/* Mint Form */}
-      <div className="animate-fade-up-delay">
-        <MintForm onMinted={handleMinted} />
+      <div id="mint-form" className="animate-fade-up-delay w-full flex justify-center">
+        <MintForm 
+          onMinted={handleMinted} 
+          defaultGender={advisorGender ?? undefined}
+          defaultType={advisorType ?? undefined}
+        />
       </div>
 
       {/* Minted Cards */}
@@ -117,6 +136,9 @@ export default function Home() {
           ))}
         </div>
       )}
+
+      {/* Roadmap */}
+      <RoadmapSection />
     </div>
   );
 }
