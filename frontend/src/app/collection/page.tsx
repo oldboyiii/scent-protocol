@@ -28,6 +28,29 @@ const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
+const RARITY_CARD: Record<number, { bg: string; border: string; badge: string }> = {
+  0: {
+    bg: "from-slate-700/50 to-slate-800/50",
+    border: "border-slate-500/30",
+    badge: "bg-slate-500/25 text-slate-200 border-slate-400/25",
+  },
+  1: {
+    bg: "from-blue-600/40 to-indigo-700/40",
+    border: "border-blue-400/40",
+    badge: "bg-blue-500/25 text-blue-200 border-blue-400/25",
+  },
+  2: {
+    bg: "from-purple-600/40 to-fuchsia-700/40",
+    border: "border-purple-400/40",
+    badge: "bg-purple-500/25 text-purple-200 border-purple-400/25",
+  },
+  3: {
+    bg: "from-amber-500/40 to-orange-600/40",
+    border: "border-amber-400/50",
+    badge: "bg-amber-500/25 text-amber-200 border-amber-400/30",
+  },
+};
+
 export default function CollectionPage() {
   const [scents, setScents] = useState<StoredScent[]>([]);
 
@@ -67,11 +90,13 @@ export default function CollectionPage() {
           {scents.map((s) => {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
+            const rarity = perfume?.rarity ?? s.rarity ?? 0;
+            const style = RARITY_CARD[rarity] || RARITY_CARD[0];
 
             return (
               <div
                 key={s.tokenId}
-                className="glass-card rounded-2xl p-6 space-y-4"
+                className={`glass-card rounded-2xl p-6 space-y-4 bg-gradient-to-br ${style.bg} border ${style.border}`}
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -83,17 +108,9 @@ export default function CollectionPage() {
                     </h3>
                   </div>
                   <span
-                    className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                      (perfume?.rarity ?? s.rarity ?? 0) === 3
-                        ? "bg-amber-500/20 text-amber-300"
-                        : (perfume?.rarity ?? s.rarity ?? 0) === 2
-                        ? "bg-purple-500/20 text-purple-300"
-                        : (perfume?.rarity ?? s.rarity ?? 0) === 1
-                        ? "bg-blue-500/20 text-blue-300"
-                        : "bg-white/10 text-white/60"
-                    }`}
+                    className={`text-xs font-bold px-2.5 py-1 rounded-full border ${style.badge}`}
                   >
-                    {RARITY[perfume?.rarity ?? s.rarity ?? 0]}
+                    {RARITY[rarity]}
                   </span>
                 </div>
 
@@ -160,7 +177,7 @@ export default function CollectionPage() {
                     </div>
 
                     {s.description && (
-                      <div className="bg-white/5 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
+                      <div className="bg-black/20 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
                         {s.description}
                       </div>
                     )}
