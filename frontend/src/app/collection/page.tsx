@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ShareCard from "@/components/ShareCard";
 
 interface StoredScent {
   tokenId: number;
@@ -94,9 +95,23 @@ export default function CollectionPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between text-xs text-white/40">
-                      <span>By {perfume!.creator.slice(0, 6)}...{perfume!.creator.slice(-4)}</span>
-                      <span>{new Date(s.timestamp).toLocaleString()}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-white/40">
+                        <span>By {perfume!.creator.slice(0, 6)}...{perfume!.creator.slice(-4)}</span>
+                        <span className="mx-2">·</span>
+                        <span>{new Date(s.timestamp).toLocaleString()}</span>
+                      </div>
+                      <ShareCard
+                        tokenId={s.tokenId}
+                        name={perfume!.name}
+                        rarity={perfume!.rarity}
+                        gender={perfume!.gender}
+                        pType={perfume!.pType}
+                        topNotes={perfume!.topNotes}
+                        heartNotes={perfume!.heartNotes}
+                        baseNotes={perfume!.baseNotes}
+                        concentration={perfume!.concentration}
+                      />
                     </div>
                   </>
                 ) : (
@@ -128,3 +143,4 @@ function NoteRow({ label, notes, color }: { label: string; notes: string[]; colo
     </div>
   );
 }
+
