@@ -8,12 +8,6 @@ interface LogoProps {
 
 export default function Logo({ size = 40, showText = false, animate = true }: LogoProps) {
   const s = size;
-  const bottleW = s * 0.7;
-  const bottleH = s * 0.9;
-  const neckW = s * 0.25;
-  const neckH = s * 0.18;
-  const capW = s * 0.35;
-  const capH = s * 0.12;
 
   return (
     <div className={`flex items-center gap-3 ${animate ? "group" : ""}`}>
@@ -37,7 +31,7 @@ export default function Logo({ size = 40, showText = false, animate = true }: Lo
           </linearGradient>
           <linearGradient id="hexGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#1e1b4b" />
-            <stop offset="100% stopColor="#0f172a" />
+            <stop offset="100%" stopColor="#0f172a" />
           </linearGradient>
           <filter id="glow">
             <feGaussianBlur stdDeviation="3" result="coloredBlur" />
@@ -110,14 +104,14 @@ export default function Logo({ size = 40, showText = false, animate = true }: Lo
 
         {/* Hexagon molecules */}
         {[
-          { cx: 80, cy: 95, r: 10 },    // top left
-          { cx: 120, cy: 95, r: 10 },   // top right
-          { cx: 100, cy: 115, r: 10 },  // center
-          { cx: 80, cy: 135, r: 10 },   // mid left
-          { cx: 120, cy: 135, r: 10 },  // mid right
-          { cx: 100, cy: 155, r: 10 },  // lower center
-          { cx: 80, cy: 175, r: 10 },   // bottom left
-          { cx: 120, cy: 175, r: 10 },  // bottom right
+          { cx: 80, cy: 95, r: 10 },
+          { cx: 120, cy: 95, r: 10 },
+          { cx: 100, cy: 115, r: 10 },
+          { cx: 80, cy: 135, r: 10 },
+          { cx: 120, cy: 135, r: 10 },
+          { cx: 100, cy: 155, r: 10 },
+          { cx: 80, cy: 175, r: 10 },
+          { cx: 120, cy: 175, r: 10 },
         ].map((h, i) => (
           <g key={i}>
             <polygon
