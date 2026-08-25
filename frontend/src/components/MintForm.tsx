@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useToast } from "@/components/ToastProvider";
 import {
@@ -10,10 +10,22 @@ import {
   PerfumeData,
 } from "@/utils/contract";
 
-export default function MintForm({ onMinted }: { onMinted: (tokenId: number, perfume: PerfumeData, desc: string) => void }) {
-  const [gender, setGender] = useState(0);
-  const [pType, setPType] = useState(2);
+interface MintFormProps {
+  onMinted: (tokenId: number, perfume: PerfumeData, desc: string) => void;
+  defaultGender?: number;
+  defaultType?: number;
+}
+
+export default function MintForm({ onMinted, defaultGender, defaultType }: MintFormProps) {
+  const [gender, setGender] = useState(defaultGender ?? 0);
+  const [pType, setPType] = useState(defaultType ?? 2);
   const [loading, setLoading] = useState(false);
+
+  // Обновляем при изменении пропсов от AI Advisor
+  useEffect(() => {
+    if (defaultGender !== undefined) setGender(defaultGender);
+    if (defaultType !== undefined) setPType(defaultType);
+  }, [defaultGender, defaultType]);
 
   const { addToast, updateToast } = useToast();
 
@@ -151,14 +163,14 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
     const seed = perfume.name.length + perfume.concentration;
     const open = openings[seed % openings.length];
     const heartLine = hearts[(seed + 1) % hearts.length];
-    const baseLine = bases[(seed + 2) % bases.length];
+    const baseLine = bases[(seed + 2) % hearts.length];
     const rarityLine = rarityPhrases[perfume.rarity];
 
     return `${open} ${heartLine} ${baseLine} ${rarityLine} Concentration: ${perfume.concentration}%.`;
   }
 
   return (
-    <div className="glass-card p-8 max-w-lg w-full min-w-[420px]">
+    <div className="glass-card p-8 max-w-xl w-full">
       <h2 className="text-2xl font-bold mb-6 text-center">Create Your Scent</h2>
 
       <div className="space-y-4 mb-6">
@@ -221,3 +233,4 @@ export default function MintForm({ onMinted }: { onMinted: (tokenId: number, per
     </div>
   );
 }
+
