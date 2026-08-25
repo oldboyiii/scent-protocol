@@ -27,12 +27,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-     <body className={`${inter.className} min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white`}>
-  <ToastProvider>
-    <Navbar />
-    <main className="pt-20">{children}</main>
-  </ToastProvider>
-</body>
+      <body className={`${inter.className} min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white`}>
+        <ToastProvider>
+          <Navbar />
+          <main className="pt-20">{children}</main>
+        </ToastProvider>
+      </body>
     </html>
   );
 }
+
