@@ -13,28 +13,28 @@ const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string }> = {
   0: {
-    bg: "from-slate-700/60 to-slate-800/60",
-    border: "border-slate-500/40",
-    badge: "bg-slate-500/30 text-slate-200 border-slate-400/30",
-    text: "text-slate-300",
+    bg: "bg-gradient-to-br from-slate-700/70 via-slate-600/50 to-slate-800/70",
+    border: "border-slate-400/30",
+    badge: "bg-slate-500/30 text-slate-200 border-slate-400/40",
+    text: "text-slate-200",
   },
   1: {
-    bg: "from-blue-600/50 to-indigo-700/50",
-    border: "border-blue-400/50",
-    badge: "bg-blue-500/30 text-blue-200 border-blue-400/30",
-    text: "text-blue-300",
+    bg: "bg-gradient-to-br from-blue-700/70 via-indigo-600/50 to-blue-900/70",
+    border: "border-blue-400/40",
+    badge: "bg-blue-500/30 text-blue-200 border-blue-400/40",
+    text: "text-blue-200",
   },
   2: {
-    bg: "from-purple-600/50 to-fuchsia-700/50",
-    border: "border-purple-400/50",
-    badge: "bg-purple-500/30 text-purple-200 border-purple-400/30",
-    text: "text-purple-300",
+    bg: "bg-gradient-to-br from-purple-700/70 via-fuchsia-600/50 to-purple-900/70",
+    border: "border-purple-400/40",
+    badge: "bg-purple-500/30 text-purple-200 border-purple-400/40",
+    text: "text-purple-200",
   },
   3: {
-    bg: "from-amber-500/50 to-orange-600/50",
-    border: "border-amber-400/60",
-    badge: "bg-amber-500/30 text-amber-200 border-amber-400/40",
-    text: "text-amber-300",
+    bg: "bg-gradient-to-br from-amber-600/80 via-orange-500/60 to-amber-800/80",
+    border: "border-amber-400/50",
+    badge: "bg-amber-500/30 text-amber-100 border-amber-400/50",
+    text: "text-amber-100",
   },
 };
 
@@ -152,9 +152,15 @@ export default function NFTDetailPage() {
       </Link>
 
       <div
-        className={`glass-card rounded-2xl p-8 bg-gradient-to-br ${style.bg} border ${style.border}`}
+        className={`relative rounded-2xl p-8 backdrop-blur-xl ${style.bg} border ${style.border} overflow-hidden`}
       >
-        <div className="flex items-start justify-between mb-6">
+        {/* Glass shine overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+
+        {/* Inner glow line top */}
+        <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+        <div className="relative flex items-start justify-between mb-6">
           <div>
             <p className="text-xs text-white/40 uppercase tracking-wider">
               Scent #{id}
@@ -164,25 +170,25 @@ export default function NFTDetailPage() {
             </h1>
           </div>
           <span
-            className={`text-sm font-bold px-3 py-1.5 rounded-full border ${style.badge}`}
+            className={`relative text-sm font-bold px-3 py-1.5 rounded-full border backdrop-blur-md ${style.badge}`}
           >
             {RARITY[perfume.rarity]}
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-3 text-sm mb-6">
-          <span className="px-3 py-1 rounded-full bg-white/10 text-white/80">
+        <div className="relative flex flex-wrap gap-3 text-sm mb-6">
+          <span className="px-3 py-1 rounded-full bg-black/20 text-white/80 border border-white/10">
             {GENDER[perfume.gender]}
           </span>
-          <span className="px-3 py-1 rounded-full bg-white/10 text-white/80">
+          <span className="px-3 py-1 rounded-full bg-black/20 text-white/80 border border-white/10">
             {TYPE[perfume.pType]}
           </span>
-          <span className="px-3 py-1 rounded-full bg-white/10 text-white/80">
+          <span className="px-3 py-1 rounded-full bg-black/20 text-white/80 border border-white/10">
             {perfume.concentration}%
           </span>
         </div>
 
-        <div className="space-y-4 mb-6">
+        <div className="relative space-y-4 mb-6">
           <div>
             <span className="text-xs text-white/40 uppercase tracking-wider">
               Top Notes
@@ -191,7 +197,7 @@ export default function NFTDetailPage() {
               {perfume.topNotes.map((n: string) => (
                 <span
                   key={n}
-                  className="px-3 py-1 rounded-md bg-amber-500/10 text-amber-200 text-sm"
+                  className="px-3 py-1 rounded-md bg-black/20 text-amber-200 text-sm border border-amber-500/20"
                 >
                   {n}
                 </span>
@@ -206,7 +212,7 @@ export default function NFTDetailPage() {
               {perfume.heartNotes.map((n: string) => (
                 <span
                   key={n}
-                  className="px-3 py-1 rounded-md bg-rose-500/10 text-rose-200 text-sm"
+                  className="px-3 py-1 rounded-md bg-black/20 text-rose-200 text-sm border border-rose-500/20"
                 >
                   {n}
                 </span>
@@ -221,7 +227,7 @@ export default function NFTDetailPage() {
               {perfume.baseNotes.map((n: string) => (
                 <span
                   key={n}
-                  className="px-3 py-1 rounded-md bg-emerald-500/10 text-emerald-200 text-sm"
+                  className="px-3 py-1 rounded-md bg-black/20 text-emerald-200 text-sm border border-emerald-500/20"
                 >
                   {n}
                 </span>
@@ -230,11 +236,11 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
-        <div className="bg-black/20 rounded-lg p-4 text-white/70 italic border-l-2 border-white/10 mb-6">
+        <div className="relative bg-black/20 rounded-lg p-4 text-white/70 italic border-l-2 border-white/10 mb-6">
           {description}
         </div>
 
-        <div className="text-sm text-white/40 space-y-1">
+        <div className="relative text-sm text-white/40 space-y-1">
           <p>Creator: {perfume.creator}</p>
           <p>
             Minted:{" "}
@@ -242,7 +248,7 @@ export default function NFTDetailPage() {
           </p>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+        <div className="relative mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
           <Link
             href={`/nft/${id - 1}`}
             className={`text-sm text-white/50 hover:text-white transition-colors ${
@@ -263,3 +269,4 @@ export default function NFTDetailPage() {
     </div>
   );
 }
+
