@@ -9,6 +9,7 @@ import WalletButton from "@/components/WalletButton";
 import Confetti from "@/components/Confetti";
 import AIAdvisor from "@/components/AIAdvisor";
 import RoadmapSection from "@/components/RoadmapSection";
+import HeroSection from "@/components/HeroSection";
 import { PerfumeData } from "@/utils/contract";
 
 interface MintedPerfume {
@@ -58,7 +59,6 @@ export default function Home() {
   const handleAdvisorSelect = (gender: number, pType: number) => {
     setAdvisorGender(gender);
     setAdvisorType(pType);
-    // Скролл к форме
     document.getElementById("mint-form")?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -69,40 +69,15 @@ export default function Home() {
       {/* Inner Header */}
       <div className="w-full max-w-4xl animate-fade-up">
         <div className="glass-card flex items-center justify-between px-6 py-4">
-          <Logo size={36} />
+          <Logo size={36} showText />
           <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-white">ScentProtocol</p>
-              <p className="text-xs text-white/50">Built on Arc</p>
-            </div>
             <WalletButton />
           </div>
         </div>
       </div>
 
-      {/* Hero */}
-      <section className="text-center max-w-2xl mx-auto mt-8 animate-fade-up overflow-visible">
-        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-[1.5] pb-3 block overflow-visible">
-          Digital Perfume House
-        </h1>
-        <p className="text-lg text-white/70 mb-6">
-          Create unique AI-generated fragrances. Built on Arc. Every formula is an NFT certificate of ownership.
-        </p>
-        <div className="flex items-center justify-center gap-4 text-sm text-white/50">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-            USDC = gas
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-400" />
-            Sub-second finality
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-purple-400" />
-            AI descriptions
-          </span>
-        </div>
-      </section>
+      {/* Hero with animated logo */}
+      <HeroSection />
 
       {/* AI Advisor */}
       <div className="w-full flex justify-center animate-fade-up-delay">
