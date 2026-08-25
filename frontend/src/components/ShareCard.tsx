@@ -24,6 +24,13 @@ const RARITY_HEX: Record<number, string> = {
   3: "#fbbf24",
 };
 
+const RARITY_BG: Record<number, string> = {
+  0: "#0f172a",
+  1: "#0c1222",
+  2: "#110c22",
+  3: "#1a1005",
+};
+
 export default function ShareCard({
   tokenId,
   perfume,
@@ -35,6 +42,7 @@ export default function ShareCard({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const rarityHex = RARITY_HEX[perfume.rarity] || RARITY_HEX[0];
+  const rarityBg = RARITY_BG[perfume.rarity] || RARITY_BG[0];
   const url = `https://scentprotocol.vercel.app/nft/${tokenId}`;
 
   const tweetText = encodeURIComponent(
@@ -90,75 +98,86 @@ export default function ShareCard({
 
     // Background
     const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, "#0f172a");
-    grad.addColorStop(1, "#1e1b4b");
+    grad.addColorStop(0, rarityBg);
+    grad.addColorStop(1, "#0f172a");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // Accent border glow
+    // Animated border glow
     ctx.shadowColor = rarityHex;
-    ctx.shadowBlur = 60;
+    ctx.shadowBlur = 80;
     ctx.strokeStyle = rarityHex;
-    ctx.lineWidth = 8;
-    ctx.strokeRect(24, 24, W - 48, H - 48);
+    ctx.lineWidth = 10;
+    ctx.strokeRect(20, 20, W - 40, H - 40);
     ctx.shadowBlur = 0;
 
     // Inner card
-    ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-    ctx.fillRect(40, 40, W - 80, H - 80);
+    ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
+    ctx.fillRect(36, 36, W - 72, H - 72);
+
+    // Shimmer line
+    const shimmerGrad = ctx.createLinearGradient(0, 0, W, H);
+    shimmerGrad.addColorStop(0, "transparent");
+    shimmerGrad.addColorStop(0.5, `${rarityHex}20`);
+    shimmerGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = shimmerGrad;
+    ctx.fillRect(36, 36, W - 72, H - 72);
 
     // Brand
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 28px sans-serif";
-    ctx.fillText("ScentProtocol", 80, 100);
+    ctx.font = "bold 32px sans-serif";
+    ctx.fillText("ScentProtocol", 80, 110);
     ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "20px sans-serif";
-    ctx.fillText("Built on Arc", 80, 130);
+    ctx.font = "22px sans-serif";
+    ctx.fillText("Built on Arc", 80, 140);
 
     // Token ID
     ctx.fillStyle = rarityHex;
-    ctx.font = "bold 24px sans-serif";
-    ctx.fillText(`SCENT #${tokenId}`, 80, 190);
+    ctx.font = "bold 28px sans-serif";
+    ctx.fillText(`SCENT #${tokenId}`, 80, 200);
 
     // Name
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 72px sans-serif";
-    ctx.fillText(perfume.name, 80, 280);
+    ctx.font = "bold 80px sans-serif";
+    ctx.fillText(perfume.name, 80, 300);
 
     // Tags
-    ctx.font = "28px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "30px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
     const tags = `${GENDER[perfume.gender]}  ·  ${TYPE[perfume.pType]}  ·  ${perfume.concentration}%  ·  ${RARITY[perfume.rarity]}`;
-    ctx.fillText(tags, 80, 340);
+    ctx.fillText(tags, 80, 360);
 
-    // Divider
+    // Divider with glow
+    ctx.shadowColor = rarityHex;
+    ctx.shadowBlur = 20;
     ctx.strokeStyle = rarityHex;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(80, 380);
-    ctx.lineTo(W - 80, 380);
+    ctx.moveTo(80, 400);
+    ctx.lineTo(W - 80, 400);
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
     // Notes
-    ctx.font = "bold 24px sans-serif";
+    ctx.font = "bold 28px sans-serif";
     ctx.fillStyle = rarityHex;
-    ctx.fillText("PYRAMID OF NOTES", 80, 430);
+    ctx.fillText("PYRAMID OF NOTES", 80, 450);
 
-    ctx.font = "24px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillText(`Top:     ${perfume.topNotes.join(", ")}`, 80, 475);
-    ctx.fillText(`Heart:   ${perfume.heartNotes.join(", ")}`, 80, 515);
-    ctx.fillText(`Base:    ${perfume.baseNotes.join(", ")}`, 80, 555);
+    ctx.font = "26px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillText(`Top:     ${perfume.topNotes.join(", ")}`, 80, 495);
+    ctx.fillText(`Heart:   ${perfume.heartNotes.join(", ")}`, 80, 535);
+    ctx.fillText(`Base:    ${perfume.baseNotes.join(", ")}`, 80, 575);
 
     // URL
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.font = "20px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.font = "22px sans-serif";
     ctx.textAlign = "right";
     ctx.fillText(url, W - 80, H - 60);
     ctx.textAlign = "left";
 
     return canvas.toDataURL("image/png");
-  }, [perfume, tokenId, rarityHex, url]);
+  }, [perfume, tokenId, rarityHex, rarityBg, url]);
 
   const handleDownload = () => {
     const dataUrl = drawCard();
@@ -191,59 +210,89 @@ export default function ShareCard({
 
       {open && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
           onClick={() => setOpen(false)}
         >
           <div
-            className="rounded-2xl p-6 max-w-sm w-full space-y-5"
+            className="relative rounded-2xl p-6 max-w-sm w-full space-y-5 overflow-hidden"
             style={{
-              background: "linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%)",
-              border: `2px solid ${rarityHex}60`,
-              boxShadow: `0 0 40px ${rarityHex}30`,
+              background: `linear-gradient(145deg, ${rarityBg} 0%, #0f172a 100%)`,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-white">Share Your Scent</h3>
+            {/* Animated border */}
+            <div 
+              className="absolute inset-0 rounded-2xl pointer-events-none"
+              style={{
+                background: `linear-gradient(90deg, ${rarityHex}40, ${rarityHex}, ${rarityHex}40)`,
+                backgroundSize: "200% 100%",
+                animation: "shimmer-border 3s linear infinite",
+                padding: "2px",
+                WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                WebkitMaskComposite: "xor",
+                maskComposite: "exclude",
+              }}
+            />
+
+            {/* Inner glow */}
+            <div 
+              className="absolute inset-0 rounded-2xl pointer-events-none opacity-30"
+              style={{
+                background: `radial-gradient(circle at 50% 0%, ${rarityHex}30, transparent 70%)`,
+              }}
+            />
+
+            <h3 className="relative text-lg font-bold text-white">Share Your Scent</h3>
 
             {/* Preview card */}
             <div
-              className="rounded-xl p-5"
+              className="relative rounded-xl p-5 overflow-hidden"
               style={{
-                background: `linear-gradient(135deg, ${rarityHex}20 0%, transparent 100%)`,
-                border: `1px solid ${rarityHex}40`,
+                background: `linear-gradient(135deg, ${rarityHex}15 0%, transparent 60%)`,
+                border: `1px solid ${rarityHex}50`,
               }}
             >
-              <p className="text-white/60 text-xs uppercase tracking-wider mb-1">Scent #{tokenId}</p>
-              <h4 className="text-xl font-bold text-white mb-3">{perfume.name}</h4>
-              <div className="flex flex-wrap gap-2 text-xs text-white/80">
-                <span className="px-2 py-0.5 rounded-full bg-white/10">{GENDER[perfume.gender]}</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10">{TYPE[perfume.pType]}</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10">{perfume.concentration}%</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10">{RARITY[perfume.rarity]}</span>
+              {/* Shimmer overlay */}
+              <div 
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `linear-gradient(105deg, transparent 40%, ${rarityHex}10 50%, transparent 60%)`,
+                  backgroundSize: "200% 100%",
+                  animation: "shimmer 2.5s infinite",
+                }}
+              />
+              <p className="relative text-white/60 text-xs uppercase tracking-wider mb-1">Scent #{tokenId}</p>
+              <h4 className="relative text-xl font-bold text-white mb-3">{perfume.name}</h4>
+              <div className="relative flex flex-wrap gap-2 text-xs text-white/80">
+                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{GENDER[perfume.gender]}</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{TYPE[perfume.pType]}</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{perfume.concentration}%</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{RARITY[perfume.rarity]}</span>
               </div>
-              <div className="mt-3 text-xs text-white/70 space-y-0.5">
+              <div className="relative mt-3 text-xs text-white/70 space-y-0.5">
                 <p>Top: {perfume.topNotes.join(", ")}</p>
                 <p>Heart: {perfume.heartNotes.join(", ")}</p>
                 <p>Base: {perfume.baseNotes.join(", ")}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="relative grid grid-cols-2 gap-3">
               <button
                 onClick={handleTweet}
-                className="py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
+                className="py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(14,165,233,0.4)]"
               >
                 🐦 Tweet
               </button>
               <button
                 onClick={handleDownload}
-                className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-colors"
+                className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
               >
                 🖼️ Save PNG
               </button>
               <button
                 onClick={handleCopy}
-                className="py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors col-span-2"
+                className="py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors col-span-2 border border-white/10"
               >
                 📋 Copy Text
               </button>
@@ -251,10 +300,21 @@ export default function ShareCard({
 
             <button
               onClick={() => setOpen(false)}
-              className="w-full text-xs text-white/40 hover:text-white/70 transition-colors"
+              className="relative w-full text-xs text-white/40 hover:text-white/70 transition-colors"
             >
               Close
             </button>
+
+            <style>{`
+              @keyframes shimmer {
+                0% { background-position: 200% 0; }
+                100% { background-position: -200% 0; }
+              }
+              @keyframes shimmer-border {
+                0% { background-position: 200% 0; }
+                100% { background-position: -200% 0; }
+              }
+            `}</style>
           </div>
 
           <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -263,3 +323,4 @@ export default function ShareCard({
     </>
   );
 }
+
