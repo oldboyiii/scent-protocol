@@ -1,36 +1,26 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { ToastProvider } from "@/components/ToastProvider";
 
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
-  title: "ScentProtocol — Digital Perfume House",
-  description: "Create unique AI-generated fragrances as NFTs. Built on Arc Network. USDC = gas. Sub-second finality.",
-  openGraph: {
-    title: "ScentProtocol — Digital Perfume House",
-    description: "Create unique AI-generated fragrances as NFTs. Built on Arc Network.",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "ScentProtocol — Digital Perfume House",
-    description: "Create unique AI-generated fragrances as NFTs. Built on Arc Network.",
-  },
+  title: "ScentProtocol — AI Perfume House",
+  description: "Create unique AI-generated fragrances. Built on Arc.",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white`}>
+      <body className="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 min-h-screen text-white">
         <ToastProvider>
           <Navbar />
-          <main className="pt-20">{children}</main>
+          <main className="max-w-6xl mx-auto px-4 pt-20 pb-8">
+            {children}
+          </main>
         </ToastProvider>
       </body>
     </html>
