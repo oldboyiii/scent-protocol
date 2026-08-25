@@ -28,26 +28,34 @@ const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
-const RARITY_CARD: Record<number, { bg: string; border: string; badge: string }> = {
+const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; accent: string }> = {
   0: {
-    bg: "from-slate-700/50 to-slate-800/50",
-    border: "border-slate-500/30",
-    badge: "bg-slate-500/25 text-slate-200 border-slate-400/25",
+    bg: "bg-gradient-to-br from-slate-700/70 via-slate-600/50 to-slate-800/70",
+    border: "border-slate-400/30",
+    badge: "bg-slate-500/30 text-slate-200 border-slate-400/40",
+    text: "text-slate-200",
+    accent: "#94a3b8",
   },
   1: {
-    bg: "from-blue-600/40 to-indigo-700/40",
+    bg: "bg-gradient-to-br from-blue-700/70 via-indigo-600/50 to-blue-900/70",
     border: "border-blue-400/40",
-    badge: "bg-blue-500/25 text-blue-200 border-blue-400/25",
+    badge: "bg-blue-500/30 text-blue-200 border-blue-400/40",
+    text: "text-blue-200",
+    accent: "#60a5fa",
   },
   2: {
-    bg: "from-purple-600/40 to-fuchsia-700/40",
+    bg: "bg-gradient-to-br from-purple-700/70 via-fuchsia-600/50 to-purple-900/70",
     border: "border-purple-400/40",
-    badge: "bg-purple-500/25 text-purple-200 border-purple-400/25",
+    badge: "bg-purple-500/30 text-purple-200 border-purple-400/40",
+    text: "text-purple-200",
+    accent: "#c084fc",
   },
   3: {
-    bg: "from-amber-500/40 to-orange-600/40",
+    bg: "bg-gradient-to-br from-amber-600/80 via-orange-500/60 to-amber-800/80",
     border: "border-amber-400/50",
-    badge: "bg-amber-500/25 text-amber-200 border-amber-400/30",
+    badge: "bg-amber-500/30 text-amber-100 border-amber-400/50",
+    text: "text-amber-100",
+    accent: "#fbbf24",
   },
 };
 
@@ -91,14 +99,20 @@ export default function CollectionPage() {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
-            const style = RARITY_CARD[rarity] || RARITY_CARD[0];
+            const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
 
             return (
               <div
                 key={s.tokenId}
-                className={`glass-card rounded-2xl p-6 space-y-4 bg-gradient-to-br ${style.bg} border ${style.border}`}
+                className={`relative rounded-2xl p-6 space-y-4 backdrop-blur-xl ${style.bg} border ${style.border} overflow-hidden`}
               >
-                <div className="flex items-start justify-between">
+                {/* Glass shine overlay */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+
+                {/* Inner glow line top */}
+                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+                <div className="relative flex items-start justify-between">
                   <div>
                     <p className="text-xs text-white/40 uppercase tracking-wider">
                       Scent #{s.tokenId}
@@ -108,7 +122,7 @@ export default function CollectionPage() {
                     </h3>
                   </div>
                   <span
-                    className={`text-xs font-bold px-2.5 py-1 rounded-full border ${style.badge}`}
+                    className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}
                   >
                     {RARITY[rarity]}
                   </span>
@@ -116,19 +130,19 @@ export default function CollectionPage() {
 
                 {hasFullData ? (
                   <>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70">
+                    <div className="relative flex flex-wrap gap-2 text-xs">
+                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
                         {GENDER[perfume!.gender]}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70">
+                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
                         {TYPE[perfume!.pType]}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70">
+                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
                         {perfume!.concentration}%
                       </span>
                     </div>
 
-                    <div className="space-y-2 text-sm">
+                    <div className="relative space-y-2 text-sm">
                       <div>
                         <span className="text-white/40 text-xs uppercase tracking-wider">
                           Top Notes
@@ -137,7 +151,7 @@ export default function CollectionPage() {
                           {perfume!.topNotes.map((n) => (
                             <span
                               key={n}
-                              className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-200 text-xs"
+                              className="px-2 py-0.5 rounded-md bg-black/20 text-amber-200 text-xs border border-amber-500/20"
                             >
                               {n}
                             </span>
@@ -152,7 +166,7 @@ export default function CollectionPage() {
                           {perfume!.heartNotes.map((n) => (
                             <span
                               key={n}
-                              className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-200 text-xs"
+                              className="px-2 py-0.5 rounded-md bg-black/20 text-rose-200 text-xs border border-rose-500/20"
                             >
                               {n}
                             </span>
@@ -167,7 +181,7 @@ export default function CollectionPage() {
                           {perfume!.baseNotes.map((n) => (
                             <span
                               key={n}
-                              className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-200 text-xs"
+                              className="px-2 py-0.5 rounded-md bg-black/20 text-emerald-200 text-xs border border-emerald-500/20"
                             >
                               {n}
                             </span>
@@ -177,12 +191,12 @@ export default function CollectionPage() {
                     </div>
 
                     {s.description && (
-                      <div className="bg-black/20 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
+                      <div className="relative bg-black/20 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
                         {s.description}
                       </div>
                     )}
 
-                    <div className="text-xs text-white/30 space-y-0.5">
+                    <div className="relative text-xs text-white/30 space-y-0.5">
                       <p>Creator: {perfume!.creator}</p>
                       <p>
                         Minted:{" "}
@@ -190,7 +204,7 @@ export default function CollectionPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2">
+                    <div className="relative flex items-center justify-between pt-2">
                       <Link
                         href={`/nft/${s.tokenId}`}
                         className="text-sm text-white/50 hover:text-white transition-colors"
@@ -201,7 +215,7 @@ export default function CollectionPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-sm text-white/40">
+                  <div className="relative text-sm text-white/40">
                     <p>Legacy entry — full details not available.</p>
                     <p className="text-xs mt-1">
                       Minted:{" "}
