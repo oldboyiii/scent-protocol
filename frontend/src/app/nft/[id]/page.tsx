@@ -11,18 +11,31 @@ const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
-const RARITY_GRADIENT: Record<number, string> = {
-  0: "from-gray-500/20 to-slate-600/20 border-gray-500/30",
-  1: "from-blue-500/20 to-cyan-600/20 border-blue-500/30",
-  2: "from-purple-500/20 to-fuchsia-600/20 border-purple-500/30",
-  3: "from-amber-500/20 to-orange-600/20 border-amber-500/30",
-};
-
-const RARITY_LABEL: Record<number, string> = {
-  0: "text-gray-300",
-  1: "text-blue-300",
-  2: "text-purple-300",
-  3: "text-amber-300",
+const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string }> = {
+  0: {
+    bg: "from-slate-700/60 to-slate-800/60",
+    border: "border-slate-500/40",
+    badge: "bg-slate-500/30 text-slate-200 border-slate-400/30",
+    text: "text-slate-300",
+  },
+  1: {
+    bg: "from-blue-600/50 to-indigo-700/50",
+    border: "border-blue-400/50",
+    badge: "bg-blue-500/30 text-blue-200 border-blue-400/30",
+    text: "text-blue-300",
+  },
+  2: {
+    bg: "from-purple-600/50 to-fuchsia-700/50",
+    border: "border-purple-400/50",
+    badge: "bg-purple-500/30 text-purple-200 border-purple-400/30",
+    text: "text-purple-300",
+  },
+  3: {
+    bg: "from-amber-500/50 to-orange-600/50",
+    border: "border-amber-400/60",
+    badge: "bg-amber-500/30 text-amber-200 border-amber-400/40",
+    text: "text-amber-300",
+  },
 };
 
 function generateDescription(perfume: {
@@ -127,6 +140,7 @@ export default function NFTDetailPage() {
   }
 
   const description = generateDescription(perfume);
+  const style = RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0];
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8">
@@ -138,7 +152,7 @@ export default function NFTDetailPage() {
       </Link>
 
       <div
-        className={`glass-card rounded-2xl p-8 bg-gradient-to-br ${RARITY_GRADIENT[perfume.rarity]}`}
+        className={`glass-card rounded-2xl p-8 bg-gradient-to-br ${style.bg} border ${style.border}`}
       >
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -150,7 +164,7 @@ export default function NFTDetailPage() {
             </h1>
           </div>
           <span
-            className={`text-sm font-bold px-3 py-1.5 rounded-full bg-white/10 ${RARITY_LABEL[perfume.rarity]}`}
+            className={`text-sm font-bold px-3 py-1.5 rounded-full border ${style.badge}`}
           >
             {RARITY[perfume.rarity]}
           </span>
@@ -216,7 +230,7 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
-        <div className="bg-white/5 rounded-lg p-4 text-white/70 italic border-l-2 border-white/10 mb-6">
+        <div className="bg-black/20 rounded-lg p-4 text-white/70 italic border-l-2 border-white/10 mb-6">
           {description}
         </div>
 
