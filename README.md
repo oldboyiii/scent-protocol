@@ -62,11 +62,12 @@ All contracts below are deployed and verified on Arc Testnet:
 | 4 | **ArcVote** | `0xA3cbE323e108fcF2727E3bf0d5E238aE7b6d0869` | Governance / voting logic |
 | 5 | **ArcLock** | `0x69C545fE8A8D65e7D187FF57127EA432F2C22d3e` | Token vesting & time‑locks |
 | 6 | **FXBlitzScore** | `0x50e206F15556f06B374acDa943a7655602AF6494` | Scoring / gamification engine |
-| 7 | **ScentMarketplace** | `0x23d2F6655F23D245348ce6Db11e07eab823E6D66` | NFT / asset marketplace for Arc builders |
-| 8 | **ARBounty** | `0x5e3b652F8Ef29d50F32Ae2D69920651d10D0227b` | Bounty / task management |
-| 9 | **ArcAttest** | `0x743d7c6d558bFa735ca9f87059e662CC03452335` | Attestation / verification system |
-| 10 | **ArcInvoice** | `0x62E44bf079Ce2996E933174d7BaC591Da8ade190` | On‑chain invoicing |
-| 11 | **ArcBuilderFactory** | `0x2DBC1e505Ed008AAbC9B52733100078c42a05aF1` | SBT credentials for Arc builders |
+| 7 | **ScentProtocol** | `0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1` | Base protocol for Scent ecosystem 
+| 8 | **ScentMarketplace** | `0x23d2F6655F23D245348ce6Db11e07eab823E6D66` | NFT / asset marketplace for Arc builders |
+| 9 | **ARBounty** | `0x5e3b652F8Ef29d50F32Ae2D69920651d10D0227b` | Bounty / task management |
+| 10 | **ArcAttest** | `0x743d7c6d558bFa735ca9f87059e662CC03452335` | Attestation / verification system |
+| 11 | **ArcInvoice** | `0x62E44bf079Ce2996E933174d7BaC591Da8ade190` | On‑chain invoicing |
+| 12 | **ArcBuilderFactory** | `0x2DBC1e505Ed008AAbC9B52733100078c42a05aF1` | SBT credentials for Arc builders |
 
 > **Note:** All contracts are deployed and verified on [Arc Explorer](https://testnet.arcscan.app).  
 > Source code is available via the Explorer's **Contract** tab.
