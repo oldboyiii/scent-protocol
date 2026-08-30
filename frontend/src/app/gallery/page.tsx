@@ -7,13 +7,10 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// Full ABI matching your contract exactly
-const FULL_ABI = [
+// Interface used solely for generating calldata
+const INTERFACE = new ethers.Interface([
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
-];
-
-// Interface for calldata generation and decoding
-const INTERFACE = new ethers.Interface(FULL_ABI);
+]);
 
 interface GalleryItem {
   tokenId: number;
@@ -66,34 +63,120 @@ export default function GalleryPage() {
   const [status, setStatus] = useState("Initializing...");
   const [progress, setProgress] = useState(0);
 
-  // Reliable parser using ethers decodeFunctionResult
-  const parsePerfumeFromRawData = (rawResult: string, tokenId: number): GalleryItem | null => {
+  // Manual parser that correctly handles the struct layout
+  const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
     try {
-      // Empty response means token is not minted
-      if (!rawResult || rawResult === '0x' || rawResult === '0x00') return null;
+      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
       
-      // Automatic decoder - parses all fields correctly including rarity
-      const decoded = INTERFACE.decodeFunctionResult("getPerfume", rawResult);
-      
-      const name = decoded.name as string;
+      // Check if data is empty or zero (not minted)
+      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
+
+      // --- 1. EXTRACT NAME ---
+      let name = "";
+      try {
+        const nameOffsetHex = hex.substring(0, 64);
+        const nameOffset = parseInt(nameOffsetHex, 16) * 2;
+        
+        const lenHex = hex.substring(nameOffset, nameOffset + 64);
+        const len = parseInt(lenHex, 16);
+        
+        if (len > 0 && len < 100) {
+          const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
+          let decodedName = "";
+          let isValid = true;
+          for (let i = 0; i < len * 2; i += 2) {
+            const byte = parseInt(nameHex.substr(i, 2), 16);
+            if (byte >= 32 && byte <= 126) decodedName += String.fromCharCode(byte);
+            else { isValid = false; break; }
+          }
+          if (isValid && decodedName.trim().length > 0) name = decodedName.trim();
+        }
+      } catch (e) {}
+
+      // Fallback heuristic for name if offset method fails
+      if (!name) {
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
+        
+        let currStr = "";
+        const candidates: string[] = [];
+        for (const b of bytes) {
+          if (b >= 32 && b <= 126) currStr += String.fromCharCode(b);
+          else {
+            if (currStr.length > 3) candidates.push(currStr);
+            currStr = "";
+          }
+        }
+        if (currStr.length > 3) candidates.push(currStr);
+
+        for (const c of candidates) {
+          if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+          if (/^\d+$/.test(c)) continue;
+          if (c.includes(" ") && c.length > 3) { name = c; break; }
+          if (!name && c.length > 5) name = c;
+        }
+      }
+
       if (!name || name.length < 2) return null;
+
+      // --- 2. EXTRACT STATIC FIELDS (Gender, PType) ---
+      let gender = 0;
+      const genderHex = hex.substring(64, 66); 
+      const genderRaw = parseInt(genderHex, 16);
+      if (genderRaw >= 0 && genderRaw <= 2) gender = genderRaw;
+
+      let pType = 0;
+      const pTypeHex = hex.substring(128, 130);
+      const pTypeRaw = parseInt(pTypeHex, 16);
+      if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
+
+      // --- 3. EXTRACT RARITY (Correct Slot Location) ---
+      // In your contract struct, 'rarity' is packed with 'concentration' in one 32-byte slot.
+      // This slot is located BEFORE 'createdAt' and 'creator'.
+      // Layout at the end: ... [mixed_slot(32b)] [createdAt(32b)] [creator(32b)]
+      // So mixed_slot starts at: totalLength - 192 (64+64+64 hex chars)
       
-      // Generate description from first top note or type
-      const topNotes = decoded.topNotes as string[];
-      const description = (topNotes && topNotes.length > 0 && topNotes[0]) 
-        ? `${topNotes[0]} based` 
-        : TYPE_LABELS[Number(decoded.pType)];
+      let rarity = 0;
+      const totalLen = hex.length;
+      const mixedSlotStart = totalLen - 192; 
+      
+      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
+         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
+         
+         // The slot contains two uint8s. 
+         // Based on Solidity memory layout, 'concentration' comes first, then 'rarity'.
+         // They are packed into the LAST 2 bytes of the 32-byte slot.
+         // Byte 30 (hex 60-61) = concentration
+         // Byte 31 (hex 62-63) = rarity
+         
+         const rarityByteHex = mixedSlotHex.substring(62, 64);
+         const rarityVal = parseInt(rarityByteHex, 16);
+         
+         // Validate range (0-3)
+         if (rarityVal >= 0 && rarityVal <= 3) {
+            rarity = rarityVal;
+         } else {
+            // If last byte isn't valid, try the previous byte (in case order is swapped)
+            const altByteHex = mixedSlotHex.substring(60, 62);
+            const altVal = parseInt(altByteHex, 16);
+            if (altVal >= 0 && altVal <= 3) rarity = altVal;
+         }
+      }
+
+      // --- 4. DESCRIPTION FALLBACK ---
+      let description = TYPE_LABELS[pType]; 
 
       return {
         tokenId,
         name,
-        rarity: Number(decoded.rarity),   // Now correctly returns 0-3
-        gender: Number(decoded.gender),
-        pType: Number(decoded.pType),
+        rarity,
+        gender,
+        pType,
         description
       };
+
     } catch (e) {
-      // If decoding fails, skip this token
+      console.warn(`Parse failed for ID ${tokenId}`, e);
       return null;
     }
   };
@@ -154,7 +237,6 @@ export default function GalleryPage() {
           currentId++;
           
           // CRITICAL: Delay between requests to keep RPC stable
-          // 150ms is safe for Arc testnet
           await new Promise(r => setTimeout(r, 150)); 
         }
 
