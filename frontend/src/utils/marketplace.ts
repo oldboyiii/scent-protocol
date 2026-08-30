@@ -25,8 +25,7 @@ const NFT_ABI = [
 
 /**
  * ARC-SPECIFIC PROVIDER FACTORY
- * This is the ONLY reliable way to disable ENS in ethers v6 for custom chains.
- * We monkey-patch the provider's internal network resolution BEFORE any signer is created.
+ * Reliably disables ENS for custom chains in ethers v6 by patching internal methods.
  */
 export const getArcProvider = (): ethers.BrowserProvider => {
   const win = window as any;
@@ -34,22 +33,26 @@ export const getArcProvider = (): ethers.BrowserProvider => {
 
   const provider = new ethers.BrowserProvider(win.ethereum);
 
-  // CRITICAL FIX: Override the _detectNetwork method to force ensAddress=null
-  // This prevents ethers from ever trying to resolve ENS, even internally.
+  // CRITICAL FIX: Override _detectNetwork to force ensAddress=null
+  // We cast to 'any' to bypass TypeScript's strict Network interface
   const originalDetectNetwork = provider._detectNetwork.bind(provider);
   provider._detectNetwork = async () => {
     const network = await originalDetectNetwork();
+    
     // Force disable ENS for ANY non-mainnet network
     if (network.chainId !== 1n) {
-      network.ensAddress = null;
-      network.name = `arc-${network.chainId}`;
+      (network as any).ensAddress = null;
+      (network as any).name = `arc-${network.chainId}`;
     }
     return network;
   };
 
-  // Also patch resolveName to fail fast instead of throwing UNSUPPORTED_OPERATION
+  // Patch resolveName to prevent UNSUPPORTED_OPERATION errors
+  // This ensures that even if something tries to resolve a name, it fails gracefully
   provider.resolveName = async (name: string): Promise<string | null> => {
-    if (!name.endsWith('.eth')) return name; // Pass through raw addresses
+    // If it's not an ENS name (doesn't end with .eth), treat it as a raw address
+    if (!name.endsWith('.eth')) return name; 
+    
     console.warn(`ENS resolution blocked for "${name}" on Arc Network`);
     return null;
   };
@@ -88,10 +91,10 @@ export const listNFT = async (signer: ethers.Signer, nftAddress: string, tokenId
   const nft = new ethers.Contract(nftAddress, NFT_ABI, signer);
   const market = getMarketplaceContract(signer);
 
-  // Safe approval check that NEVER triggers ENS
+  // Safe approval check using staticCall to avoid side effects
   let needsApproval = true;
   try {
-    const approved = await nft.getApproved.staticCall(tokenId); // staticCall avoids side effects
+    const approved = await nft.getApproved.staticCall(tokenId);
     needsApproval = approved.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase();
   } catch (e) { 
     console.warn("Approval check skipped due to network error, forcing approve"); 
