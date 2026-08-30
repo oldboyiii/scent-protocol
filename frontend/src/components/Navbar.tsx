@@ -10,13 +10,17 @@ export default function Navbar() {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   
   // Get wallet data from context
-  const { address, isConnected } = useWallet();
+  // We use 'address' to determine connection status since 'isConnected' is missing
+  const { address } = useWallet();
 
   // Function to shorten address (0x5Fed...20DA)
-  const formatAddress = (addr: string) => {
+  const formatAddress = (addr: string | undefined) => {
     if (!addr) return "";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
+
+  // Determine if wallet is connected based on address presence
+  const isConnected = !!address;
 
   return (
     <>
@@ -52,10 +56,10 @@ export default function Navbar() {
 
           {/* RIGHT: Dynamic Wallet Button */}
           <div className="flex-shrink-0 flex items-center gap-3">
-            {isConnected && address ? (
+            {isConnected ? (
               // If connected: show address and green dot
               <button 
-                onClick={() => setIsWalletModalOpen(true)} // Can open modal to change wallet or disconnect
+                onClick={() => setIsWalletModalOpen(true)} 
                 className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-medium text-white hover:bg-white/10 transition-all flex items-center gap-2"
               >
                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
