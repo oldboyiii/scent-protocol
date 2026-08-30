@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { fetchActiveListings, buyNFT, getArcProvider } from "@/utils/marketplace";
+import { fetchActiveListings, buyNFT, getArcSigner } from "@/utils/marketplace";
 
 interface Listing {
   tokenId: number;
@@ -18,8 +18,12 @@ export default function MarketplacePage() {
   useEffect(() => {
     const loadListings = async () => {
       try {
-        // Use the Arc-specific provider that disables ENS
-        const provider = getArcProvider();
+        // Get safe signer to extract provider without ENS errors
+        const signer = await getArcSigner();
+        const provider = signer.provider;
+        
+        if (!provider) throw new Error("Provider not found");
+        
         const data = await fetchActiveListings(provider);
         setListings(data);
       } catch (error) {
@@ -33,22 +37,19 @@ export default function MarketplacePage() {
 
   const handleBuy = async (listing: Listing) => {
     try {
-      // Get signer from the Arc-specific provider
-      const provider = getArcProvider();
-      const signer = await provider.getSigner();
+      // Get safe signer for transaction
+      const signer = await getArcSigner();
       
-      // Call the buy function from utils
       await buyNFT(signer, listing.tokenId, ethers.formatUnits(listing.price, 6));
       
       alert("Purchase successful!");
-      // Refresh page or re-fetch listings to update UI
       window.location.reload(); 
     } catch (error: any) {
       console.error("Buy failed:", error);
       if (error.code === 4001) {
         alert("Transaction rejected by user.");
       } else {
-        alert("Purchase failed. Check console for details.");
+        alert(`Purchase failed: ${error.message || "Check console"}`);
       }
     }
   };
@@ -85,7 +86,6 @@ export default function MarketplacePage() {
                 key={listing.tokenId} 
                 className="glass-card-luxury rounded-2xl p-6 relative group hover:scale-[1.02] transition-all duration-300 border border-white/10 bg-slate-900/40 backdrop-blur-md"
               >
-                {/* Rarity Badge Placeholder - You might want to fetch perfume details to get real rarity */}
                 <div className="flex justify-between items-start mb-4">
                   <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-amber-500/20 text-amber-300 border-amber-500/50">
                     Legendary
