@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-const CACHE_KEY_PREFIX = "scent_collection_v10_";
+const CACHE_KEY_PREFIX = "scent_collection_v11_";
 
 const CONTRACT_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
@@ -42,49 +42,51 @@ const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
 const GENDER_LABELS = ["Unisex", "Male", "Female"];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
+const parseTokenURI = (uri: string): Omit<PerfumeData, 'createdAt'> & { createdAt: number } | null => {
+  try {
+    const base64 = uri.includes('base64,') ? uri.split('base64,')[1] : uri;
+    const jsonStr = atob(base64);
+    const data = JSON.parse(jsonStr);
+    
+    const attrs = data.attributes || [];
+    const getAttr = (trait: string) => {
+      const found = attrs.find((a: any) => a.trait_type === trait);
+      return found ? found.value : null;
+    };
+
+    const levelName = getAttr('Level') || '';
+    const rarityIndex = RARITY_LABELS.indexOf(levelName);
+    const rarity = rarityIndex >= 0 ? rarityIndex : 0;
+
+    const name = data.name?.replace('Arc Builder Credential #', '').trim() || 'Unknown';
+    const gender = getAttr('Gender') || 0;
+    const pType = getAttr('Type') || 0;
+    const concentration = getAttr('Concentration') || 0;
+
+    return {
+      name,
+      rarity,
+      gender: typeof gender === 'string' ? GENDER_LABELS.indexOf(gender) : Number(gender),
+      pType: typeof pType === 'string' ? TYPE_LABELS.indexOf(pType) : Number(pType),
+      concentration: Number(concentration),
+      topNotes: [],
+      heartNotes: [],
+      baseNotes: [],
+      creator: '0x0000000000000000000000000000000000000000',
+      createdAt: Date.now()
+    };
+  } catch (e) {
+    console.warn("Failed to parse tokenURI:", e);
+    return null;
+  }
+};
+
 export default function CollectionPage() {
   const [myNFTs, setMyNFTs] = useState<MyNFT[]>([]);
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string | null>(null);
   const [status, setStatus] = useState("Initializing...");
   const [error, setError] = useState<string | null>(null);
-
-  // Helper: parse tokenURI JSON and extract metadata
-  const parseTokenURI = (uri: string): Omit<PerfumeData, 'createdAt'> & { createdAt: number } | null => {
-    try {
-      // Remove data:application/json;base64, prefix if present
-      const base64 = uri.includes('base64,') ? uri.split('base64,')[1] : uri;
-      const jsonStr = atob(base64);
-      const data = JSON.parse(jsonStr);
-      
-      const attrs = data.attributes || [];
-      const getAttr = (trait: string) => {
-        const found = attrs.find((a: any) => a.trait_type === trait);
-        return found ? found.value : null;
-      };
-
-      // Extract level from name or attributes
-      const levelName = getAttr('Level') || '';
-      const rarityIndex = RARITY_LABELS.indexOf(levelName);
-      const rarity = rarityIndex >= 0 ? rarityIndex : 0;
-
-      return {
-        name: data.name?.replace('Arc Builder Credential #', '').trim() || 'Unknown',
-        rarity,
-        gender: 0, // Not in tokenURI, default
-        pType: 0,  // Not in tokenURI, default
-        concentration: 0, // Not in tokenURI, default
-        topNotes: [],
-        heartNotes: [],
-        baseNotes: [],
-        creator: '0x0000000000000000000000000000000000000000',
-        createdAt: Date.now()
-      };
-    } catch (e) {
-      console.warn("Failed to parse tokenURI:", e);
-      return null;
-    }
-  };
 
   useEffect(() => {
     const fetchCollection = async () => {
@@ -95,7 +97,6 @@ export default function CollectionPage() {
         const userAddress = await signer.getAddress();
         setAddress(userAddress);
 
-        // Check cache
         const cacheKey = `${CACHE_KEY_PREFIX}${userAddress.toLowerCase()}`;
         const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
@@ -112,7 +113,6 @@ export default function CollectionPage() {
 
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, CONTRACT_ABI, provider);
 
-        // Get balance
         setStatus("Checking balance...");
         let balance = 0;
         try {
@@ -134,25 +134,40 @@ export default function CollectionPage() {
 
         setStatus(`Found ${balance} NFT(s). Loading metadata...`);
 
-        // Scan IDs 1-300 until we find all tokens
         const nfts: MyNFT[] = [];
         let found = 0;
-        const MAX_ID = 300;
+        const MAX_ID = 100; // Only scan first 100 IDs (since your tokens are within 1-44)
 
         for (let id = 1; id <= MAX_ID && found < balance; id++) {
           setStatus(`Loading NFT #${id}... (${found}/${balance})`);
-          try {
-            const uri = await contract.tokenURI(id);
-            const parsed = parseTokenURI(uri);
-            if (parsed) {
-              nfts.push({ tokenId: id, perfume: parsed });
-              found++;
+          
+          // Retry logic: try up to 3 times on RPC errors
+          let success = false;
+          for (let attempt = 0; attempt < 3 && !success; attempt++) {
+            try {
+              const uri = await contract.tokenURI(id);
+              const parsed = parseTokenURI(uri);
+              if (parsed) {
+                nfts.push({ tokenId: id, perfume: parsed });
+                found++;
+                success = true;
+              }
+              break;
+            } catch (err: any) {
+              if (err.message?.includes("execution reverted")) {
+                // Token doesn't exist, skip
+                break;
+              }
+              if (attempt === 2) {
+                console.warn(`Failed to load NFT #${id} after 3 attempts`);
+              }
+              // Wait and retry
+              await new Promise(r => setTimeout(r, 500));
             }
-          } catch {
-            // Token doesn't exist or not owned
           }
-          // Small delay to prevent RPC throttling
-          await new Promise(r => setTimeout(r, 50));
+          
+          // INCREASED DELAY: 300ms between requests to avoid RPC blocking
+          await new Promise(r => setTimeout(r, 300));
         }
 
         const sorted = nfts.sort((a, b) => b.tokenId - a.tokenId);
@@ -216,19 +231,17 @@ export default function CollectionPage() {
                 </div>
                 
                 {nft.perfume && (
-                  <>
-                    <div className="flex gap-2 text-xs mb-4">
-                      <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
-                        {GENDER_LABELS[nft.perfume.gender] || "Unisex"}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
-                        {TYPE_LABELS[nft.perfume.pType] || "Parfum"}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
-                        {nft.perfume.concentration}%
-                      </span>
-                    </div>
-                  </>
+                  <div className="flex gap-2 text-xs mb-4">
+                    <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
+                      {GENDER_LABELS[nft.perfume.gender] || "Unisex"}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
+                      {TYPE_LABELS[nft.perfume.pType] || "Parfum"}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
+                      {nft.perfume.concentration}%
+                    </span>
+                  </div>
                 )}
 
                 <div className="mt-6 pt-4 border-t border-white/10">
