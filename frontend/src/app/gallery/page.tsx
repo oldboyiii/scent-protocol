@@ -137,7 +137,6 @@ export default function GalleryPage() {
       if (!name || name.length < 2) return null;
 
       // --- 2. EXTRACT STATIC FIELDS (Gender, PType) ---
-      // These are packed into 32-byte slots right after the initial offsets.
       let gender = 0;
       const genderHex = hex.substring(64, 66); 
       const genderRaw = parseInt(genderHex, 16);
@@ -148,8 +147,8 @@ export default function GalleryPage() {
       const pTypeRaw = parseInt(pTypeHex, 16);
       if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
 
-      // --- 3. EXTRACT RARITY (Fixed Slot Packing Logic) ---
-      // In your contract, 'concentration' (uint8) and 'rarity' (uint8) are packed into ONE 32-byte slot.
+      // --- 3. EXTRACT RARITY (Corrected Slot Packing Logic) ---
+      // In your contract, 'concentration' and 'rarity' are packed into ONE 32-byte slot.
       // This slot is located BEFORE 'createdAt' and 'creator'.
       // Structure at the end: ... [mixed_slot] [createdAt(32b)] [creator(32b)]
       // mixed_slot starts at: totalLength - 64 (creator) - 64 (createdAt) - 64 (mixed_slot) = totalLength - 192.
@@ -161,20 +160,25 @@ export default function GalleryPage() {
       if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
          const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
          
-         // The slot contains two uint8s. 
-         // Usually: 0x00...00[concentration_byte][rarity_byte]
-         // So 'rarity' is in the LAST 2 hex characters (bytes 30-31 of the slot).
-         const rarityByteHex = mixedSlotHex.substring(62, 64);
-         const rarityVal = parseInt(rarityByteHex, 16);
+         // Solidity packs uint8s from LEFT to RIGHT in a slot.
+         // Slot layout: 0x[concentration_byte][rarity_byte]0000...00
+         // So 'rarity' is likely at bytes 2-3 (hex chars 4-5) OR bytes 1-2 depending on alignment.
+         // Let's try the most common positions for the second uint8 in a pair.
          
-         // Validate range (0-3)
-         if (rarityVal >= 0 && rarityVal <= 3) {
-            rarity = rarityVal;
+         // Try position 2-3 (chars 4-6) - standard packing for two uint8s
+         let val = parseInt(mixedSlotHex.substring(4, 6), 16);
+         if (val >= 0 && val <= 3) {
+            rarity = val;
          } else {
-            // Fallback: Try the second-to-last byte just in case order is swapped
-            const altByteHex = mixedSlotHex.substring(60, 62);
-            const altVal = parseInt(altByteHex, 16);
-            if (altVal >= 0 && altVal <= 3) rarity = altVal;
+            // Try position 1-2 (chars 2-4) - alternative packing
+            val = parseInt(mixedSlotHex.substring(2, 4), 16);
+            if (val >= 0 && val <= 3) rarity = val;
+            
+            // Try last byte just in case (chars 62-64)
+            if (rarity === 0) {
+               val = parseInt(mixedSlotHex.substring(62, 64), 16);
+               if (val >= 0 && val <= 3) rarity = val;
+            }
          }
       }
 
