@@ -5,13 +5,12 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
-// ABI должен включать totalSupply для динамического получения количества
+const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+
+// ABI только для getPerfume. totalSupply убран.
 const GALLERY_ABI = [
-  "function totalSupply() view returns (uint256)",
   "function getPerfume(uint256 tokenId) view returns (tuple(string name, uint8 gender, uint8 pType, uint8 concentration, uint8 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt))"
 ];
-
-const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
 interface GalleryItem {
   tokenId: number;
@@ -25,7 +24,6 @@ const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
 const GENDER_ICONS = ["⚲", "♂", "♀"];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
-// Используем те же стили, что и в Collection/NFT Detail для единства дизайна
 const RARITY_STYLES: Record<number, { badge: string; text: string }> = {
   0: { badge: "bg-slate-500/20 text-slate-300 border-slate-500/30", text: "text-slate-300" },
   1: { badge: "bg-blue-500/20 text-blue-300 border-blue-500/30", text: "text-blue-300" },
@@ -40,51 +38,42 @@ export default function GalleryPage() {
   useEffect(() => {
     async function fetchGallery() {
       try {
-        // 1. Используем безопасный signer для получения провайдера
         const signer = await getArcSigner();
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, GALLERY_ABI, signer.provider);
 
-        // 2. Получаем реальное количество токенов вместо хардкода
-        const totalSupply = await contract.totalSupply();
-        const maxId = Number(totalSupply);
-        
-        if (maxId === 0) {
-          setLoading(false);
-          return;
-        }
-
         const results: GalleryItem[] = [];
-        const batchSize = 10;
+        let tokenId = 1;
+        let emptyCount = 0;
+        const MAX_EMPTY_CHECKS = 5; // Stop if we find 5 consecutive missing tokens
 
-        // 3. Пакетная загрузка для оптимизации RPC вызовов
-        for (let start = 1; start <= maxId; start += batchSize) {
-          const end = Math.min(start + batchSize - 1, maxId);
-          const batchPromises = [];
-
-          for (let tokenId = start; tokenId <= end; tokenId++) {
-            batchPromises.push(
-              contract.getPerfume(tokenId)
-                .then((p: any) => {
-                  if (p && p.name) {
-                    return {
-                      tokenId,
-                      name: p.name,
-                      rarity: Number(p.rarity),
-                      gender: Number(p.gender),
-                      pType: Number(p.pType),
-                    };
-                  }
-                  return null;
-                })
-                .catch(() => null)
-            );
+        // Iterate sequentially until we hit a gap
+        while (emptyCount < MAX_EMPTY_CHECKS) {
+          try {
+            const p = await contract.getPerfume(tokenId);
+            
+            if (p && p.name) {
+              results.push({
+                tokenId,
+                name: p.name,
+                rarity: Number(p.rarity),
+                gender: Number(p.gender),
+                pType: Number(p.pType),
+              });
+              emptyCount = 0; // Reset counter on success
+            } else {
+              emptyCount++;
+            }
+          } catch (e) {
+            // If call reverts or fails, count as empty
+            emptyCount++;
           }
-
-          const batchResults = await Promise.all(batchPromises);
-          results.push(...batchResults.filter((r): r is GalleryItem => r !== null));
+          
+          tokenId++;
+          
+          // Safety break to prevent infinite loops in testnet
+          if (tokenId > 1000) break; 
         }
 
-        // Показываем сначала новые (reverse)
         setItems(results.reverse());
       } catch (e) {
         console.error("Failed to load gallery:", e);
@@ -117,7 +106,6 @@ export default function GalleryPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {items.map((item) => {
             const style = RARITY_STYLES[item.rarity] || RARITY_STYLES[0];
-            
             return (
               <Link key={item.tokenId} href={`/nft/${item.tokenId}`} className="block group">
                 <div className="glass-card-luxury p-5 hover:scale-[1.02] transition-all duration-300 cursor-pointer border border-white/10 bg-slate-900/40 backdrop-blur-md h-full flex flex-col">
@@ -127,11 +115,9 @@ export default function GalleryPage() {
                       {RARITY_LABELS[item.rarity]}
                     </span>
                   </div>
-                  
                   <h3 className="text-lg font-semibold text-white truncate mb-2 group-hover:text-amber-300 transition-colors">
                     {item.name}
                   </h3>
-                  
                   <div className="mt-auto flex items-center gap-3 text-xs text-white/50 pt-2 border-t border-white/5">
                     <span>{GENDER_ICONS[item.gender]}</span>
                     <span>{TYPE_LABELS[item.pType]}</span>
