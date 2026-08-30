@@ -54,26 +54,19 @@ class ArcSigner extends ethers.Signer {
   }
 
   async signTransaction(transaction: ethers.TransactionRequest): Promise<string> {
-    // Strip any ENS-related fields before signing
     const safeTx = { ...transaction };
     delete (safeTx as any).ensName; 
     return this._signer.signTransaction(safeTx);
   }
 
   async sendTransaction(transaction: ethers.TransactionRequest): Promise<ethers.TransactionResponse> {
-    // CRITICAL: Ensure no ENS lookups happen before sending
     const safeTx = { ...transaction };
-    // Explicitly set toAddress if it's a raw hex to prevent resolution attempts
-    if (typeof safeTx.to === 'string' && ethers.isAddress(safeTx.to)) {
-      // It's already a valid address, do nothing
-    }
     
     try {
       return await this._signer.sendTransaction(safeTx);
     } catch (error: any) {
       if (error.code === "UNSUPPORTED_OPERATION" && error.operation?.includes("Ens")) {
         console.error("[ArcSigner] ENS operation blocked. Retrying with stripped transaction...");
-        // Retry without any potential ENS metadata
         return await this._signer.sendTransaction({
           to: safeTx.to,
           value: safeTx.value,
@@ -181,7 +174,6 @@ export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: nu
   const nft = new ethers.Contract(nftAddress, NFT_ABI, signer);
   const market = getMarketplaceContract(signer);
 
-  // Safe approval check
   let needsApproval = true;
   try {
     const approved = await nft.getApproved.staticCall(tokenId);
