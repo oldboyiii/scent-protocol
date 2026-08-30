@@ -7,9 +7,10 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// ABI matching the contract structure (using uint256 for safety)
+// FIX: Use a FLAT ABI that avoids struct decoding issues in ethers v6
+// This matches the exact order of fields in the Perfume struct
 const GALLERY_ABI = [
-  "function getPerfume(uint256 tokenId) view returns (string name, uint256 gender, uint256 pType, uint256 concentration, uint256 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt)"
+  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
 interface GalleryItem {
@@ -33,6 +34,7 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Starting scan...");
   const [debugData, setDebugData] = useState<any>(null);
+  const [decodeError, setDecodeError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchGallery() {
@@ -59,31 +61,38 @@ export default function GalleryPage() {
             batchPromises.push(
               contract.getPerfume(idToCheck)
                 .then((p: any) => {
-                  // DEBUG: Capture the very first response we get (ID #1)
+                  // DEBUG: Capture raw data for first token
                   if (idToCheck === 1 && !debugData) {
                     console.log("RAW DATA ID #1:", p);
+                    console.log("Type of p:", typeof p);
+                    console.log("Is Array?", Array.isArray(p));
                     setDebugData(p);
                   }
 
-                  // Relaxed check: accept token if it has ANY name (even empty string might be valid in some contracts, but usually means not minted)
-                  // Let's be strict: name must exist and not be empty
-                  if (p && p.name && typeof p.name === 'string' && p.name.trim().length > 0) {
+                  // With flat ABI, p should be an array-like object or Result
+                  // Access by index to be safe: [0]=name, [1]=gender, [2]=pType, ..., [7]=rarity
+                  const name = p[0] || p.name;
+                  const rarity = Number(p[7] || p.rarity);
+                  const gender = Number(p[1] || p.gender);
+                  const pType = Number(p[2] || p.pType);
+
+                  if (name && typeof name === 'string' && name.trim().length > 0) {
                     return { 
                       tokenId: idToCheck, 
-                      name: p.name, 
-                      rarity: Number(p.rarity), 
-                      gender: Number(p.gender), 
-                      pType: Number(p.pType) 
+                      name: name, 
+                      rarity: rarity, 
+                      gender: gender, 
+                      pType: pType 
                     };
                   }
-                  
-                  // If we got here, the token exists structurally but has no name? Or doesn't exist?
-                  // Let's count it as empty for the loop breaker, but maybe log it if it's ID #1
                   return null;
                 })
                 .catch((err) => {
-                   // Ignore standard errors
-                   return null;
+                  if (idToCheck === 1 && !decodeError) {
+                    setDecodeError(err.shortMessage || err.message);
+                    console.error("Decode error for ID #1:", err);
+                  }
+                  return null;
                 })
             );
           }
@@ -128,18 +137,30 @@ export default function GalleryPage() {
       
       {/* Diagnostic Panel */}
       <div className="mb-8 p-4 rounded-lg bg-black/60 border border-amber-500/30 font-mono text-xs overflow-x-auto">
-        <p className="text-amber-400 font-bold mb-2">DIAGNOSTIC MODE: RAW DATA INSPECTION</p>
+        <p className="text-amber-400 font-bold mb-2">DIAGNOSTIC MODE: FLAT ABI TEST</p>
         <p className="text-white mb-2">Status: {status}</p>
         
-        {debugData ? (
-           <div className="mt-2 p-3 bg-gray-900 rounded border border-gray-700">
-             <p className="text-green-400 mb-1">✅ Data received for ID #1:</p>
+        {decodeError && (
+           <div className="mt-2 p-3 bg-red-900/30 rounded border border-red-700">
+             <p className="text-red-400 font-bold">❌ Decoding Failed:</p>
+             <pre className="text-gray-300 whitespace-pre-wrap break-all">{decodeError}</pre>
+           </div>
+        )}
+
+        {debugData && !decodeError ? (
+           <div className="mt-2 p-3 bg-green-900/30 rounded border border-green-700">
+             <p className="text-green-400 font-bold">✅ Data received for ID #1:</p>
              <pre className="text-gray-300 whitespace-pre-wrap break-all">
-               {JSON.stringify(debugData, null, 2)}
+               {JSON.stringify(debugData, (key, value) => {
+                 // Handle BigInt serialization
+                 if (typeof value === 'bigint') return value.toString();
+                 return value;
+               }, 2).slice(0, 500)}...
              </pre>
-             <p className="text-yellow-500 mt-2">
-               Check "name" field above. If it is "" or null, that's why gallery is empty.
-             </p>
+           </div>
+        ) : debugData && decodeError ? (
+           <div className="mt-2 p-3 bg-yellow-900/30 rounded border border-yellow-700">
+             <p className="text-yellow-400">Raw data exists but decoding failed. Check error above.</p>
            </div>
         ) : (
           <p className="text-gray-500 italic">Waiting for data from ID #1...</p>
@@ -153,7 +174,7 @@ export default function GalleryPage() {
       ) : items.length === 0 ? (
         <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8">
           <p className="text-xl text-red-400 mb-2">Scan returned 0 items.</p>
-          <p>Please look at the JSON data in the panel above.</p>
+          <p>Please check the Diagnostic Panel above.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
