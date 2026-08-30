@@ -297,7 +297,6 @@ export default function NFTDetailPage() {
           nftContractAddress={NFT_CONTRACT_ADDRESS}
           ownerAddress={perfume.creator}
           userAddress={userAddress}
-          signer={signer}
         />
         {/* 👆 END OF MARKETPLACE ACTIONS 👆 */}
 
