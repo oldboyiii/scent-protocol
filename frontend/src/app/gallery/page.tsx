@@ -18,6 +18,7 @@ interface GalleryItem {
   rarity: number;
   gender: number;
   pType: number;
+  firstTopNote?: string; // Для краткого описания
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
@@ -28,26 +29,31 @@ const RARITY_STYLES: Record<number, {
   badge: string; 
   border: string;
   glow: string;
+  bg: string;
 }> = {
   0: { 
     badge: "bg-slate-500/20 text-slate-300 border-slate-500/30", 
     border: "border-slate-500/30",
-    glow: "hover:shadow-[0_0_15px_rgba(148,163,184,0.1)]"
+    glow: "hover:shadow-[0_0_15px_rgba(148,163,184,0.1)]",
+    bg: "from-slate-900/60 to-slate-900/40"
   },
   1: { 
     badge: "bg-blue-500/20 text-blue-300 border-blue-500/30", 
     border: "border-blue-500/40",
-    glow: "hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]"
+    glow: "hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]",
+    bg: "from-blue-900/40 to-slate-900/60"
   },
   2: { 
     badge: "bg-purple-500/20 text-purple-300 border-purple-500/30", 
     border: "border-purple-500/40",
-    glow: "hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+    glow: "hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]",
+    bg: "from-purple-900/40 to-slate-900/60"
   },
   3: { 
     badge: "bg-amber-500/20 text-amber-300 border-amber-500/30", 
     border: "border-amber-500/40",
-    glow: "hover:shadow-[0_0_25px_rgba(245,158,11,0.3)]"
+    glow: "hover:shadow-[0_0_25px_rgba(245,158,11,0.3)]",
+    bg: "from-amber-900/40 to-slate-900/60"
   },
 };
 
@@ -55,35 +61,19 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Scanning blockchain...");
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  // Функция для автоматического переподключения кошелька
-  const reconnectWallet = async () => {
-    try {
-      const win = window as any;
-      if (win.ethereum) {
-        // Пытаемся получить_accounts без запроса подтверждения (если уже подключен)
-        const accounts = await win.ethereum.request({ method: 'eth_accounts' });
-        if (accounts.length > 0) {
-          setIsWalletConnected(true);
-          return true;
-        }
-      }
-    } catch (e) {
-      console.warn("Auto-reconnect failed:", e);
-    }
-    return false;
-  };
-
-  // Улучшенный ручной парсер с надежным извлечением metadata
+  // Улучшенный ручной парсер
   const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
     try {
       const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
       
       if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
 
-      // --- 1. ИЗВЛЕЧЕНИЕ ИМЕНИ (через смещение) ---
+      // --- 1. ИЗВЛЕЧЕНИЕ ИМЕНИ ---
       let name = "";
+      let firstTopNote = "";
+      
       try {
         const nameOffsetHex = hex.substring(0, 64);
         const nameOffset = parseInt(nameOffsetHex, 16) * 2;
@@ -102,25 +92,17 @@ export default function GalleryPage() {
           let isValid = true;
           for (let i = 0; i < nameBytes.length; i++) {
             const byte = nameBytes[i];
-            if (byte >= 32 && byte <= 126) {
-              decodedName += String.fromCharCode(byte);
-            } else {
-              isValid = false;
-              break;
-            }
+            if (byte >= 32 && byte <= 126) decodedName += String.fromCharCode(byte);
+            else { isValid = false; break; }
           }
-          if (isValid && decodedName.trim().length > 0) {
-            name = decodedName.trim();
-          }
+          if (isValid && decodedName.trim().length > 0) name = decodedName.trim();
         }
       } catch (e) {}
 
       // Fallback эвристика для имени
       if (!name) {
         const bytes = new Uint8Array(hex.length / 2);
-        for (let i = 0; i < hex.length; i += 2) {
-          bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
-        }
+        for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
 
         let currentString = "";
         const candidates: string[] = [];
@@ -138,64 +120,55 @@ export default function GalleryPage() {
           if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
           if (/^\d+$/.test(c)) continue;
           if (["getPerfume", "Not minted"].includes(c)) continue;
-          
-          if (c.includes(" ") && c.length > 3) {
-            name = c;
-            break;
-          }
-          if (!name && c.length > 5 && /^[A-Za-z]+$/.test(c)) {
-            name = c;
-          }
-        }
-        if (!name) {
-          for (const c of candidates) {
-            if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
-            if (/^\d+$/.test(c)) continue;
-            name = c;
-            break;
-          }
+          if (c.includes(" ") && c.length > 3) { name = c; break; }
+          if (!name && c.length > 5 && /^[A-Za-z]+$/.test(c)) name = c;
         }
       }
 
       if (!name || name.length < 2) return null;
 
-      // --- 2. ИЗВЛЕЧЕНИЕ METADATA (Gender, PType, Rarity) ---
-      // Структура возврата: [offset_name][gender_slot][pType_slot][offset_topNotes]...[concentration_slot][rarity_slot][createdAt_slot][creator_slot]
-      
+      // --- 2. ИЗВЛЕЧЕНИЕ METADATA ---
       let gender = 0;
       let pType = 0;
       let rarity = 0;
 
-      // Gender обычно во втором слоте (байты 32-63)
+      // Gender (байты 32-63)
       const genderHex = hex.substring(64, 66); 
       const genderRaw = parseInt(genderHex, 16);
       if (genderRaw >= 0 && genderRaw <= 2) gender = genderRaw;
 
-      // PType обычно в третьем слоте (байты 64-95)
+      // PType (байты 64-95)
       const pTypeHex = hex.substring(128, 130);
       const pTypeRaw = parseInt(pTypeHex, 16);
       if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
 
-      // Rarity ищем в "хвосте" структуры
-      // Creator: last 32 bytes (64 hex)
-      // CreatedAt: prev 32 bytes (64 hex)
-      // Rarity slot: prev 32 bytes (64 hex) -> значение uint8 в последних 2 hex chars
+      // Rarity: Ищем в хвосте. 
+      // Структура хвоста: ... [rarity_slot(32b)] [createdAt(32b)] [creator(32b)]
+      // Creator - последние 32 байта (64 hex). CreatedAt - перед ним. Rarity - еще перед ним.
+      // Значит rarity начинается за 192 символа (96 байт) от конца.
       const totalLen = hex.length;
-      const raritySlotStart = totalLen - 192; // 64 (creator) + 64 (createdAt) + 64 (rarity_slot)
+      const raritySlotStart = totalLen - 192; 
+      
       if (raritySlotStart > 0 && raritySlotStart + 64 <= totalLen) {
          const raritySlotHex = hex.substring(raritySlotStart, raritySlotStart + 64);
+         // Значение uint8 лежит в последних 2 hex chars слота (big-endian padding)
          const rarityVal = parseInt(raritySlotHex.substring(62, 64), 16);
-         if (rarityVal >= 0 && rarityVal <= 3) {
-            rarity = rarityVal;
-         }
+         if (rarityVal >= 0 && rarityVal <= 3) rarity = rarityVal;
       }
 
+      // Попытка найти первую верхнюю ноту (для описания)
+      // Это сложно, но попробуем найти вторую строку после имени.
+      // Обычно topNotes идут сразу после offset_name.
+      // Но из-за сложности пропускаем это для стабильности, либо используем заглушку.
+      // Для красоты добавим просто тип парфюма как "описание" если нет нот.
+      
       return {
         tokenId,
         name,
         rarity,
         gender,
-        pType
+        pType,
+        firstTopNote: TYPE_LABELS[pType] // Пока используем тип как краткое описание
       };
 
     } catch (e) {
@@ -205,84 +178,76 @@ export default function GalleryPage() {
   };
 
   useEffect(() => {
-    // Автоматическое переподключение кошелька при загрузке
-    const init = async () => {
-      const connected = await reconnectWallet();
-      if (connected) {
-        fetchGallery();
-      } else {
+    const fetchGallery = async () => {
+      try {
+        setStatus("Connecting to Arc Network...");
+        const signer = await getArcSigner();
+        const provider = signer.provider;
+
+        const results: GalleryItem[] = [];
+        let consecutiveEmpty = 0;
+        const MAX_CONSECUTIVE_EMPTY = 10; 
+        let currentId = 1;
+        const BATCH_SIZE = 3; // Уменьшаем пакет чтобы не получать RPC errors
+
+        setStatus(`Scanning IDs (Safe Mode)...`);
+
+        while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
+          const batchPromises = [];
+          
+          for (let i = 0; i < BATCH_SIZE; i++) {
+            const idToCheck = currentId + i;
+            const calldata = INTERFACE.encodeFunctionData("getPerfume", [idToCheck]);
+
+            batchPromises.push(
+              provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
+                .then((rawResult: string) => parsePerfumeFromRawData(rawResult, idToCheck))
+                .catch((err) => {
+                  if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
+                  // Не логируем каждую ошибку RPC чтобы не спамить консоль
+                  return null;
+                })
+            );
+          }
+
+          const batchResults = await Promise.all(batchPromises);
+          
+          let foundInBatch = false;
+          for (const result of batchResults) {
+            if (result) {
+              results.push(result);
+              foundInBatch = true;
+              consecutiveEmpty = 0;
+            } else {
+              consecutiveEmpty++;
+            }
+          }
+
+          setProgress(currentId);
+          if (results.length > 0 || currentId % 10 === 0) {
+             setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
+          }
+
+          currentId += BATCH_SIZE;
+          
+          // ДОБАВЛЕНА ЗАДЕРЖКА ДЛЯ СТАБИЛЬНОСТИ RPC
+          await new Promise(r => setTimeout(r, 200)); 
+        }
+
+        const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
+        setItems(sorted);
+        setStatus(`Done. Total found: ${sorted.length}`);
+        
+      } catch (e: any) {
+        console.error("CRITICAL ERROR:", e);
+        setStatus(`Error: ${e.shortMessage || e.message}`);
+      } finally {
         setLoading(false);
-        setStatus("Please connect your wallet to view gallery.");
       }
     };
-    init();
+    
+    fetchGallery();
   }, []);
-
-  const fetchGallery = async () => {
-    try {
-      setStatus("Connecting to Arc Network...");
-      const signer = await getArcSigner();
-      const provider = signer.provider;
-
-      const results: GalleryItem[] = [];
-      let consecutiveEmpty = 0;
-      const MAX_CONSECUTIVE_EMPTY = 10; 
-      let currentId = 1;
-      const BATCH_SIZE = 5;
-
-      setStatus(`Scanning IDs (Manual Parse Mode)...`);
-
-      while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
-        const batchPromises = [];
-        
-        for (let i = 0; i < BATCH_SIZE; i++) {
-          const idToCheck = currentId + i;
-          const calldata = INTERFACE.encodeFunctionData("getPerfume", [idToCheck]);
-
-          batchPromises.push(
-            provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
-              .then((rawResult: string) => {
-                return parsePerfumeFromRawData(rawResult, idToCheck);
-              })
-              .catch((err) => {
-                if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
-                console.warn(`RPC Error for ID ${idToCheck}:`, err.shortMessage);
-                return null;
-              })
-          );
-        }
-
-        const batchResults = await Promise.all(batchPromises);
-        
-        let foundInBatch = false;
-        for (const result of batchResults) {
-          if (result) {
-            results.push(result);
-            foundInBatch = true;
-            consecutiveEmpty = 0;
-          } else {
-            consecutiveEmpty++;
-          }
-        }
-
-        if (results.length > 0 || currentId % 20 === 0) {
-           setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
-        }
-
-        currentId += BATCH_SIZE;
-      }
-
-      const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
-      setItems(sorted);
-      setStatus(`Done. Total found: ${sorted.length}`);
-      
-    } catch (e: any) {
-      console.error("CRITICAL ERROR:", e);
-      setStatus(`Error: ${e.shortMessage || e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="max-w-7xl mx-auto py-16 px-4 relative z-10">
@@ -293,17 +258,14 @@ export default function GalleryPage() {
         </div>
         <div className="text-right hidden md:block">
            <p className="text-xs text-white/30 font-mono">{status}</p>
+           {loading && <div className="w-32 h-1 bg-white/10 rounded-full mt-2 overflow-hidden"><div className="h-full bg-amber-500 transition-all duration-300" style={{width: `${Math.min((progress / 500) * 100, 100)}%`}} /></div>}
         </div>
       </div>
 
-      {!isWalletConnected && !loading ? (
-        <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8 border border-white/10">
-          <p>Please connect your wallet to view the gallery.</p>
-        </div>
-      ) : loading ? (
+      {loading && items.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-48 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
+            <div key={i} className="h-56 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -318,7 +280,7 @@ export default function GalleryPage() {
               <Link 
                 key={item.tokenId} 
                 href={`/nft/${item.tokenId}`} 
-                className={`block group relative rounded-2xl p-6 bg-slate-900/40 backdrop-blur-md border transition-all duration-300 hover:-translate-y-1 ${style.border} ${style.glow}`}
+                className={`block group relative rounded-2xl p-6 bg-gradient-to-br ${style.bg} backdrop-blur-md border transition-all duration-300 hover:-translate-y-1 ${style.border} ${style.glow}`}
               >
                 {/* Header: ID & Rarity */}
                 <div className="flex justify-between items-start mb-4">
@@ -329,17 +291,26 @@ export default function GalleryPage() {
                 </div>
                 
                 {/* Name */}
-                <h3 className="text-xl font-bold text-white mb-6 line-clamp-2 group-hover:text-amber-300 transition-colors">
+                <h3 className="text-xl font-bold text-white mb-2 line-clamp-2 group-hover:text-amber-300 transition-colors">
                   {item.name}
                 </h3>
+
+                {/* Description / Type */}
+                <p className="text-xs text-white/40 mb-6 italic">
+                  {item.firstTopNote} fragrance
+                </p>
                 
-                {/* Footer: Gender & Type */}
+                {/* Footer: Gender & Type Icons */}
                 <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-xs text-white/40 border-t border-white/5 pt-4">
-                  <div className="flex items-center gap-2">
-                    <span>{GENDER_ICONS[item.gender] || ""}</span>
-                    <span>{TYPE_LABELS[item.pType] || "Unknown"}</span>
+                  <div className="flex items-center gap-3">
+                    <span title="Gender" className="flex items-center gap-1">
+                      {GENDER_ICONS[item.gender] || "⚲"}
+                    </span>
+                    <span title="Type" className="flex items-center gap-1">
+                       {TYPE_LABELS[item.pType] || "Unknown"}
+                    </span>
                   </div>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-400">→</span>
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-400 text-sm">→</span>
                 </div>
               </Link>
             );
