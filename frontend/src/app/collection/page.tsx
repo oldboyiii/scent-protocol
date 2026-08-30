@@ -2,235 +2,242 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import ShareCard from "@/components/ShareCard";
+import { ethers } from "ethers";
+import { getArcSigner } from "@/utils/marketplace";
 
-interface StoredScent {
-  tokenId: number;
-  name?: string;
-  rarity?: number;
-  timestamp: number;
-  perfume?: {
-    name: string;
-    gender: number;
-    pType: number;
-    topNotes: string[];
-    heartNotes: string[];
-    baseNotes: string[];
-    concentration: number;
-    rarity: number;
-    createdAt: number;
-    creator: string;
-  };
-  description?: string;
+const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+const CACHE_KEY_PREFIX = "scent_collection_v9_"; 
+
+// ABI for contract calls
+const CONTRACT_ABI = [
+  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
+  "function balanceOf(address owner) view returns (uint256)"
+];
+
+interface PerfumeData {
+  name: string;
+  gender: number;
+  pType: number;
+  concentration: number;
+  rarity: number;
+  topNotes: string[];
+  heartNotes: string[];
+  baseNotes: string[];
+  creator: string;
+  createdAt: bigint;
 }
 
-const GENDER = ["Male", "Female", "Unisex"];
-const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
-const RARITY = ["Common", "Rare", "Epic", "Legendary"];
+interface MyNFT {
+  tokenId: number;
+  perfume?: PerfumeData;
+}
 
-const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; accent: string }> = {
-  0: {
-    bg: "bg-gradient-to-br from-slate-700/70 via-slate-600/50 to-slate-800/70",
-    border: "border-slate-400/30",
-    badge: "bg-slate-500/30 text-slate-200 border-slate-400/40",
-    text: "text-slate-200",
-    accent: "#94a3b8",
-  },
-  1: {
-    bg: "bg-gradient-to-br from-blue-700/70 via-indigo-600/50 to-blue-900/70",
-    border: "border-blue-400/40",
-    badge: "bg-blue-500/30 text-blue-200 border-blue-400/40",
-    text: "text-blue-200",
-    accent: "#60a5fa",
-  },
-  2: {
-    bg: "bg-gradient-to-br from-purple-700/70 via-fuchsia-600/50 to-purple-900/70",
-    border: "border-purple-400/40",
-    badge: "bg-purple-500/30 text-purple-200 border-purple-400/40",
-    text: "text-purple-200",
-    accent: "#c084fc",
-  },
-  3: {
-    bg: "bg-gradient-to-br from-amber-600/80 via-orange-500/60 to-amber-800/80",
-    border: "border-amber-400/50",
-    badge: "bg-amber-500/30 text-amber-100 border-amber-400/50",
-    text: "text-amber-100",
-    accent: "#fbbf24",
-  },
+const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; glow: string; hex: string }> = {
+  0: { bg: "from-slate-800/80 via-slate-700/60 to-slate-900/80", border: "border-slate-500/40", badge: "bg-slate-500/30 text-slate-200 border-slate-400/50", glow: "shadow-[0_0_30px_rgba(148,163,184,0.15)]", hex: "#94a3b8" },
+  1: { bg: "from-blue-800/80 via-blue-600/60 to-indigo-900/80", border: "border-blue-400/50", badge: "bg-blue-500/30 text-blue-100 border-blue-400/50", glow: "shadow-[0_0_40px_rgba(96,165,250,0.25)]", hex: "#60a5fa" },
+  2: { bg: "from-purple-800/80 via-fuchsia-600/60 to-purple-900/80", border: "border-purple-400/50", badge: "bg-purple-500/30 text-purple-100 border-purple-400/50", glow: "shadow-[0_0_40px_rgba(192,132,252,0.25)]", hex: "#c084fc" },
+  3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
 export default function CollectionPage() {
-  const [scents, setScents] = useState<StoredScent[]>([]);
+  const [myNFTs, setMyNFTs] = useState<MyNFT[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [address, setAddress] = useState<string | null>(null);
+  const [status, setStatus] = useState("Initializing...");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem("scent_collection");
-    if (raw) {
+    const fetchCollection = async () => {
       try {
-        const parsed = JSON.parse(raw);
-        setScents(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        setScents([]);
+        setStatus("Connecting to Arc Network...");
+        const signer = await getArcSigner();
+        const provider = signer.provider;
+        const userAddress = await signer.getAddress();
+        setAddress(userAddress);
+
+        // Check cache
+        const cacheKey = `${CACHE_KEY_PREFIX}${userAddress.toLowerCase()}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        
+        if (cached) {
+          try {
+            const parsedCache = JSON.parse(cached);
+            if (parsedCache && Array.isArray(parsedCache) && parsedCache.length > 0) {
+              setMyNFTs(parsedCache);
+              setStatus("Loaded from cache");
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn("Cache parse error", e);
+          }
+        }
+
+        const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+        
+        // STEP 1: Get balance to know how many tokens to expect
+        setStatus("Checking balance...");
+        let balance = 0;
+        try {
+          const balanceRaw = await contract.balanceOf(userAddress);
+          balance = Number(balanceRaw);
+        } catch (e) {
+          console.error("Balance check failed", e);
+          setError("Failed to connect to network.");
+          setLoading(false);
+          return;
+        }
+        
+        if (balance === 0) {
+          setMyNFTs([]);
+          sessionStorage.setItem(cacheKey, JSON.stringify([]));
+          setStatus("No NFTs found");
+          setLoading(false);
+          return;
+        }
+
+        setStatus(`Found ${balance} NFT(s). Scanning IDs sequentially...`);
+        
+        // STEP 2: Sequential scan with SMALL range and FAST delay
+        // Since balance is 32, tokens are likely in first 200 IDs
+        const nfts: MyNFT[] = [];
+        let foundCount = 0;
+        const MAX_SCAN_ID = 300; // Limited range based on balance
+        
+        for (let id = 1; id <= MAX_SCAN_ID && foundCount < balance; id++) {
+          setStatus(`Scanning ID ${id}... Found: ${foundCount}/${balance}`);
+          
+          try {
+            const perfume = await contract.getPerfume(id);
+            
+            // Check ownership
+            if (perfume.creator && perfume.creator.toLowerCase() === userAddress.toLowerCase()) {
+              nfts.push({
+                tokenId: id,
+                perfume: {
+                  name: perfume.name,
+                  gender: Number(perfume.gender),
+                  pType: Number(perfume.pType),
+                  concentration: Number(perfume.concentration),
+                  rarity: Number(perfume.rarity),
+                  topNotes: Array.from(perfume.topNotes || []),
+                  heartNotes: Array.from(perfume.heartNotes || []),
+                  baseNotes: Array.from(perfume.baseNotes || []),
+                  creator: perfume.creator,
+                  createdAt: perfume.createdAt
+                }
+              });
+              foundCount++;
+            }
+          } catch (err: any) {
+            // Ignore "Not minted" errors silently
+            if (!err.message?.includes("Not minted") && !err.message?.includes("revert")) {
+              // For other errors, just skip
+            }
+          }
+          
+          // VERY SMALL delay - 30ms is safe for sequential calls
+          await new Promise(r => setTimeout(r, 30)); 
+        }
+
+        const sorted = nfts.sort((a, b) => b.tokenId - a.tokenId);
+        setMyNFTs(sorted);
+        sessionStorage.setItem(cacheKey, JSON.stringify(sorted));
+        setStatus(`Done. Found ${sorted.length} NFT(s)`);
+        
+      } catch (error: any) {
+        console.error("Collection load failed:", error);
+        setError(error.message || "Unknown error occurred");
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+    
+    fetchCollection();
   }, []);
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
-      <h1 className="text-4xl md:text-5xl font-bold text-white text-center leading-normal pb-1">
-        My Collection
-      </h1>
-      <p className="text-center text-white/50">
-        {scents.length} scent{scents.length !== 1 ? "s" : ""} collected
-      </p>
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-white">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mb-4"></div>
+      <p className="text-white/50 font-mono">{status}</p>
+    </div>
+  );
 
-      {scents.length === 0 ? (
-        <div className="text-center text-white/40 py-20">
-          <p className="text-lg mb-4">No scents in your collection yet.</p>
-          <Link
-            href="/"
-            className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-          >
-            Mint Your First Scent →
-          </Link>
+  if (error) return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-white p-4 text-center">
+      <h2 className="text-2xl font-bold text-red-400 mb-2">Error Loading Collection</h2>
+      <p className="text-white/60 mb-6 max-w-md">{error}</p>
+      <button onClick={() => window.location.reload()} className="px-6 py-2 bg-amber-500 text-black font-bold rounded-lg hover:bg-amber-400">
+        Retry
+      </button>
+    </div>
+  );
+
+  if (!address) return <div className="min-h-screen flex items-center justify-center text-white">Connect wallet to see collection</div>;
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
+      <h1 className="text-4xl font-bold text-white text-center">My Collection</h1>
+      <p className="text-center text-white/50">{myNFTs.length} scent{myNFTs.length !== 1 ? "s" : ""} collected</p>
+      <p className="text-center text-xs text-white/30 font-mono">{status}</p>
+
+      {myNFTs.length === 0 ? (
+        <div className="text-center py-20 glass-card-luxury rounded-2xl border border-white/10 p-8">
+          <p className="mb-4">No scents in your collection yet.</p>
+          <Link href="/mint" className="px-6 py-3 rounded-xl bg-amber-500 text-slate-900 font-bold hover:bg-amber-400 transition-colors">Mint First Scent →</Link>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          {scents.map((s) => {
-            const hasFullData = !!s.perfume && s.perfume.topNotes;
-            const perfume = hasFullData ? s.perfume! : null;
-            const rarity = perfume?.rarity ?? s.rarity ?? 0;
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {myNFTs.map((nft) => {
+            const rarity = nft.perfume?.rarity ?? 0;
             const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
-
             return (
-              <div
-                key={s.tokenId}
-                className={`relative rounded-2xl p-6 space-y-4 backdrop-blur-xl ${style.bg} border ${style.border} overflow-hidden`}
-              >
-                {/* Glass shine overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-
-                {/* Inner glow line top */}
-                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
-                <div className="relative flex items-start justify-between">
+              <div key={nft.tokenId} className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} hover:scale-[1.02] transition-transform duration-300`}>
+                <div className="flex justify-between mb-4">
                   <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider">
-                      Scent #{s.tokenId}
-                    </p>
-                    <h3 className="text-xl font-bold text-white mt-1">
-                      {perfume?.name || s.name || `Scent #${s.tokenId}`}
-                    </h3>
+                    <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{nft.tokenId}</p>
+                    <h3 className="text-xl font-bold text-white mt-1">{nft.perfume?.name || "Unknown Scent"}</h3>
                   </div>
-                  <span
-                    className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}
-                  >
-                    {RARITY[rarity]}
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                    {["Common","Rare","Epic","Legendary"][rarity]}
                   </span>
                 </div>
-
-                {hasFullData ? (
+                
+                {nft.perfume && (
                   <>
-                    <div className="relative flex flex-wrap gap-2 text-xs">
-                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
-                        {GENDER[perfume!.gender]}
+                    <div className="flex gap-2 text-xs mb-4">
+                      <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
+                        {["Unisex","Male","Female"][nft.perfume.gender]}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
-                        {TYPE[perfume!.pType]}
+                      <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
+                        {["Parfum","EDP","EDT","EDC"][nft.perfume.pType]}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
-                        {perfume!.concentration}%
+                      <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
+                        {nft.perfume.concentration}%
                       </span>
                     </div>
-
-                    <div className="relative space-y-2 text-sm">
+                    
+                    <div className="space-y-2 text-sm">
                       <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">
-                          Top Notes
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {perfume!.topNotes.map((n) => (
-                            <span
-                              key={n}
-                              className="px-2 py-0.5 rounded-md bg-black/20 text-amber-200 text-xs border border-amber-500/20"
-                            >
-                              {n}
-                            </span>
-                          ))}
+                        <span className="text-xs text-white/40 uppercase tracking-wider">Top Notes</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {nft.perfume.topNotes.length > 0 
+                            ? nft.perfume.topNotes.map(n => <span key={n} className="px-2 py-0.5 rounded bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>)
+                            : <span className="text-white/30 text-xs italic">None</span>
+                          }
                         </div>
                       </div>
-                      <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">
-                          Heart Notes
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {perfume!.heartNotes.map((n) => (
-                            <span
-                              key={n}
-                              className="px-2 py-0.5 rounded-md bg-black/20 text-rose-200 text-xs border border-rose-500/20"
-                            >
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">
-                          Base Notes
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {perfume!.baseNotes.map((n) => (
-                            <span
-                              key={n}
-                              className="px-2 py-0.5 rounded-md bg-black/20 text-emerald-200 text-xs border border-emerald-500/20"
-                            >
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {s.description && (
-                      <div className="relative bg-black/20 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
-                        {s.description}
-                      </div>
-                    )}
-
-                    <div className="relative text-xs text-white/30 space-y-0.5">
-                      <p>Creator: {perfume!.creator}</p>
-                      <p>
-                        Minted:{" "}
-                        {new Date(perfume!.createdAt * 1000).toLocaleString()}
-                      </p>
-                    </div>
-
-                    <div className="relative flex items-center justify-between pt-2">
-                      <Link
-                        href={`/nft/${s.tokenId}`}
-                        className="text-sm text-white/50 hover:text-white transition-colors"
-                      >
-                        View Details →
-                      </Link>
-                      <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                     </div>
                   </>
-                ) : (
-                  <div className="relative text-sm text-white/40">
-                    <p>Legacy entry — full details not available.</p>
-                    <p className="text-xs mt-1">
-                      Minted:{" "}
-                      {new Date(s.timestamp).toLocaleString()}
-                    </p>
-                    <div className="flex items-center justify-between pt-4">
-                      <Link
-                        href={`/nft/${s.tokenId}`}
-                        className="text-sm text-white/50 hover:text-white transition-colors"
-                      >
-                        View Details →
-                      </Link>
-                    </div>
-                  </div>
                 )}
+                
+                {!nft.perfume && <p className="text-sm text-white/40 italic">Metadata unavailable.</p>}
+
+                <div className="mt-6 pt-4 border-t border-white/10">
+                   <Link href={`/nft/${nft.tokenId}`} className="block w-full py-2.5 text-center bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/30 transition font-semibold">
+                     Manage & Sell
+                   </Link>
+                </div>
               </div>
             );
           })}
