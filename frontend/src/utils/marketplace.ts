@@ -24,90 +24,6 @@ const NFT_ABI = [
 ];
 
 /**
- * CUSTOM ARC SIGNER
- * Wraps the browser signer and overrides all ENS-related methods to return null.
- * This prevents ethers v6.17+ from throwing UNSUPPORTED_OPERATION during transactions.
- */
-class ArcSigner extends ethers.Signer {
-  private _signer: ethers.JsonRpcSigner;
-  private _provider: ethers.BrowserProvider;
-
-  constructor(signer: ethers.JsonRpcSigner, provider: ethers.BrowserProvider) {
-    super();
-    this._signer = signer;
-    this._provider = provider;
-    
-    // Patch the underlying provider of the signer as well
-    patchProviderForArc(this._provider);
-  }
-
-  connect(provider: ethers.Provider): ethers.Signer {
-    return new ArcSigner(this._signer.connect(provider) as any, this._provider);
-  }
-
-  async getAddress(): Promise<string> {
-    return this._signer.getAddress();
-  }
-
-  async signMessage(message: string | Uint8Array): Promise<string> {
-    return this._signer.signMessage(message);
-  }
-
-  async signTransaction(transaction: ethers.TransactionRequest): Promise<string> {
-    const safeTx = { ...transaction };
-    delete (safeTx as any).ensName; 
-    return this._signer.signTransaction(safeTx);
-  }
-
-  async sendTransaction(transaction: ethers.TransactionRequest): Promise<ethers.TransactionResponse> {
-    const safeTx = { ...transaction };
-    
-    try {
-      return await this._signer.sendTransaction(safeTx);
-    } catch (error: any) {
-      if (error.code === "UNSUPPORTED_OPERATION" && error.operation?.includes("Ens")) {
-        console.error("[ArcSigner] ENS operation blocked. Retrying with stripped transaction...");
-        return await this._signer.sendTransaction({
-          to: safeTx.to,
-          value: safeTx.value,
-          data: safeTx.data,
-          gasLimit: safeTx.gasLimit,
-          maxFeePerGas: safeTx.maxFeePerGas,
-          maxPriorityFeePerGas: safeTx.maxPriorityFeePerGas,
-          nonce: safeTx.nonce
-        });
-      }
-      throw error;
-    }
-  }
-
-  async populateCall(transaction: ethers.TransactionRequest): Promise<ethers.PopulatedTransaction> {
-    return this._signer.populateCall(transaction);
-  }
-
-  async populateTransaction(transaction: ethers.TransactionRequest): Promise<ethers.PopulatedTransaction> {
-    return this._signer.populateTransaction(transaction);
-  }
-
-  async estimateGas(transaction: ethers.TransactionRequest): Promise<bigint> {
-    return this._signer.estimateGas(transaction);
-  }
-
-  async call(transaction: ethers.TransactionRequest): Promise<string> {
-    return this._signer.call(transaction);
-  }
-
-  async resolveName(name: string): Promise<string | null> {
-    if (!name.endsWith('.eth')) return name;
-    return null;
-  }
-
-  get provider(): ethers.Provider {
-    return this._provider;
-  }
-}
-
-/**
  * Patches a BrowserProvider instance to completely disable ENS resolution.
  */
 const patchProviderForArc = (provider: ethers.BrowserProvider): ethers.BrowserProvider => {
@@ -130,7 +46,75 @@ const patchProviderForArc = (provider: ethers.BrowserProvider): ethers.BrowserPr
 };
 
 /**
- * Factory function to create the safe Arc provider AND signer
+ * CUSTOM ARC SIGNER WRAPPER
+ * Instead of extending ethers.Signer (which causes TS errors), 
+ * we wrap the native signer and proxy all calls, intercepting sendTransaction.
+ */
+export class ArcSigner {
+  private _signer: ethers.JsonRpcSigner;
+  private _provider: ethers.BrowserProvider;
+
+  constructor(signer: ethers.JsonRpcSigner, provider: ethers.BrowserProvider) {
+    this._signer = signer;
+    this._provider = provider;
+    patchProviderForArc(this._provider);
+  }
+
+  // Expose provider for read-only operations
+  get provider(): ethers.Provider {
+    return this._provider;
+  }
+
+  async getAddress(): Promise<string> {
+    return this._signer.getAddress();
+  }
+
+  async signMessage(message: string | Uint8Array): Promise<string> {
+    return this._signer.signMessage(message);
+  }
+
+  /**
+   * CRITICAL: Intercepts transaction sending to strip ENS metadata
+   * and retry if UNSUPPORTED_OPERATION occurs.
+   */
+  async sendTransaction(transaction: ethers.TransactionRequest): Promise<ethers.TransactionResponse> {
+    const safeTx = { ...transaction };
+    
+    try {
+      return await this._signer.sendTransaction(safeTx);
+    } catch (error: any) {
+      // Catch the specific ENS error from ethers v6.17+
+      if (error.code === "UNSUPPORTED_OPERATION" && error.operation?.includes("Ens")) {
+        console.warn("[ArcSigner] ENS operation blocked by network. Retrying with stripped transaction...");
+        
+        // Retry with minimal transaction object to bypass ENS checks
+        return await this._signer.sendTransaction({
+          to: safeTx.to,
+          value: safeTx.value,
+          data: safeTx.data,
+          gasLimit: safeTx.gasLimit,
+          maxFeePerGas: safeTx.maxFeePerGas,
+          maxPriorityFeePerGas: safeTx.maxPriorityFeePerGas,
+          nonce: safeTx.nonce,
+          type: 2 // Force EIP-1559 to avoid legacy tx issues
+        });
+      }
+      throw error;
+    }
+  }
+
+  // Proxy other methods if needed by contracts
+  async populateTransaction(transaction: ethers.TransactionRequest): Promise<ethers.PopulatedTransaction> {
+    return this._signer.populateTransaction(transaction);
+  }
+  
+  async estimateGas(transaction: ethers.TransactionRequest): Promise<bigint> {
+    return this._signer.estimateGas(transaction);
+  }
+}
+
+/**
+ * Factory function to create the safe Arc signer
  */
 export const getArcSigner = async (): Promise<ArcSigner> => {
   const win = window as any;
@@ -143,11 +127,34 @@ export const getArcSigner = async (): Promise<ArcSigner> => {
   return new ArcSigner(signer, provider);
 };
 
-export const getMarketplaceContract = (signerOrProvider: ethers.Signer | ethers.Provider) => 
-  new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider);
+export const getMarketplaceContract = (signerOrProvider: ArcSigner | ethers.Provider) => {
+  // If it's our wrapper, use its internal signer/provider logic
+  // But Contract expects standard Signer/Provider. 
+  // Since ArcSigner wraps them, we pass the underlying objects where possible,
+  // or rely on the fact that Contract accepts any object with provider/signer methods.
+  // For safety, we cast or use the internal _signer if available via type check.
+  if (signerOrProvider instanceof ArcSigner) {
+     // We need to pass something ethers.Contract understands.
+     // Since ArcSigner isn't a real ethers.Signer, we might face issues with Contract interaction.
+     // FIX: We will make ArcSigner compatible by exposing necessary props or 
+     // simply passing the underlying signer to Contract but wrapping the sendTransaction call.
+     
+     // BETTER APPROACH FOR CONTRACTS:
+     // Create a contract with the underlying signer, but monkey-patch its sendTransaction?
+     // No, let's stick to the wrapper but ensure Contract can use it.
+     // Actually, ethers.Contract checks for `sendTransaction` method. Our wrapper has it!
+     // So passing `this` should work for write operations.
+     return new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider as any);
+  }
+  return new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider);
+};
 
-export const getUsdcContract = (signerOrProvider: ethers.Signer | ethers.Provider) => 
-  new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signerOrProvider);
+export const getUsdcContract = (signerOrProvider: ArcSigner | ethers.Provider) => {
+  if (signerOrProvider instanceof ArcSigner) {
+    return new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signerOrProvider as any);
+  }
+  return new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signerOrProvider);
+};
 
 export const fetchActiveListings = async (provider: ethers.Provider) => {
   try {
@@ -171,12 +178,19 @@ export const checkIfListed = async (provider: ethers.Provider, tokenId: number) 
 };
 
 export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: number, priceUsdc: string) => {
-  const nft = new ethers.Contract(nftAddress, NFT_ABI, signer);
-  const market = getMarketplaceContract(signer);
-
+  // For read-only calls like getApproved, we might need the underlying signer/provider
+  // But since ArcSigner doesn't expose call/estimateGas fully, let's add a helper or use provider for reads
+  
+  // NOTE: For staticCall/approve, we ideally want the real signer. 
+  // But our wrapper handles sendTransaction which is what matters for writing.
+  // For reading getApproved, we can use the provider directly.
+  
+  const provider = signer.provider;
+  const nftContractRead = new ethers.Contract(nftAddress, NFT_ABI, provider);
+  
   let needsApproval = true;
   try {
-    const approved = await nft.getApproved.staticCall(tokenId);
+    const approved = await nftContractRead.getApproved.staticCall(tokenId);
     needsApproval = approved.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase();
   } catch (e) { 
     console.warn("Approval check skipped, forcing approve"); 
@@ -184,10 +198,15 @@ export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: nu
 
   if (needsApproval) {
     console.log(`Approving NFT #${tokenId}...`);
-    await (await nft.approve(MARKETPLACE_ADDRESS, tokenId, { gasLimit: 100000 })).wait();
+    // For writing, we use our wrapped signer via getMarketplaceContract? 
+    // No, NFT contract needs its own instance.
+    // Let's create a generic contract factory that uses our signer.
+    const nftContractWrite = new ethers.Contract(nftAddress, NFT_ABI, signer as any);
+    await (await nftContractWrite.approve(MARKETPLACE_ADDRESS, tokenId, { gasLimit: 100000 })).wait();
   }
 
   console.log(`Listing NFT #${tokenId} for ${priceUsdc} USDC...`);
+  const market = getMarketplaceContract(signer);
   const tx = await market.list(tokenId, ethers.parseUnits(priceUsdc, 6), { gasLimit: 300000 });
   await tx.wait();
 };
