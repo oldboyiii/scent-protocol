@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+const CACHE_PREFIX = "scent_collection_";
 
 const NFT_ABI = [
   "function getPerfume(uint256 tokenId) view returns (tuple(string name, uint8 gender, uint8 pType, uint8 concentration, uint8 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt))"
@@ -15,7 +16,6 @@ interface PerfumeData {
   name: string; gender: number; pType: number; concentration: number; rarity: number;
   topNotes: string[]; heartNotes: string[]; baseNotes: string[]; creator: string; createdAt: bigint;
 }
-
 interface MyNFT { tokenId: number; perfume?: PerfumeData; }
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; glow: string; hex: string }> = {
@@ -37,29 +37,53 @@ export default function CollectionPage() {
         const userAddress = await signer.getAddress();
         setAddress(userAddress);
 
+        // Check cache for this specific user
+        const cacheKey = `${CACHE_PREFIX}${userAddress.toLowerCase()}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            setMyNFTs(JSON.parse(cached));
+            setLoading(false);
+            return;
+          } catch {}
+        }
+
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, signer.provider);
         const nfts: MyNFT[] = [];
-        
-        // Scan up to 500 IDs to find owned tokens
-        for (let id = 1; id <= 500; id++) {
-          try {
-            const p = await contract.getPerfume(id);
-            // Check if this token belongs to current user
-            if (p && p.name && p.creator?.toLowerCase() === userAddress.toLowerCase()) {
-              nfts.push({
-                tokenId: id,
-                perfume: {
-                  name: p.name, gender: Number(p.gender), pType: Number(p.pType),
-                  concentration: Number(p.concentration), rarity: Number(p.rarity),
-                  topNotes: p.topNotes, heartNotes: p.heartNotes, baseNotes: p.baseNotes,
-                  creator: p.creator, createdAt: p.createdAt
-                }
-              });
-            }
-          } catch { /* Skip invalid IDs */ }
+        const BATCH_SIZE = 10;
+        const MAX_ID = 300;
+
+        for (let start = 1; start <= MAX_ID; start += BATCH_SIZE) {
+          const end = Math.min(start + BATCH_SIZE - 1, MAX_ID);
+          const batchPromises = [];
+
+          for (let id = start; id <= end; id++) {
+            batchPromises.push(
+              contract.getPerfume(id)
+                .then((p: any) => {
+                  if (p && p.name && p.creator?.toLowerCase() === userAddress.toLowerCase()) {
+                    return {
+                      tokenId: id,
+                      perfume: {
+                        name: p.name, gender: Number(p.gender), pType: Number(p.pType),
+                        concentration: Number(p.concentration), rarity: Number(p.rarity),
+                        topNotes: p.topNotes, heartNotes: p.heartNotes, baseNotes: p.baseNotes,
+                        creator: p.creator, createdAt: p.createdAt
+                      }
+                    };
+                  }
+                  return null;
+                })
+                .catch(() => null)
+            );
+          }
+
+          const batchResults = await Promise.all(batchPromises);
+          nfts.push(...batchResults.filter((r): r is MyNFT => r !== null));
         }
         
         setMyNFTs(nfts);
+        sessionStorage.setItem(cacheKey, JSON.stringify(nfts));
       } catch (error) {
         console.error("Collection load failed:", error);
       } finally {
@@ -69,8 +93,8 @@ export default function CollectionPage() {
     fetchCollection();
   }, []);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-white">Loading...</div>;
-  if (!address) return <div className="min-h-screen flex items-center justify-center text-white">Connect wallet</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-white">Loading your scents...</div>;
+  if (!address) return <div className="min-h-screen flex items-center justify-center text-white">Connect wallet to see collection</div>;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
