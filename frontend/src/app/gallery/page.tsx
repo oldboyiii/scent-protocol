@@ -7,10 +7,10 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// Interface used solely for generating calldata
-const INTERFACE = new ethers.Interface([
+// Use the EXACT same ABI as your working detail page
+const FULL_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
-]);
+];
 
 interface GalleryItem {
   tokenId: number;
@@ -60,126 +60,8 @@ const RARITY_STYLES: Record<number, {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Scanning...");
+  const [status, setStatus] = useState("Initializing...");
   const [progress, setProgress] = useState(0);
-
-  // Manual parser for raw ABI-encoded data
-  const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
-    try {
-      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
-      
-      // Check if data is empty or zero (not minted)
-      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
-
-      // --- 1. EXTRACT NAME ---
-      let name = "";
-      try {
-        const nameOffsetHex = hex.substring(0, 64);
-        const nameOffset = parseInt(nameOffsetHex, 16) * 2;
-        
-        const lenHex = hex.substring(nameOffset, nameOffset + 64);
-        const len = parseInt(lenHex, 16);
-        
-        if (len > 0 && len < 100) {
-          const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
-          let decodedName = "";
-          let isValid = true;
-          for (let i = 0; i < len * 2; i += 2) {
-            const byte = parseInt(nameHex.substr(i, 2), 16);
-            if (byte >= 32 && byte <= 126) decodedName += String.fromCharCode(byte);
-            else { isValid = false; break; }
-          }
-          if (isValid && decodedName.trim().length > 0) name = decodedName.trim();
-        }
-      } catch (e) {}
-
-      // Fallback heuristic for name
-      if (!name) {
-        const bytes = new Uint8Array(hex.length / 2);
-        for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
-        
-        let currStr = "";
-        const candidates: string[] = [];
-        for (const b of bytes) {
-          if (b >= 32 && b <= 126) currStr += String.fromCharCode(b);
-          else {
-            if (currStr.length > 3) candidates.push(currStr);
-            currStr = "";
-          }
-        }
-        if (currStr.length > 3) candidates.push(currStr);
-
-        for (const c of candidates) {
-          if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
-          if (/^\d+$/.test(c)) continue;
-          if (c.includes(" ") && c.length > 3) { name = c; break; }
-          if (!name && c.length > 5) name = c;
-        }
-      }
-
-      if (!name || name.length < 2) return null;
-
-      // --- 2. EXTRACT STATIC FIELDS (Gender, PType) ---
-      let gender = 0;
-      const genderHex = hex.substring(64, 66); 
-      const genderRaw = parseInt(genderHex, 16);
-      if (genderRaw >= 0 && genderRaw <= 2) gender = genderRaw;
-
-      let pType = 0;
-      const pTypeHex = hex.substring(128, 130);
-      const pTypeRaw = parseInt(pTypeHex, 16);
-      if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
-
-      // --- 3. EXTRACT RARITY (Direct Slot Parsing) ---
-      // The mixed slot (concentration + rarity) is located at:
-      // totalLength - 64 (creator) - 64 (createdAt) - 64 (mixed_slot) = totalLength - 192
-      let rarity = 0;
-      const totalLen = hex.length;
-      const mixedSlotStart = totalLen - 192; 
-      
-      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
-         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
-         
-         // Extract both possible uint8 values from the last 4 hex chars (2 bytes)
-         const byte1Hex = mixedSlotHex.substring(60, 62); // First uint8 (likely concentration)
-         const byte2Hex = mixedSlotHex.substring(62, 64); // Second uint8 (likely rarity)
-         
-         const val1 = parseInt(byte1Hex, 16);
-         const val2 = parseInt(byte2Hex, 16);
-         
-         // Simple logic: check if either value is a valid rarity (0-3)
-         // In Solidity memory packing, 'rarity' (declared after concentration) 
-         // usually occupies the lower byte (last 2 hex chars).
-         if (val2 >= 0 && val2 <= 3) {
-            rarity = val2;
-         } else if (val1 >= 0 && val1 <= 3) {
-            // Fallback: if last byte isn't valid, check the previous one
-            rarity = val1;
-         }
-         
-         // Debug logging to help us understand what we're reading
-         if (tokenId <= 5) {
-            console.log(`ID ${tokenId}: Slot=${mixedSlotHex}, Val1(conc?)=${val1}, Val2(rar?)=${val2}, FinalRarity=${rarity}`);
-         }
-      }
-
-      // --- 4. DESCRIPTION FALLBACK ---
-      let description = TYPE_LABELS[pType]; 
-
-      return {
-        tokenId,
-        name,
-        rarity,
-        gender,
-        pType,
-        description
-      };
-
-    } catch (e) {
-      console.warn(`Parse failed for ID ${tokenId}`, e);
-      return null;
-    }
-  };
 
   useEffect(() => {
     const fetchGallery = async () => {
@@ -187,52 +69,67 @@ export default function GalleryPage() {
         setStatus("Connecting to Arc Network...");
         const signer = await getArcSigner();
         const provider = signer.provider;
+        
+        // Create contract instance exactly like in detail page
+        const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, FULL_ABI, provider);
 
         const results: GalleryItem[] = [];
         let consecutiveEmpty = 0;
         const MAX_CONSECUTIVE_EMPTY = 10; 
         let currentId = 1;
-        const BATCH_SIZE = 2;
 
-        setStatus(`Scanning IDs (Direct Parse Mode)...`);
+        setStatus(`Scanning IDs (Reliable Mode)...`);
 
+        // Sequential scanning with delay to prevent RPC throttling
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
-          const batchPromises = [];
+          setProgress(currentId);
           
-          for (let i = 0; i < BATCH_SIZE; i++) {
-            const idToCheck = currentId + i;
-            const calldata = INTERFACE.encodeFunctionData("getPerfume", [idToCheck]);
+          try {
+            // Call the exact same function that works on detail page
+            const perfume = await contract.getPerfume(currentId);
+            
+            if (perfume && perfume.name && perfume.name.length > 0) {
+              // Generate a simple description from top notes (like detail page does)
+              const topNotesStr = perfume.topNotes?.length > 0 
+                ? `${perfume.topNotes[0]} based` 
+                : TYPE_LABELS[Number(perfume.pType)];
 
-            batchPromises.push(
-              provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
-                .then((rawResult: string) => parsePerfumeFromRawData(rawResult, idToCheck))
-                .catch((err) => {
-                  if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
-                  return null;
-                })
-            );
-          }
-
-          const batchResults = await Promise.all(batchPromises);
-          
-          let foundInBatch = false;
-          for (const result of batchResults) {
-            if (result) {
-              results.push(result);
-              foundInBatch = true;
-              consecutiveEmpty = 0;
+              results.push({
+                tokenId: currentId,
+                name: perfume.name,
+                rarity: Number(perfume.rarity),
+                gender: Number(perfume.gender),
+                pType: Number(perfume.pType),
+                description: topNotesStr
+              });
+              
+              consecutiveEmpty = 0; // Reset counter on success
             } else {
               consecutiveEmpty++;
             }
+          } catch (err: any) {
+            // If "Not minted", it's expected. Just skip.
+            if (err.message?.includes("Not minted") || err.message?.includes("revert")) {
+              consecutiveEmpty++;
+            } else {
+              // For RPC errors, log but don't break the loop
+              console.warn(`RPC issue at ID ${currentId}, retrying...`, err.shortMessage);
+              // Don't increment consecutiveEmpty for RPC errors, just pause longer
+              await new Promise(r => setTimeout(r, 1000)); 
+              continue; 
+            }
           }
 
-          setProgress(currentId);
-          if (results.length > 0 || currentId % 10 === 0) {
+          // Update status every 5 IDs
+          if (currentId % 5 === 0) {
              setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
           }
 
-          currentId += BATCH_SIZE;
-          await new Promise(r => setTimeout(r, 500)); 
+          currentId++;
+          
+          // CRITICAL: Small delay between requests to keep RPC happy
+          // 100ms is usually safe for testnets
+          await new Promise(r => setTimeout(r, 100)); 
         }
 
         const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
@@ -303,7 +200,7 @@ export default function GalleryPage() {
                   {item.name}
                 </h3>
 
-                {/* Description / Type */}
+                {/* Description */}
                 <p className="text-xs text-white/40 mb-6 italic truncate">
                   {item.description} fragrance
                 </p>
