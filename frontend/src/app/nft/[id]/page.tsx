@@ -9,7 +9,7 @@ import ShareCard from "@/components/ShareCard";
 import MarketplaceActions from "@/components/MarketplaceActions";
 
 // ⚠️ REPLACE THIS WITH YOUR ACTUAL NFT CONTRACT ADDRESS
-const NFT_CONTRACT_ADDRESS = "YOUR_NFT_CONTRACT_ADDRESS"; 
+const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";  
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
