@@ -24,40 +24,50 @@ const NFT_ABI = [
 ];
 
 /**
- * ARC-SPECIFIC PROVIDER FACTORY
- * Reliably disables ENS for custom chains in ethers v6 by patching internal methods.
+ * CUSTOM ARC PROVIDER CLASS
+ * Completely overrides ENS resolution at the provider level.
+ * This is the ONLY way to prevent "UNSUPPORTED_OPERATION" in ethers v6 on custom chains.
  */
-export const getArcProvider = (): ethers.BrowserProvider => {
+class ArcProvider extends ethers.BrowserProvider {
+  constructor(ethereum: any) {
+    super(ethereum);
+    
+    // Override resolveName to NEVER attempt ENS resolution
+    this.resolveName = async (name: string): Promise<string | null> => {
+      if (!name || !name.endsWith('.eth')) return name;
+      console.warn(`[ArcProvider] Blocked ENS resolution for: ${name}`);
+      return null;
+    };
+
+    // Override getEnsAddress to ALWAYS return null
+    this.getEnsAddress = async (name: string): Promise<string | null> => {
+      console.warn(`[ArcProvider] Blocked getEnsAddress for: ${name}`);
+      return null;
+    };
+
+    // Override getEnsName to ALWAYS return null
+    this.getEnsName = async (address: string): Promise<string | null> => {
+      return null;
+    };
+  }
+
+  // Force network config to have no ENS
+  async getNetwork(): Promise<ethers.Network> {
+    const network = await super.getNetwork();
+    // Mutate the network object directly
+    (network as any).ensAddress = null;
+    (network as any)._defaultProvider = undefined;
+    return network;
+  }
+}
+
+/**
+ * Factory function to create the safe Arc provider
+ */
+export const getArcProvider = (): ArcProvider => {
   const win = window as any;
   if (!win.ethereum) throw new Error("No Ethereum provider found");
-
-  const provider = new ethers.BrowserProvider(win.ethereum);
-
-  // CRITICAL FIX: Override _detectNetwork to force ensAddress=null
-  // We cast to 'any' to bypass TypeScript's strict Network interface
-  const originalDetectNetwork = provider._detectNetwork.bind(provider);
-  provider._detectNetwork = async () => {
-    const network = await originalDetectNetwork();
-    
-    // Force disable ENS for ANY non-mainnet network
-    if (network.chainId !== 1n) {
-      (network as any).ensAddress = null;
-      (network as any).name = `arc-${network.chainId}`;
-    }
-    return network;
-  };
-
-  // Patch resolveName to prevent UNSUPPORTED_OPERATION errors
-  // This ensures that even if something tries to resolve a name, it fails gracefully
-  provider.resolveName = async (name: string): Promise<string | null> => {
-    // If it's not an ENS name (doesn't end with .eth), treat it as a raw address
-    if (!name.endsWith('.eth')) return name; 
-    
-    console.warn(`ENS resolution blocked for "${name}" on Arc Network`);
-    return null;
-  };
-
-  return provider;
+  return new ArcProvider(win.ethereum);
 };
 
 export const getMarketplaceContract = (signerOrProvider: ethers.Signer | ethers.Provider) => 
@@ -91,13 +101,13 @@ export const listNFT = async (signer: ethers.Signer, nftAddress: string, tokenId
   const nft = new ethers.Contract(nftAddress, NFT_ABI, signer);
   const market = getMarketplaceContract(signer);
 
-  // Safe approval check using staticCall to avoid side effects
+  // Safe approval check using staticCall
   let needsApproval = true;
   try {
     const approved = await nft.getApproved.staticCall(tokenId);
     needsApproval = approved.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase();
   } catch (e) { 
-    console.warn("Approval check skipped due to network error, forcing approve"); 
+    console.warn("Approval check skipped, forcing approve"); 
   }
 
   if (needsApproval) {
