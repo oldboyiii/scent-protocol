@@ -6,13 +6,13 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-const CACHE_KEY_PREFIX = "scent_collection_v4_"; 
+const CACHE_KEY_PREFIX = "scent_collection_v5_"; 
 
-// Interface for calldata generation
-const INTERFACE = new ethers.Interface([
+// Full ABI for reliable decoding
+const FULL_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
   "function balanceOf(address owner) view returns (uint256)"
-]);
+];
 
 interface PerfumeData {
   name: string;
@@ -46,118 +46,6 @@ export default function CollectionPage() {
   const [status, setStatus] = useState("Initializing...");
   const [error, setError] = useState<string | null>(null);
 
-  // Manual parser with FIXED ownership check
-  const parsePerfumeFromRawData = (rawData: string, tokenId: number, userAddress: string): MyNFT | null => {
-    try {
-      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
-      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
-
-      // --- 1. EXTRACT NAME ---
-      let name = "";
-      try {
-        const nameOffsetHex = hex.substring(0, 64);
-        const nameOffset = parseInt(nameOffsetHex, 16) * 2;
-        const lenHex = hex.substring(nameOffset, nameOffset + 64);
-        const len = parseInt(lenHex, 16);
-        
-        if (len > 0 && len < 100) {
-          const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
-          let decodedName = "";
-          let isValid = true;
-          for (let i = 0; i < len * 2; i += 2) {
-            const byte = parseInt(nameHex.substr(i, 2), 16);
-            if (byte >= 32 && byte <= 126) decodedName += String.fromCharCode(byte);
-            else { isValid = false; break; }
-          }
-          if (isValid && decodedName.trim().length > 0) name = decodedName.trim();
-        }
-      } catch {}
-
-      // Fallback heuristic for name
-      if (!name) {
-        const bytes = new Uint8Array(hex.length / 2);
-        for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
-        let currStr = "", candidates: string[] = [];
-        for (const b of bytes) {
-          if (b >= 32 && b <= 126) currStr += String.fromCharCode(b);
-          else { if (currStr.length > 3) candidates.push(currStr); currStr = ""; }
-        }
-        if (currStr.length > 3) candidates.push(currStr);
-        for (const c of candidates) {
-          if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
-          if (/^\d+$/.test(c)) continue;
-          if (c.includes(" ") && c.length > 3) { name = c; break; }
-          if (!name && c.length > 5) name = c;
-        }
-      }
-      if (!name || name.length < 2) return null;
-
-      // --- 2. EXTRACT METADATA ---
-      let gender = 0, pType = 0, rarity = 0, concentration = 0;
-      
-      const gVal = parseInt(hex.substring(64, 66), 16);
-      if (gVal <= 2) gender = gVal;
-      const pVal = parseInt(hex.substring(128, 130), 16);
-      if (pVal <= 3) pType = pVal;
-
-      // Rarity & Concentration from mixed slot at end
-      const totalLen = hex.length;
-      const mixedSlotStart = totalLen - 192; 
-      
-      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
-         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
-         
-         const val1 = parseInt(mixedSlotHex.substring(60, 62), 16);
-         const val2 = parseInt(mixedSlotHex.substring(62, 64), 16);
-         
-         if (val1 >= 0 && val1 <= 3) rarity = val1;
-         else if (val2 >= 0 && val2 <= 3) rarity = val2;
-         
-         if (val1 >= 5 && val1 <= 30) concentration = val1;
-         else if (val2 >= 5 && val2 <= 30) concentration = val2;
-      }
-
-      // --- 3. CHECK OWNERSHIP (FIXED) ---
-      // Creator address is the LAST 32 bytes (64 hex chars) of the return data.
-      // An address is 20 bytes (40 hex chars), padded with 12 zero-bytes (24 hex chars) on the left.
-      // So we take the last 40 hex chars of the entire response.
-      const creatorHex = hex.substring(totalLen - 40); 
-      const creatorAddr = "0x" + creatorHex.toLowerCase();
-      
-      // Debug log for first few tokens to verify extraction
-      if (tokenId <= 5) {
-        console.log(`ID ${tokenId}: Extracted Creator=${creatorAddr}, User=${userAddress.toLowerCase()}, Match=${creatorAddr === userAddress.toLowerCase()}`);
-      }
-
-      if (creatorAddr !== userAddress.toLowerCase()) {
-        return null;
-      }
-
-      const topNotes: string[] = [];
-      const heartNotes: string[] = [];
-      const baseNotes: string[] = [];
-
-      let createdAt = BigInt(0);
-      try {
-        const createdAtHex = hex.substring(totalLen - 128, totalLen - 64);
-        createdAt = BigInt("0x" + createdAtHex);
-      } catch {}
-
-      return {
-        tokenId,
-        perfume: {
-          name, gender, pType, concentration, rarity,
-          topNotes, heartNotes, baseNotes,
-          creator: creatorAddr, createdAt
-        }
-      };
-
-    } catch (e) {
-      console.warn(`Parse failed for ID ${tokenId}`, e);
-      return null;
-    }
-  };
-
   useEffect(() => {
     const fetchCollection = async () => {
       try {
@@ -187,23 +75,17 @@ export default function CollectionPage() {
 
         setStatus("Checking balance...");
         
-        // TIMEOUT WRAPPER for balance check
-        const balancePromise = provider.call({ 
-          to: NFT_CONTRACT_ADDRESS, 
-          data: INTERFACE.encodeFunctionData("balanceOf", [userAddress]) 
-        });
+        // Create contract instance for reliable decoding
+        const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, FULL_ABI, provider);
         
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("RPC Timeout")), 10000)
-        );
-
+        // Get balance first
         let balance = 0;
         try {
-          const balanceRaw = await Promise.race([balancePromise, timeoutPromise]) as string;
-          balance = Number(BigInt(balanceRaw));
+          const balanceRaw = await contract.balanceOf(userAddress);
+          balance = Number(balanceRaw);
         } catch (e) {
-          console.error("Balance check failed or timed out", e);
-          setError("Failed to connect to network. Please try again.");
+          console.error("Balance check failed", e);
+          setError("Failed to connect to network.");
           setLoading(false);
           return;
         }
@@ -216,42 +98,48 @@ export default function CollectionPage() {
           return;
         }
 
-        setStatus(`Found ${balance} NFT(s). Scanning ownership...`);
+        setStatus(`Found ${balance} NFT(s). Scanning ownership sequentially...`);
         
-        // Step 2: Scan IDs
+        // Sequential scanning for 100% reliability
         const nfts: MyNFT[] = [];
         let foundCount = 0;
-        const MAX_SCAN_ID = 1000; // Increased limit just in case
-        const BATCH_SIZE = 5; // Slightly increased batch size
+        const MAX_SCAN_ID = 1000; 
         
-        for (let start = 1; start <= MAX_SCAN_ID && foundCount < balance; start += BATCH_SIZE) {
-          const end = Math.min(start + BATCH_SIZE - 1, MAX_SCAN_ID);
-          setStatus(`Scanning IDs ${start}-${end}... Found: ${foundCount}/${balance}`);
+        for (let id = 1; id <= MAX_SCAN_ID && foundCount < balance; id++) {
+          setStatus(`Scanning ID ${id}... Found: ${foundCount}/${balance}`);
           
-          const batchPromises = [];
-          for (let id = start; id <= end; id++) {
-            const calldata = INTERFACE.encodeFunctionData("getPerfume", [id]);
+          try {
+            // Use standard contract call - it decodes EVERYTHING correctly
+            const perfume = await contract.getPerfume(id);
             
-            // Wrap each call in a timeout
-            const callWithTimeout = Promise.race([
-              provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
-                .then(raw => parsePerfumeFromRawData(raw, id, userAddress)),
-              new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000))
-            ]).catch(() => null);
-            
-            batchPromises.push(callWithTimeout);
-          }
-          
-          const results = await Promise.all(batchPromises);
-          for (const r of results) {
-            if (r) {
-              nfts.push(r);
+            // Check ownership using decoded data
+            if (perfume.creator && perfume.creator.toLowerCase() === userAddress.toLowerCase()) {
+              nfts.push({
+                tokenId: id,
+                perfume: {
+                  name: perfume.name,
+                  gender: Number(perfume.gender),
+                  pType: Number(perfume.pType),
+                  concentration: Number(perfume.concentration),
+                  rarity: Number(perfume.rarity),
+                  topNotes: Array.from(perfume.topNotes || []),
+                  heartNotes: Array.from(perfume.heartNotes || []),
+                  baseNotes: Array.from(perfume.baseNotes || []),
+                  creator: perfume.creator,
+                  createdAt: perfume.createdAt
+                }
+              });
               foundCount++;
+            }
+          } catch (err: any) {
+            // Ignore "Not minted" errors
+            if (!err.message?.includes("Not minted") && !err.message?.includes("revert")) {
+              console.warn(`Error fetching ID ${id}:`, err.shortMessage);
             }
           }
           
-          // Delay to prevent RPC throttling
-          await new Promise(r => setTimeout(r, 100));
+          // Small delay to keep RPC happy during sequential calls
+          await new Promise(r => setTimeout(r, 50)); 
         }
 
         const sorted = nfts.sort((a, b) => b.tokenId - a.tokenId);
@@ -337,7 +225,7 @@ export default function CollectionPage() {
                         <div className="flex flex-wrap gap-1 mt-1">
                           {nft.perfume.topNotes.length > 0 
                             ? nft.perfume.topNotes.map(n => <span key={n} className="px-2 py-0.5 rounded bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>)
-                            : <span className="text-white/30 text-xs italic">Available on detail page</span>
+                            : <span className="text-white/30 text-xs italic">None</span>
                           }
                         </div>
                       </div>
