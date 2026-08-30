@@ -47,8 +47,8 @@ const patchProviderForArc = (provider: ethers.BrowserProvider): ethers.BrowserPr
 
 /**
  * CUSTOM ARC SIGNER WRAPPER
- * Instead of extending ethers.Signer (which causes TS errors), 
- * we wrap the native signer and proxy all calls, intercepting sendTransaction.
+ * Wraps the native signer to intercept sendTransaction and prevent ENS errors.
+ * Does NOT extend ethers.Signer to avoid TS compilation issues.
  */
 export class ArcSigner {
   private _signer: ethers.JsonRpcSigner;
@@ -60,7 +60,6 @@ export class ArcSigner {
     patchProviderForArc(this._provider);
   }
 
-  // Expose provider for read-only operations
   get provider(): ethers.Provider {
     return this._provider;
   }
@@ -96,20 +95,11 @@ export class ArcSigner {
           maxFeePerGas: safeTx.maxFeePerGas,
           maxPriorityFeePerGas: safeTx.maxPriorityFeePerGas,
           nonce: safeTx.nonce,
-          type: 2 // Force EIP-1559 to avoid legacy tx issues
+          type: 2 // Force EIP-1559
         });
       }
       throw error;
     }
-  }
-
-  // Proxy other methods if needed by contracts
-  async populateTransaction(transaction: ethers.TransactionRequest): Promise<ethers.PopulatedTransaction> {
-    return this._signer.populateTransaction(transaction);
-  }
-  
-  async estimateGas(transaction: ethers.TransactionRequest): Promise<bigint> {
-    return this._signer.estimateGas(transaction);
   }
 }
 
@@ -127,34 +117,21 @@ export const getArcSigner = async (): Promise<ArcSigner> => {
   return new ArcSigner(signer, provider);
 };
 
-export const getMarketplaceContract = (signerOrProvider: ArcSigner | ethers.Provider) => {
-  // If it's our wrapper, use its internal signer/provider logic
-  // But Contract expects standard Signer/Provider. 
-  // Since ArcSigner wraps them, we pass the underlying objects where possible,
-  // or rely on the fact that Contract accepts any object with provider/signer methods.
-  // For safety, we cast or use the internal _signer if available via type check.
+// Helper to create contracts compatible with our ArcSigner wrapper
+const createContract = (address: string, abi: any, signerOrProvider: ArcSigner | ethers.Provider) => {
+  // If it's our wrapper, we pass it as 'any' because ethers.Contract 
+  // expects a standard Signer but will work with our wrapper due to duck typing (sendTransaction exists)
   if (signerOrProvider instanceof ArcSigner) {
-     // We need to pass something ethers.Contract understands.
-     // Since ArcSigner isn't a real ethers.Signer, we might face issues with Contract interaction.
-     // FIX: We will make ArcSigner compatible by exposing necessary props or 
-     // simply passing the underlying signer to Contract but wrapping the sendTransaction call.
-     
-     // BETTER APPROACH FOR CONTRACTS:
-     // Create a contract with the underlying signer, but monkey-patch its sendTransaction?
-     // No, let's stick to the wrapper but ensure Contract can use it.
-     // Actually, ethers.Contract checks for `sendTransaction` method. Our wrapper has it!
-     // So passing `this` should work for write operations.
-     return new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider as any);
+    return new ethers.Contract(address, abi, signerOrProvider as any);
   }
-  return new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider);
+  return new ethers.Contract(address, abi, signerOrProvider);
 };
 
-export const getUsdcContract = (signerOrProvider: ArcSigner | ethers.Provider) => {
-  if (signerOrProvider instanceof ArcSigner) {
-    return new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signerOrProvider as any);
-  }
-  return new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signerOrProvider);
-};
+export const getMarketplaceContract = (signerOrProvider: ArcSigner | ethers.Provider) => 
+  createContract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider);
+
+export const getUsdcContract = (signerOrProvider: ArcSigner | ethers.Provider) => 
+  createContract(USDC_ADDRESS, ERC20_ABI, signerOrProvider);
 
 export const fetchActiveListings = async (provider: ethers.Provider) => {
   try {
@@ -178,13 +155,6 @@ export const checkIfListed = async (provider: ethers.Provider, tokenId: number) 
 };
 
 export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: number, priceUsdc: string) => {
-  // For read-only calls like getApproved, we might need the underlying signer/provider
-  // But since ArcSigner doesn't expose call/estimateGas fully, let's add a helper or use provider for reads
-  
-  // NOTE: For staticCall/approve, we ideally want the real signer. 
-  // But our wrapper handles sendTransaction which is what matters for writing.
-  // For reading getApproved, we can use the provider directly.
-  
   const provider = signer.provider;
   const nftContractRead = new ethers.Contract(nftAddress, NFT_ABI, provider);
   
@@ -198,9 +168,6 @@ export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: nu
 
   if (needsApproval) {
     console.log(`Approving NFT #${tokenId}...`);
-    // For writing, we use our wrapped signer via getMarketplaceContract? 
-    // No, NFT contract needs its own instance.
-    // Let's create a generic contract factory that uses our signer.
     const nftContractWrite = new ethers.Contract(nftAddress, NFT_ABI, signer as any);
     await (await nftContractWrite.approve(MARKETPLACE_ADDRESS, tokenId, { gasLimit: 100000 })).wait();
   }
