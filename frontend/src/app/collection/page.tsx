@@ -7,9 +7,8 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// ABI только для событий Transfer и чтения метаданных
 const NFT_ABI = [
-  "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+  "function balanceOf(address owner) view returns (uint256)",
   "function getPerfume(uint256 tokenId) view returns (tuple(string name, uint8 gender, uint8 pType, uint8 concentration, uint8 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt))"
 ];
 
@@ -52,16 +51,47 @@ export default function CollectionPage() {
 
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, signer.provider);
         
-        // 1. Получаем все события Transfer, где получатель - текущий пользователь
-        const filter = contract.filters.Transfer(null, userAddress);
-        const logs = await contract.queryFilter(filter);
-        
-        // Извлекаем ID токенов и убираем дубликаты (если токен передавался несколько раз)
-        const ownedTokenIds = [...new Set(logs.map((log: any) => Number(log.args.tokenId)))];
+        // 1. Try to get balance first (most contracts have this even without Enumerable)
+        let ownedTokenIds: number[] = [];
+        try {
+          const balance = await contract.balanceOf(userAddress);
+          const balanceNum = Number(balance);
+          
+          if (balanceNum > 0) {
+            // If we have balance but no tokenOfOwnerByIndex, we must scan a reasonable range
+            // For testnet/MVP, scanning up to 500 IDs is safe and fast enough
+            const MAX_SCAN_ID = 500;
+            const promises = [];
+            
+            for (let id = 1; id <= MAX_SCAN_ID; id++) {
+              promises.push(
+                contract.getPerfume(id)
+                  .then((p: any) => (p && p.creator?.toLowerCase() === userAddress.toLowerCase() ? id : null))
+                  .catch(() => null)
+              );
+            }
+            
+            const results = await Promise.all(promises);
+            ownedTokenIds = results.filter((id): id is number => id !== null);
+          }
+        } catch (e) {
+          console.warn("balanceOf failed, falling back to pure scan", e);
+          // Fallback: just scan if balanceOf also fails
+          const MAX_SCAN_ID = 200;
+          const promises = [];
+          for (let id = 1; id <= MAX_SCAN_ID; id++) {
+            promises.push(
+              contract.getPerfume(id)
+                .then((p: any) => (p && p.creator?.toLowerCase() === userAddress.toLowerCase() ? id : null))
+                .catch(() => null)
+            );
+          }
+          const results = await Promise.all(promises);
+          ownedTokenIds = results.filter((id): id is number => id !== null);
+        }
 
+        // 2. Fetch full metadata for owned tokens
         const nfts: MyNFT[] = [];
-
-        // 2. Загружаем метаданные для каждого принадлежащего токена
         for (const tokenId of ownedTokenIds) {
           try {
             const perfumeData = await contract.getPerfume(tokenId);
@@ -81,7 +111,7 @@ export default function CollectionPage() {
               }
             });
           } catch (e) {
-            console.warn(`Could not fetch metadata for token ${tokenId}`, e);
+            console.warn(`Metadata fetch failed for #${tokenId}`, e);
             nfts.push({ tokenId });
           }
         }
