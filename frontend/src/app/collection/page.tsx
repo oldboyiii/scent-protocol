@@ -6,84 +6,7 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-// Добавляем версию v2, чтобы сбросить старый пустой кэш
-const CACHE_KEY_PREFIX = "scent_collection_v2_"; 
-
-// Interface for calldata generation
-const INTERFACE = new ethers.Interface([
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
-  "function balanceOf(address owner) view returns (uint256)"
-]);
-
-interface PerfumeData {
-  name: string;
-  gender: number;
-  pType: number;
-  concentration: number;
-  rarity: number;
-  topNotes: string[];
-  heartNotes: string[];
-  baseNotes: string[];
-  creator: string;
-  createdAt: bigint;
-}
-
-interface MyNFT {
-  tokenId: number;
-  perfume?: PerfumeData;
-}
-
-const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; glow: string; hex: string }> = {
-  0: { bg: "from-slate-800/80 via-slate-700/60 to-slate-900/80", border: "border-slate-500/40", badge: "bg-slate-500/30 text-slate-200 border-slate-400/50", glow: "shadow-[0_0_30px_rgba(148,163,184,0.15)]", hex: "#94a3b8" },
-  1: { bg: "from-blue-800/80 via-blue-600/60 to-indigo-900/80", border: "border-blue-400/50", badge: "bg-blue-500/30 text-blue-100 border-blue-400/50", glow: "shadow-[0_0_40px_rgba(96,165,250,0.25)]", hex: "#60a5fa" },
-  2: { bg: "from-purple-800/80 via-fuchsia-600/60 to-purple-900/80", border: "border-purple-400/50", badge: "bg-purple-500/30 text-purple-100 border-purple-400/50", glow: "shadow-[0_0_40px_rgba(192,132,252,0.25)]", hex: "#c084fc" },
-  3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
-};
-
-export default function CollectionPage() {
-  const [myNFTs, setMyNFTs] = useState<MyNFT[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [address, setAddress] = useState<string | null>(null);
-  const [status, setStatus] = useState("Initializing...");
-
-  // Manual parser with ownership check
-  const parsePerfumeFromRawData = (rawData: string, tokenId: number, userAddress: string): MyNFT | null => {
-    try {
-      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
-      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
-
-      // --- 1. EXTRACT NAME ---
-      let name = "";
-      try {
-        const nameOffsetHex = hex.substring(0, 64);
-        const nameOffset = parseInt(nameOffsetHex, 16) * 2;
-        const lenHex = hex.substring(nameOffset, nameOffset + 64);
-        const len = parseInt(lenHex, 16);
-        
-        if (len > 0 && len < 100) {
-          const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
-          let decodedName = "";
-          let isValid = true;
-          for (let i = 0; i < len * 2; i += 2) {
-            const byte = parseInt(nameHex.substr(i, 2), 16);
-Проблема в том, что код загружает **пустой кэш** из `sessionStorage`. Когда ты впервые зашел на страницу, скрипт не нашел твои NFT (возможно, из-за ошибки парсинга или сети) и сохранил пустой массив `[]` в память браузера. Теперь при каждом обновлении он просто достает эту пустоту, даже не пытаясь сканировать блокчейн заново.
-
-Нужно сделать две вещи:
-1.  **Очистить старый кэш** (добавить проверку версии).
-2.  **Исправить логику парсера**, чтобы он корректно находил адрес владельца в "хвосте" данных контракта.
-
-Вот исправленный и надежный код для **`src/app/collection/page.tsx`**. Он принудительно пересканирует данные, игнорируя старый пустой кэш, и правильно отфильтрует только твои NFT.
-
-```tsx
-"use client";
-
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { ethers } from "ethers";
-import { getArcSigner } from "@/utils/marketplace";
-
-const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-// Добавляем версию v2, чтобы сбросить старый пустой кэш
+// Using v2 cache key to force refresh old empty data
 const CACHE_KEY_PREFIX = "scent_collection_v2_"; 
 
 // Interface for calldata generation
@@ -179,16 +102,14 @@ export default function CollectionPage() {
 
       // Rarity & Concentration from mixed slot at end
       const totalLen = hex.length;
-      const mixedSlotStart = totalLen - 192; // Before createdAt(32) and creator(32)
+      const mixedSlotStart = totalLen - 192; 
       
       if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
          const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
          
-         // Try both bytes in the last 4 chars
          const val1 = parseInt(mixedSlotHex.substring(60, 62), 16);
          const val2 = parseInt(mixedSlotHex.substring(62, 64), 16);
          
-         // Heuristic: Rarity is 0-3, Concentration is usually 5-30
          if (val1 >= 0 && val1 <= 3) rarity = val1;
          else if (val2 >= 0 && val2 <= 3) rarity = val2;
          
@@ -196,19 +117,14 @@ export default function CollectionPage() {
          else if (val2 >= 5 && val2 <= 30) concentration = val2;
       }
 
-      // --- 3. CHECK OWNERSHIP (Crucial Step) ---
-      // Creator address is ALWAYS the last 32 bytes (64 hex chars) of the return data
+      // --- 3. CHECK OWNERSHIP ---
       const creatorHex = hex.substring(totalLen - 64);
-      // Convert to standard address format (0x + last 40 chars)
       const creatorAddr = "0x" + creatorHex.substring(24).toLowerCase();
       
-      // Filter: Only return if this NFT belongs to current user
       if (creatorAddr !== userAddress.toLowerCase()) {
         return null;
       }
 
-      // Notes arrays are hard to parse manually, leaving empty for gallery view
-      // Detail page will fetch them properly via ABI
       const topNotes: string[] = [];
       const heartNotes: string[] = [];
       const baseNotes: string[] = [];
@@ -247,7 +163,7 @@ export default function CollectionPage() {
         const cacheKey = `${CACHE_KEY_PREFIX}${userAddress.toLowerCase()}`;
         const cached = sessionStorage.getItem(cacheKey);
         
-        // We skip cache if it's empty array to force a real scan
+        // Skip cache if it's empty array to force a real scan
         if (cached) {
           const parsedCache = JSON.parse(cached);
           if (parsedCache && parsedCache.length > 0) {
@@ -267,7 +183,6 @@ export default function CollectionPage() {
         
         if (balance === 0) {
           setMyNFTs([]);
-          // Cache the empty result so we don't scan again unnecessarily
           sessionStorage.setItem(cacheKey, JSON.stringify([]));
           setStatus("No NFTs found");
           setLoading(false);
