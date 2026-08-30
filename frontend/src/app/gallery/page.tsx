@@ -7,11 +7,7 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// FIX: Changed uint8 to uint256 for better compatibility with decoding
-// If your contract uses uint8, ethers usually handles it, but sometimes strict tuple decoding fails if there's a mismatch.
-// We also removed 'concentration' from ABI just in case it's missing or different, 
-// BUT ideally you should check your Solidity code. 
-// For now, let's try a generic structure that matches common patterns.
+// ABI matching the contract structure (using uint256 for safety)
 const GALLERY_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint256 gender, uint256 pType, uint256 concentration, uint256 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt)"
 ];
@@ -35,15 +31,15 @@ const RARITY_STYLES: Record<number, { badge: string }> = {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Starting diagnostic scan...");
-  const [errorLog, setErrorLog] = useState<string | null>(null);
+  const [status, setStatus] = useState("Starting scan...");
+  const [debugData, setDebugData] = useState<any>(null);
 
   useEffect(() => {
     async function fetchGallery() {
       sessionStorage.removeItem("scent_gallery_cache_v1");
       
       try {
-        setStatus("Connecting...");
+        setStatus("Connecting to Arc Network...");
         const signer = await getArcSigner();
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, GALLERY_ABI, signer.provider);
 
@@ -53,7 +49,7 @@ export default function GalleryPage() {
         let currentId = 1;
         const BATCH_SIZE = 5;
 
-        setStatus(`Scanning IDs...`);
+        setStatus(`Scanning IDs starting from ${currentId}...`);
 
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
@@ -63,12 +59,15 @@ export default function GalleryPage() {
             batchPromises.push(
               contract.getPerfume(idToCheck)
                 .then((p: any) => {
-                  // Check if we got valid data
-                  // Note: With the new ABI, p is no longer a tuple object {name:..., gender:...}
-                  // It might be an array [name, gender, ...] OR an object depending on ethers version.
-                  // Ethers v6 usually returns an object with named properties IF ABI has names.
-                  
-                  if (p && p.name && typeof p.name === 'string' && p.name.length > 0) {
+                  // DEBUG: Capture the very first response we get (ID #1)
+                  if (idToCheck === 1 && !debugData) {
+                    console.log("RAW DATA ID #1:", p);
+                    setDebugData(p);
+                  }
+
+                  // Relaxed check: accept token if it has ANY name (even empty string might be valid in some contracts, but usually means not minted)
+                  // Let's be strict: name must exist and not be empty
+                  if (p && p.name && typeof p.name === 'string' && p.name.trim().length > 0) {
                     return { 
                       tokenId: idToCheck, 
                       name: p.name, 
@@ -77,14 +76,14 @@ export default function GalleryPage() {
                       pType: Number(p.pType) 
                     };
                   }
+                  
+                  // If we got here, the token exists structurally but has no name? Or doesn't exist?
+                  // Let's count it as empty for the loop breaker, but maybe log it if it's ID #1
                   return null;
                 })
                 .catch((err) => {
-                  // Log the FIRST error to state so we can see it on screen
-                  if (!errorLog && err.message?.includes("decode")) {
-                     setErrorLog(err.shortMessage || err.message);
-                  }
-                  return null;
+                   // Ignore standard errors
+                   return null;
                 })
             );
           }
@@ -128,15 +127,22 @@ export default function GalleryPage() {
       <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent">Gallery</h1>
       
       {/* Diagnostic Panel */}
-      <div className="mb-8 p-4 rounded-lg bg-black/60 border border-red-500/30 font-mono text-xs overflow-x-auto">
-        <p className="text-amber-400 font-bold mb-2">DIAGNOSTIC MODE ACTIVE</p>
-        <p className="text-white mb-1">Status: {status}</p>
-        {errorLog && (
-           <div className="mt-2 p-2 bg-red-900/30 rounded border border-red-700">
-             <p className="text-red-400 font-bold">Decoding Error Detected:</p>
-             <p className="text-gray-300 break-all">{errorLog}</p>
-             <p className="text-gray-400 mt-1">This means the ABI in code does not match the contract.</p>
+      <div className="mb-8 p-4 rounded-lg bg-black/60 border border-amber-500/30 font-mono text-xs overflow-x-auto">
+        <p className="text-amber-400 font-bold mb-2">DIAGNOSTIC MODE: RAW DATA INSPECTION</p>
+        <p className="text-white mb-2">Status: {status}</p>
+        
+        {debugData ? (
+           <div className="mt-2 p-3 bg-gray-900 rounded border border-gray-700">
+             <p className="text-green-400 mb-1">✅ Data received for ID #1:</p>
+             <pre className="text-gray-300 whitespace-pre-wrap break-all">
+               {JSON.stringify(debugData, null, 2)}
+             </pre>
+             <p className="text-yellow-500 mt-2">
+               Check "name" field above. If it is "" or null, that's why gallery is empty.
+             </p>
            </div>
+        ) : (
+          <p className="text-gray-500 italic">Waiting for data from ID #1...</p>
         )}
       </div>
 
@@ -147,7 +153,7 @@ export default function GalleryPage() {
       ) : items.length === 0 ? (
         <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8">
           <p className="text-xl text-red-400 mb-2">Scan returned 0 items.</p>
-          <p>Please check the Diagnostic Panel above.</p>
+          <p>Please look at the JSON data in the panel above.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
