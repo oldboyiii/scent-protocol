@@ -90,8 +90,12 @@ export default function CollectionPage() {
             );
           }
 
-         const validNfts = batchResults.filter((r) => r !== null) as MyNFT[];
-nfts.push(...validNfts);
+          const batchResults = await Promise.all(batchPromises);
+          
+          // FIX: Explicitly cast filtered array to MyNFT[] to satisfy TypeScript strictness
+          const validNfts = batchResults.filter((r) => r !== null) as MyNFT[];
+          nfts.push(...validNfts);
+        }
         
         setMyNFTs(nfts);
         sessionStorage.setItem(cacheKey, JSON.stringify(nfts));
