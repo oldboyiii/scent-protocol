@@ -74,7 +74,6 @@ export default function Home() {
               <p className="text-sm font-bold text-white">ScentProtocol</p>
               <p className="text-xs text-white/50">Built on Arc</p>
             </div>
-            <WalletButton />
           </div>
         </div>
       </div>
