@@ -24,9 +24,35 @@ const ERC20_ABI = [
   "function balanceOf(address account) view returns (uint256)"
 ];
 
-const NFT_APPROVE_ABI = [
-  "function approve(address to, uint256 tokenId)"
+const NFT_ABI_FOR_APPROVE = [
+  "function approve(address to, uint256 tokenId)",
+  "function getApproved(uint256 tokenId) view returns (address)"
 ];
+
+/**
+ * Creates a provider specifically for Arc Network with ENS disabled.
+ * This prevents "network does not support ENS" errors in ethers v6.
+ */
+export const getArcProvider = (): ethers.BrowserProvider => {
+  const win = window as any;
+  if (!win.ethereum) throw new Error("No Ethereum provider found");
+  
+  const provider = new ethers.BrowserProvider(win.ethereum);
+  
+  // Explicitly disable ENS resolution for Arc testnet/mainnet
+  // ChainId for Arc Testnet is usually 5042002 or similar
+  provider.getNetwork().then((network) => {
+    if (network && network.chainId !== 1n && network.chainId !== 11155111n) {
+      Object.defineProperty(network, 'ensAddress', {
+        value: null,
+        writable: false,
+        configurable: true
+      });
+    }
+  }).catch(() => {}); // Ignore errors during init
+  
+  return provider;
+};
 
 /**
  * Returns a contract instance for the Marketplace
@@ -91,7 +117,7 @@ export const checkIfListed = async (provider: ethers.Provider, tokenId: number) 
 };
 
 /**
- * Lists an NFT for sale. Handles NFT approval automatically.
+ * Lists an NFT for sale. Handles NFT approval automatically and safely.
  */
 export const listNFT = async (
   signer: ethers.Signer, 
@@ -99,19 +125,44 @@ export const listNFT = async (
   tokenId: number, 
   priceInUsdc: string
 ) => {
-  const nftContract = new ethers.Contract(nftContractAddress, NFT_APPROVE_ABI, signer);
+  const nftContract = new ethers.Contract(nftContractAddress, NFT_ABI_FOR_APPROVE, signer);
   const marketplace = getMarketplaceContract(signer);
 
-  // 1. Approve NFT transfer to marketplace
-  console.log(`Approving NFT #${tokenId} for marketplace...`);
-  const txApprove = await nftContract.approve(MARKETPLACE_ADDRESS, tokenId);
-  await txApprove.wait();
+  try {
+    // 1. Check current approval status without triggering ENS
+    let currentApproval = ethers.ZeroAddress;
+    try {
+      currentApproval = await nftContract.getApproved(tokenId);
+    } catch (e) {
+      console.warn("Could not check approval, forcing approve...", e);
+    }
 
-  // 2. Create listing (USDC has 6 decimals)
-  const priceWei = ethers.parseUnits(priceInUsdc, 6);
-  console.log(`Listing NFT #${tokenId} for ${priceInUsdc} USDC...`);
-  const txList = await marketplace.list(tokenId, priceWei);
-  await txList.wait();
+    // 2. Approve only if necessary
+    if (currentApproval.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase()) {
+      console.log(`Approving NFT #${tokenId} for marketplace...`);
+      const txApprove = await nftContract.approve(MARKETPLACE_ADDRESS, tokenId, {
+        gasLimit: 100000 
+      });
+      await txApprove.wait();
+      console.log("Approval confirmed.");
+    } else {
+      console.log("NFT already approved for marketplace.");
+    }
+
+    // 3. Create listing
+    const priceWei = ethers.parseUnits(priceInUsdc, 6);
+    console.log(`Listing NFT #${tokenId} for ${priceInUsdc} USDC...`);
+    
+    const txList = await marketplace.list(tokenId, priceWei, {
+      gasLimit: 300000 
+    });
+    
+    await txList.wait();
+    console.log("Listing successful!");
+  } catch (error: any) {
+    console.error("Detailed listing error:", error);
+    throw error;
+  }
 };
 
 /**
@@ -127,13 +178,17 @@ export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceInUsdc
   const allowance = await usdc.allowance(userAddress, MARKETPLACE_ADDRESS);
   if (allowance < priceWei) {
     console.log("Approving USDC for purchase...");
-    const txApprove = await usdc.approve(MARKETPLACE_ADDRESS, priceWei);
+    const txApprove = await usdc.approve(MARKETPLACE_ADDRESS, priceWei, {
+      gasLimit: 100000
+    });
     await txApprove.wait();
   }
 
   // 2. Execute buy transaction
   console.log(`Buying NFT #${tokenId} for ${priceInUsdc} USDC...`);
-  const txBuy = await marketplace.buy(tokenId);
+  const txBuy = await marketplace.buy(tokenId, {
+    gasLimit: 300000
+  });
   await txBuy.wait();
 };
 
@@ -143,6 +198,8 @@ export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceInUsdc
 export const cancelListing = async (signer: ethers.Signer, tokenId: number) => {
   const marketplace = getMarketplaceContract(signer);
   console.log(`Cancelling listing for NFT #${tokenId}...`);
-  const txCancel = await marketplace.cancel(tokenId);
+  const txCancel = await marketplace.cancel(tokenId, {
+    gasLimit: 200000
+  });
   await txCancel.wait();
 };
