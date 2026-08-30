@@ -74,40 +74,26 @@ export default function GalleryPage() {
       // --- 1. EXTRACT NAME ---
       let name = "";
       try {
-        // First 32 bytes (64 hex chars) is the offset to the 'name' string data
         const nameOffsetHex = hex.substring(0, 64);
-        const nameOffset = parseInt(nameOffsetHex, 16) * 2; // Convert to char index
+        const nameOffset = parseInt(nameOffsetHex, 16) * 2;
         
-        // Next 32 bytes at that offset is the length of the string
         const lenHex = hex.substring(nameOffset, nameOffset + 64);
         const len = parseInt(lenHex, 16);
         
-        // Sanity check for length
         if (len > 0 && len < 100) {
-          // Next 'len' bytes are the string content
           const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
-          
-          // Convert hex to utf8 string manually
           let decodedName = "";
           let isValid = true;
           for (let i = 0; i < len * 2; i += 2) {
             const byte = parseInt(nameHex.substr(i, 2), 16);
-            if (byte >= 32 && byte <= 126) { // Printable ASCII
-              decodedName += String.fromCharCode(byte);
-            } else {
-              isValid = false;
-              break;
-            }
+            if (byte >= 32 && byte <= 126) decodedName += String.fromCharCode(byte);
+            else { isValid = false; break; }
           }
-          if (isValid && decodedName.trim().length > 0) {
-            name = decodedName.trim();
-          }
+          if (isValid && decodedName.trim().length > 0) name = decodedName.trim();
         }
-      } catch (e) {
-        console.warn(`Name extraction failed for ID ${tokenId}`, e);
-      }
+      } catch (e) {}
 
-      // Fallback heuristic for name if offset method fails
+      // Fallback heuristic for name
       if (!name) {
         const bytes = new Uint8Array(hex.length / 2);
         for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
@@ -124,12 +110,9 @@ export default function GalleryPage() {
         if (currStr.length > 3) candidates.push(currStr);
 
         for (const c of candidates) {
-          // Skip addresses and numbers
           if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
           if (/^\d+$/.test(c)) continue;
-          // Prefer strings with spaces (likely names like "Silver Rain")
           if (c.includes(" ") && c.length > 3) { name = c; break; }
-          // Otherwise take first long word
           if (!name && c.length > 5) name = c;
         }
       }
@@ -147,39 +130,28 @@ export default function GalleryPage() {
       const pTypeRaw = parseInt(pTypeHex, 16);
       if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
 
-      // --- 3. EXTRACT RARITY (Corrected Slot Packing Logic) ---
-      // In your contract, 'concentration' and 'rarity' are packed into ONE 32-byte slot.
-      // This slot is located BEFORE 'createdAt' and 'creator'.
-      // Structure at the end: ... [mixed_slot] [createdAt(32b)] [creator(32b)]
-      // mixed_slot starts at: totalLength - 64 (creator) - 64 (createdAt) - 64 (mixed_slot) = totalLength - 192.
-      
+      // --- 3. EXTRACT RARITY (Pattern Search in Tail) ---
+      // We search for a 32-byte slot that looks like 0000...00XX where XX is 0-3.
+      // This slot should be in the last part of the data, before creator/createdAt.
       let rarity = 0;
       const totalLen = hex.length;
-      const mixedSlotStart = totalLen - 192; 
+      // Start searching from 70% of data length to skip dynamic arrays
+      const searchStart = Math.floor(totalLen * 0.7); 
+      // Stop before the last 128 hex chars (creator + createdAt)
+      const searchEnd = totalLen - 128; 
       
-      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
-         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
-         
-         // Solidity packs uint8s from LEFT to RIGHT in a slot.
-         // Slot layout: 0x[concentration_byte][rarity_byte]0000...00
-         // So 'rarity' is likely at bytes 2-3 (hex chars 4-5) OR bytes 1-2 depending on alignment.
-         // Let's try the most common positions for the second uint8 in a pair.
-         
-         // Try position 2-3 (chars 4-6) - standard packing for two uint8s
-         let val = parseInt(mixedSlotHex.substring(4, 6), 16);
-         if (val >= 0 && val <= 3) {
+      // Scan backwards from the end of the static tail area
+      for (let i = searchEnd - 64; i >= searchStart; i -= 64) {
+        if (i < 0) break;
+        const slot = hex.substring(i, i + 64);
+        // Check for padded uint8 pattern: 62 zeros followed by valid rarity value
+        if (slot.startsWith("00000000000000000000000000000000000000000000000000000000000000")) {
+          const val = parseInt(slot.substring(62, 64), 16);
+          if (val >= 0 && val <= 3) {
             rarity = val;
-         } else {
-            // Try position 1-2 (chars 2-4) - alternative packing
-            val = parseInt(mixedSlotHex.substring(2, 4), 16);
-            if (val >= 0 && val <= 3) rarity = val;
-            
-            // Try last byte just in case (chars 62-64)
-            if (rarity === 0) {
-               val = parseInt(mixedSlotHex.substring(62, 64), 16);
-               if (val >= 0 && val <= 3) rarity = val;
-            }
-         }
+            break; // Found valid rarity
+          }
+        }
       }
 
       // --- 4. DESCRIPTION FALLBACK ---
@@ -211,9 +183,9 @@ export default function GalleryPage() {
         let consecutiveEmpty = 0;
         const MAX_CONSECUTIVE_EMPTY = 10; 
         let currentId = 1;
-        const BATCH_SIZE = 3; // Small batch to avoid RPC rate limits
+        const BATCH_SIZE = 2; // Reduced batch size for RPC stability
 
-        setStatus(`Scanning IDs (Deterministic Mode)...`);
+        setStatus(`Scanning IDs (Stable Mode)...`);
 
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
@@ -226,7 +198,6 @@ export default function GalleryPage() {
               provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
                 .then((rawResult: string) => parsePerfumeFromRawData(rawResult, idToCheck))
                 .catch((err) => {
-                  // Ignore "Not minted" reverts
                   if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
                   return null;
                 })
@@ -253,8 +224,8 @@ export default function GalleryPage() {
 
           currentId += BATCH_SIZE;
           
-          // Delay between batches to prevent RPC throttling
-          await new Promise(r => setTimeout(r, 200)); 
+          // CRITICAL: Increased delay to prevent RPC throttling (-32603 errors)
+          await new Promise(r => setTimeout(r, 500)); 
         }
 
         const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
