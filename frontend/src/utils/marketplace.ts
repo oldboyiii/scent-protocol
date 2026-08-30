@@ -24,34 +24,112 @@ const NFT_ABI = [
 ];
 
 /**
+ * CUSTOM ARC SIGNER
+ * Wraps the browser signer and overrides all ENS-related methods to return null.
+ * This prevents ethers v6.17+ from throwing UNSUPPORTED_OPERATION during transactions.
+ */
+class ArcSigner extends ethers.Signer {
+  private _signer: ethers.JsonRpcSigner;
+  private _provider: ethers.BrowserProvider;
+
+  constructor(signer: ethers.JsonRpcSigner, provider: ethers.BrowserProvider) {
+    super();
+    this._signer = signer;
+    this._provider = provider;
+    
+    // Patch the underlying provider of the signer as well
+    patchProviderForArc(this._provider);
+  }
+
+  connect(provider: ethers.Provider): ethers.Signer {
+    return new ArcSigner(this._signer.connect(provider) as any, this._provider);
+  }
+
+  async getAddress(): Promise<string> {
+    return this._signer.getAddress();
+  }
+
+  async signMessage(message: string | Uint8Array): Promise<string> {
+    return this._signer.signMessage(message);
+  }
+
+  async signTransaction(transaction: ethers.TransactionRequest): Promise<string> {
+    // Strip any ENS-related fields before signing
+    const safeTx = { ...transaction };
+    delete (safeTx as any).ensName; 
+    return this._signer.signTransaction(safeTx);
+  }
+
+  async sendTransaction(transaction: ethers.TransactionRequest): Promise<ethers.TransactionResponse> {
+    // CRITICAL: Ensure no ENS lookups happen before sending
+    const safeTx = { ...transaction };
+    // Explicitly set toAddress if it's a raw hex to prevent resolution attempts
+    if (typeof safeTx.to === 'string' && ethers.isAddress(safeTx.to)) {
+      // It's already a valid address, do nothing
+    }
+    
+    try {
+      return await this._signer.sendTransaction(safeTx);
+    } catch (error: any) {
+      if (error.code === "UNSUPPORTED_OPERATION" && error.operation?.includes("Ens")) {
+        console.error("[ArcSigner] ENS operation blocked. Retrying with stripped transaction...");
+        // Retry without any potential ENS metadata
+        return await this._signer.sendTransaction({
+          to: safeTx.to,
+          value: safeTx.value,
+          data: safeTx.data,
+          gasLimit: safeTx.gasLimit,
+          maxFeePerGas: safeTx.maxFeePerGas,
+          maxPriorityFeePerGas: safeTx.maxPriorityFeePerGas,
+          nonce: safeTx.nonce
+        });
+      }
+      throw error;
+    }
+  }
+
+  async populateCall(transaction: ethers.TransactionRequest): Promise<ethers.PopulatedTransaction> {
+    return this._signer.populateCall(transaction);
+  }
+
+  async populateTransaction(transaction: ethers.TransactionRequest): Promise<ethers.PopulatedTransaction> {
+    return this._signer.populateTransaction(transaction);
+  }
+
+  async estimateGas(transaction: ethers.TransactionRequest): Promise<bigint> {
+    return this._signer.estimateGas(transaction);
+  }
+
+  async call(transaction: ethers.TransactionRequest): Promise<string> {
+    return this._signer.call(transaction);
+  }
+
+  async resolveName(name: string): Promise<string | null> {
+    if (!name.endsWith('.eth')) return name;
+    return null;
+  }
+
+  get provider(): ethers.Provider {
+    return this._provider;
+  }
+}
+
+/**
  * Patches a BrowserProvider instance to completely disable ENS resolution.
- * This prevents "UNSUPPORTED_OPERATION" errors on Arc Network.
  */
 const patchProviderForArc = (provider: ethers.BrowserProvider): ethers.BrowserProvider => {
-  // 1. Block public resolveName
   provider.resolveName = async (name: string): Promise<string | null> => {
     if (!name || !name.endsWith('.eth')) return name;
-    console.warn(`[ArcProvider] Blocked ENS resolution for: ${name}`);
     return null;
   };
 
-  // 2. Block internal _getEnsAddress (private method in ethers v6)
-  (provider as any)._getEnsAddress = async (name: string): Promise<string | null> => {
-    console.warn(`[ArcProvider] Blocked internal _getEnsAddress for: ${name}`);
-    return null;
-  };
+  (provider as any)._getEnsAddress = async (): Promise<null> => null;
+  (provider as any).getEnsName = async (): Promise<null> => null;
 
-  // 3. Block getEnsName (reverse lookup)
-  (provider as any).getEnsName = async (address: string): Promise<string | null> => {
-    return null;
-  };
-
-  // 4. Override getNetwork to force ensAddress = null
   const originalGetNetwork = provider.getNetwork.bind(provider);
   provider.getNetwork = async () => {
     const network = await originalGetNetwork();
     (network as any).ensAddress = null;
-    (network as any)._defaultProvider = undefined;
     return network;
   };
 
@@ -59,14 +137,17 @@ const patchProviderForArc = (provider: ethers.BrowserProvider): ethers.BrowserPr
 };
 
 /**
- * Factory function to create the safe Arc provider
+ * Factory function to create the safe Arc provider AND signer
  */
-export const getArcProvider = (): ethers.BrowserProvider => {
+export const getArcSigner = async (): Promise<ArcSigner> => {
   const win = window as any;
   if (!win.ethereum) throw new Error("No Ethereum provider found");
   
   const provider = new ethers.BrowserProvider(win.ethereum);
-  return patchProviderForArc(provider);
+  patchProviderForArc(provider);
+  
+  const signer = await provider.getSigner();
+  return new ArcSigner(signer, provider);
 };
 
 export const getMarketplaceContract = (signerOrProvider: ethers.Signer | ethers.Provider) => 
@@ -96,11 +177,11 @@ export const checkIfListed = async (provider: ethers.Provider, tokenId: number) 
   } catch { return { active: false, seller: ethers.ZeroAddress, price: 0n }; }
 };
 
-export const listNFT = async (signer: ethers.Signer, nftAddress: string, tokenId: number, priceUsdc: string) => {
+export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: number, priceUsdc: string) => {
   const nft = new ethers.Contract(nftAddress, NFT_ABI, signer);
   const market = getMarketplaceContract(signer);
 
-  // Safe approval check using staticCall
+  // Safe approval check
   let needsApproval = true;
   try {
     const approved = await nft.getApproved.staticCall(tokenId);
@@ -119,7 +200,7 @@ export const listNFT = async (signer: ethers.Signer, nftAddress: string, tokenId
   await tx.wait();
 };
 
-export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceUsdc: string) => {
+export const buyNFT = async (signer: ArcSigner, tokenId: number, priceUsdc: string) => {
   const market = getMarketplaceContract(signer);
   const usdc = getUsdcContract(signer);
   const priceWei = ethers.parseUnits(priceUsdc, 6);
@@ -135,7 +216,7 @@ export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceUsdc: 
   await (await market.buy(tokenId, { gasLimit: 300000 })).wait();
 };
 
-export const cancelListing = async (signer: ethers.Signer, tokenId: number) => {
+export const cancelListing = async (signer: ArcSigner, tokenId: number) => {
   console.log(`Cancelling listing #${tokenId}...`);
   await (await getMarketplaceContract(signer).cancel(tokenId, { gasLimit: 200000 })).wait();
 };
