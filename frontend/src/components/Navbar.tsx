@@ -22,6 +22,9 @@ export default function Navbar() {
             <Link href="/" className="text-white/60 hover:text-white text-sm transition-colors hidden sm:block">Home</Link>
             <Link href="/collection" className="text-white/60 hover:text-white text-sm transition-colors">Collection</Link>
             <Link href="/marketplace" className="text-white/60 hover:text-amber-400 text-sm transition-colors font-medium">Marketplace</Link>
+            <Link href="/gallery" className="text-white/60 hover:text-white text-sm transition-colors hidden md:block">Gallery</Link>
+            <Link href="/about" className="text-white/60 hover:text-white text-sm transition-colors hidden md:block">About</Link>
+            <Link href="/faq" className="text-white/60 hover:text-white text-sm transition-colors hidden md:block">FAQ</Link>
 
             {address ? (
               <div className="flex items-center gap-3">
