@@ -24,76 +24,49 @@ const NFT_ABI = [
 ];
 
 /**
- * CUSTOM ARC PROVIDER CLASS
- * Completely overrides ENS resolution at the provider level.
- * Fixes "UNSUPPORTED_OPERATION" errors in ethers v6 for custom chains.
+ * Patches a BrowserProvider instance to completely disable ENS resolution.
+ * This prevents "UNSUPPORTED_OPERATION" errors on Arc Network.
  */
-class ArcProvider extends ethers.BrowserProvider {
-  constructor(ethereum: any) {
-    super(ethereum);
-    
-    // Override resolveName to NEVER attempt ENS resolution
-    this.resolveName = async (name: string): Promise<string | null> => {
-      if (!name || !name.endsWith('.eth')) return name;
-      console.warn(`[ArcProvider] Blocked ENS resolution for: ${name}`);
-      return null;
-    };
+const patchProviderForArc = (provider: ethers.BrowserProvider): ethers.BrowserProvider => {
+  // 1. Block public resolveName
+  provider.resolveName = async (name: string): Promise<string | null> => {
+    if (!name || !name.endsWith('.eth')) return name;
+    console.warn(`[ArcProvider] Blocked ENS resolution for: ${name}`);
+    return null;
+  };
 
-    // Override INTERNAL _getEnsAddress to ALWAYS return null
-    // We use 'any' cast because this method is private in ethers v6 types
-    (this as any)._getEnsAddress = async (name: string): Promise<string | null> => {
-      console.warn(`[ArcProvider] Blocked internal _getEnsAddress for: ${name}`);
-      return null;
-    };
+  // 2. Block internal _getEnsAddress (private method in ethers v6)
+  (provider as any)._getEnsAddress = async (name: string): Promise<string | null> => {
+    console.warn(`[ArcProvider] Blocked internal _getEnsAddress for: ${name}`);
+    return null;
+  };
 
-    // Override getEnsName using 'any' cast to bypass TypeScript strictness
-    // This prevents reverse ENS lookups which also fail on Arc
-    (this as any).getEnsName = async (address: string): Promise<string | null> => {
-      return null;
-    };
-  }
+  // 3. Block getEnsName (reverse lookup)
+  (provider as any).getEnsName = async (address: string): Promise<string | null> => {
+    return null;
+  };
 
-  // Force network config to have no ENS
-  async getNetwork(): Promise<ethers.Network> {
-    const network = await super.getNetwork();
-    // Mutate the network object directly
+  // 4. Override getNetwork to force ensAddress = null
+  const originalGetNetwork = provider.getNetwork.bind(provider);
+  provider.getNetwork = async () => {
+    const network = await originalGetNetwork();
     (network as any).ensAddress = null;
     (network as any)._defaultProvider = undefined;
     return network;
-  }
-}
-    };
+  };
 
-    // Override INTERNAL _getEnsAddress to ALWAYS return null
-    // We use 'any' cast because this method is private in ethers v6 types
-    (this as any)._getEnsAddress = async (name: string): Promise<string | null> => {
-      console.warn(`[ArcProvider] Blocked internal _getEnsAddress for: ${name}`);
-      return null;
-    };
-
-    // Override getEnsName to ALWAYS return null
-    this.getEnsName = async (address: string): Promise<string | null> => {
-      return null;
-    };
-  }
-
-  // Force network config to have no ENS
-  async getNetwork(): Promise<ethers.Network> {
-    const network = await super.getNetwork();
-    // Mutate the network object directly
-    (network as any).ensAddress = null;
-    (network as any)._defaultProvider = undefined;
-    return network;
-  }
-}
+  return provider;
+};
 
 /**
  * Factory function to create the safe Arc provider
  */
-export const getArcProvider = (): ArcProvider => {
+export const getArcProvider = (): ethers.BrowserProvider => {
   const win = window as any;
   if (!win.ethereum) throw new Error("No Ethereum provider found");
-  return new ArcProvider(win.ethereum);
+  
+  const provider = new ethers.BrowserProvider(win.ethereum);
+  return patchProviderForArc(provider);
 };
 
 export const getMarketplaceContract = (signerOrProvider: ethers.Signer | ethers.Provider) => 
