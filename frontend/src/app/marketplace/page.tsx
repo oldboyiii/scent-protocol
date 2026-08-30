@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { fetchActiveListings, buyNFT } from "@/utils/marketplace";
-// Import your wallet hook/provider here if you have a global context
-// import { useWallet } from "@/context/WalletContext"; 
+import { fetchActiveListings, buyNFT, getArcProvider } from "@/utils/marketplace";
 
 interface Listing {
   tokenId: number;
@@ -16,20 +14,12 @@ interface Listing {
 export default function MarketplacePage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  // const { signer, provider, address } = useWallet(); // Uncomment if using a global wallet context
 
   useEffect(() => {
     const loadListings = async () => {
-      // FIX: Cast window to 'any' to access ethereum property safely in TS
-      const win = window as any;
-      if (!win.ethereum) {
-        console.warn("No Ethereum provider found");
-        setLoading(false);
-        return;
-      }
-
       try {
-        const provider = new ethers.BrowserProvider(win.ethereum);
+        // Use the Arc-specific provider that disables ENS
+        const provider = getArcProvider();
         const data = await fetchActiveListings(provider);
         setListings(data);
       } catch (error) {
@@ -42,15 +32,9 @@ export default function MarketplacePage() {
   }, []);
 
   const handleBuy = async (listing: Listing) => {
-    // FIX: Cast window to 'any' here as well
-    const win = window as any;
-    if (!win.ethereum) {
-      alert("Please install MetaMask or connect your wallet first.");
-      return;
-    }
-
     try {
-      const provider = new ethers.BrowserProvider(win.ethereum);
+      // Get signer from the Arc-specific provider
+      const provider = getArcProvider();
       const signer = await provider.getSigner();
       
       // Call the buy function from utils
