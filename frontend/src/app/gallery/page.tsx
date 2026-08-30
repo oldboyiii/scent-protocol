@@ -7,7 +7,6 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// Use the EXACT same ABI as your working detail page
 const FULL_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
@@ -69,8 +68,6 @@ export default function GalleryPage() {
         setStatus("Connecting to Arc Network...");
         const signer = await getArcSigner();
         const provider = signer.provider;
-        
-        // Create contract instance exactly like in detail page
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, FULL_ABI, provider);
 
         const results: GalleryItem[] = [];
@@ -78,57 +75,55 @@ export default function GalleryPage() {
         const MAX_CONSECUTIVE_EMPTY = 10; 
         let currentId = 1;
 
-        setStatus(`Scanning IDs (Reliable Mode)...`);
+        setStatus(`Scanning IDs...`);
 
-        // Sequential scanning with delay to prevent RPC throttling
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           setProgress(currentId);
           
           try {
-            // Call the exact same function that works on detail page
             const perfume = await contract.getPerfume(currentId);
             
             if (perfume && perfume.name && perfume.name.length > 0) {
-              // Generate a simple description from top notes (like detail page does)
+              // Ethers v6: доступ по имени ИЛИ по индексу
+              const name = String(perfume.name || perfume[0]);
+              const gender = Number(perfume.gender !== undefined ? perfume.gender : perfume[1]);
+              const pType = Number(perfume.pType !== undefined ? perfume.pType : perfume[2]);
+              const rarity = Number(perfume.rarity !== undefined ? perfume.rarity : perfume[7]);
+              
+              console.log(`ID ${currentId}: name=${name}, rarity=${rarity}`);
+
               const topNotesStr = perfume.topNotes?.length > 0 
                 ? `${perfume.topNotes[0]} based` 
-                : TYPE_LABELS[Number(perfume.pType)];
+                : TYPE_LABELS[pType];
 
               results.push({
                 tokenId: currentId,
-                name: perfume.name,
-                rarity: Number(perfume.rarity),
-                gender: Number(perfume.gender),
-                pType: Number(perfume.pType),
+                name,
+                rarity,
+                gender,
+                pType,
                 description: topNotesStr
               });
               
-              consecutiveEmpty = 0; // Reset counter on success
+              consecutiveEmpty = 0;
             } else {
               consecutiveEmpty++;
             }
           } catch (err: any) {
-            // If "Not minted", it's expected. Just skip.
             if (err.message?.includes("Not minted") || err.message?.includes("revert")) {
               consecutiveEmpty++;
             } else {
-              // For RPC errors, log but don't break the loop
-              console.warn(`RPC issue at ID ${currentId}, retrying...`, err.shortMessage);
-              // Don't increment consecutiveEmpty for RPC errors, just pause longer
+              console.warn(`RPC issue at ID ${currentId}`, err.shortMessage || err.message);
               await new Promise(r => setTimeout(r, 1000)); 
               continue; 
             }
           }
 
-          // Update status every 5 IDs
           if (currentId % 5 === 0) {
              setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
           }
 
           currentId++;
-          
-          // CRITICAL: Small delay between requests to keep RPC happy
-          // 100ms is usually safe for testnets
           await new Promise(r => setTimeout(r, 100)); 
         }
 
@@ -187,7 +182,6 @@ export default function GalleryPage() {
                 href={`/nft/${item.tokenId}`} 
                 className={`block group relative rounded-2xl p-6 bg-gradient-to-br ${style.bg} backdrop-blur-md border transition-all duration-300 hover:-translate-y-1 ${style.border} ${style.glow}`}
               >
-                {/* Header: ID & Rarity */}
                 <div className="flex justify-between items-start mb-4">
                   <span className="text-sm font-mono text-white/30">#{item.tokenId}</span>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${style.badge}`}>
@@ -195,17 +189,14 @@ export default function GalleryPage() {
                   </span>
                 </div>
                 
-                {/* Name */}
                 <h3 className="text-xl font-bold text-white mb-2 line-clamp-2 group-hover:text-amber-300 transition-colors">
                   {item.name}
                 </h3>
 
-                {/* Description */}
                 <p className="text-xs text-white/40 mb-6 italic truncate">
                   {item.description} fragrance
                 </p>
                 
-                {/* Footer: Gender & Type Icons */}
                 <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-xs text-white/40 border-t border-white/5 pt-4">
                   <div className="flex items-center gap-3">
                     <span title="Gender">{GENDER_ICONS[item.gender]}</span>
