@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { ToastProvider } from "@/components/ToastProvider";
+import { WalletProvider } from "@/context/WalletContext";
 import Atmosphere from "@/components/Atmosphere";
 
 export const metadata: Metadata = {
@@ -17,13 +18,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 min-h-screen text-white relative">
-        <ToastProvider>
-          <Atmosphere />
-          <Navbar />
-          <main className="max-w-6xl mx-auto px-4 pt-20 pb-8 relative z-10">
-            {children}
-          </main>
-        </ToastProvider>
+        <WalletProvider>
+          <ToastProvider>
+            <Atmosphere />
+            <Navbar />
+            <main className="max-w-6xl mx-auto px-4 pt-20 pb-8 relative z-10">
+              {children}
+            </main>
+          </ToastProvider>
+        </WalletProvider>
       </body>
     </html>
   );
