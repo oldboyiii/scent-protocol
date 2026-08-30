@@ -2,22 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { checkIfListed, listNFT, buyNFT, cancelListing, getArcProvider } from "@/utils/marketplace";
+import { checkIfListed, listNFT, buyNFT, cancelListing, getArcSigner } from "@/utils/marketplace";
 
 interface MarketplaceActionsProps {
   tokenId: number;
   nftContractAddress: string;
   ownerAddress: string;
   userAddress: string | undefined;
-  signer: ethers.Signer | null;
 }
 
 export default function MarketplaceActions({ 
   tokenId, 
   nftContractAddress, 
   ownerAddress,
-  userAddress,
-  signer
+  userAddress
 }: MarketplaceActionsProps) {
   const [isListed, setIsListed] = useState(false);
   const [listingPrice, setListingPrice] = useState<string>("");
@@ -29,8 +27,11 @@ export default function MarketplaceActions({
   useEffect(() => {
     const checkListing = async () => {
       try {
-        // Use the Arc-specific provider that disables ENS
-        const provider = getArcProvider();
+        // Use safe signer to get provider without ENS errors
+        const signer = await getArcSigner();
+        const provider = signer.provider;
+        if (!provider) return;
+
         const data = await checkIfListed(provider, tokenId);
         setIsListed(data.active);
         if (data.active) {
@@ -44,46 +45,48 @@ export default function MarketplaceActions({
   }, [tokenId]);
 
   const handleList = async () => {
-    if (!signer || !listingPrice || parseFloat(listingPrice) <= 0) return;
+    if (!listingPrice || parseFloat(listingPrice) <= 0) return;
     setLoading(true);
     try {
+      const signer = await getArcSigner();
       await listNFT(signer, nftContractAddress, tokenId, listingPrice);
       setIsListed(true);
       setShowListForm(false);
       alert(`Successfully listed Scent #${tokenId} for ${listingPrice} USDC!`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Listing failed:", error);
-      alert("Failed to list. Check console.");
+      alert(`Failed to list: ${error.message || "Check console"}`);
     } finally {
       setLoading(false);
     }
   };
 
   const handleBuy = async () => {
-    if (!signer || !listingPrice) return;
+    if (!listingPrice) return;
     setLoading(true);
     try {
+      const signer = await getArcSigner();
       await buyNFT(signer, tokenId, listingPrice);
       alert(`Successfully purchased Scent #${tokenId}!`);
       window.location.reload(); 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Buy failed:", error);
-      alert("Purchase failed. Check console.");
+      alert(`Purchase failed: ${error.message || "Check console"}`);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!signer) return;
     setLoading(true);
     try {
+      const signer = await getArcSigner();
       await cancelListing(signer, tokenId);
       setIsListed(false);
       alert(`Successfully cancelled listing for Scent #${tokenId}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Cancel failed:", error);
-      alert("Failed to cancel. Check console.");
+      alert(`Failed to cancel: ${error.message || "Check console"}`);
     } finally {
       setLoading(false);
     }
@@ -165,7 +168,7 @@ export default function MarketplaceActions({
           disabled={loading}
           className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {loading ? "Processing..." : ` Buy for ${listingPrice} USDC`}
+          {loading ? "Processing..." : `Buy for ${listingPrice} USDC`}
         </button>
       )}
 
