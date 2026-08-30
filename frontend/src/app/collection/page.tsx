@@ -57,6 +57,10 @@ export default function CollectionPage() {
           const end = Math.min(start + BATCH_SIZE - 1, MAX_ID);
           const batchPromises = [];
 
+                  for (let start = 1; start <= MAX_ID; start += BATCH_SIZE) {
+          const end = Math.min(start + BATCH_SIZE - 1, MAX_ID);
+          const batchPromises = [];
+
           for (let id = start; id <= end; id++) {
             batchPromises.push(
               contract.getPerfume(id)
@@ -79,6 +83,8 @@ export default function CollectionPage() {
           }
 
           const batchResults = await Promise.all(batchPromises);
+          
+          // FIX: Use type predicate 'r is MyNFT' to satisfy TypeScript
           nfts.push(...batchResults.filter((r): r is MyNFT => r !== null));
         }
         
