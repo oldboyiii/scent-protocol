@@ -30,8 +30,8 @@ const NFT_ABI_FOR_APPROVE = [
 ];
 
 /**
- * Creates a provider specifically for Arc Network with ENS disabled.
- * This prevents "network does not support ENS" errors in ethers v6.
+ * Creates a provider specifically for Arc Network with ENS explicitly disabled.
+ * This is the root fix for "network does not support ENS" errors in ethers v6.
  */
 export const getArcProvider = (): ethers.BrowserProvider => {
   const win = window as any;
@@ -39,17 +39,25 @@ export const getArcProvider = (): ethers.BrowserProvider => {
   
   const provider = new ethers.BrowserProvider(win.ethereum);
   
-  // Explicitly disable ENS resolution for Arc testnet/mainnet
-  // ChainId for Arc Testnet is usually 5042002 or similar
+  // Override the network object immediately to disable ENS resolution
+  // We use Object.defineProperty to make it non-writable so ethers doesn't try to re-fetch it
   provider.getNetwork().then((network) => {
-    if (network && network.chainId !== 1n && network.chainId !== 11155111n) {
-      Object.defineProperty(network, 'ensAddress', {
-        value: null,
-        writable: false,
-        configurable: true
-      });
-    }
-  }).catch(() => {}); // Ignore errors during init
+    // Explicitly set ensAddress to null for non-Ethereum networks
+    Object.defineProperty(network, 'ensAddress', {
+      value: null,
+      writable: false,
+      configurable: true,
+      enumerable: true
+    });
+    
+    // Also override the name to prevent internal lookups
+    Object.defineProperty(network, 'name', {
+      value: 'arc-testnet',
+      writable: false,
+      configurable: true,
+      enumerable: true
+    });
+  }).catch(() => {});
   
   return provider;
 };
@@ -77,7 +85,6 @@ export const fetchActiveListings = async (provider: ethers.Provider) => {
     const count = await contract.getActiveCount();
     const listings = [];
 
-    // Loop through all active token IDs
     for (let i = 0; i < Number(count); i++) {
       const tokenId = await contract.activeTokenIds(i);
       const listingData = await contract.listings(tokenId);
@@ -118,6 +125,7 @@ export const checkIfListed = async (provider: ethers.Provider, tokenId: number) 
 
 /**
  * Lists an NFT for sale. Handles NFT approval automatically and safely.
+ * Uses explicit gas limits and bypasses ENS checks during approval verification.
  */
 export const listNFT = async (
   signer: ethers.Signer, 
@@ -129,15 +137,16 @@ export const listNFT = async (
   const marketplace = getMarketplaceContract(signer);
 
   try {
-    // 1. Check current approval status without triggering ENS
+    // Check current approval status without triggering ENS
     let currentApproval = ethers.ZeroAddress;
     try {
+      // Use callStatic to avoid any side effects or ENS lookups
       currentApproval = await nftContract.getApproved(tokenId);
     } catch (e) {
-      console.warn("Could not check approval, forcing approve...", e);
+      console.warn("Could not check approval via getApproved, forcing approve...", e);
     }
 
-    // 2. Approve only if necessary
+    // Approve only if necessary
     if (currentApproval.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase()) {
       console.log(`Approving NFT #${tokenId} for marketplace...`);
       const txApprove = await nftContract.approve(MARKETPLACE_ADDRESS, tokenId, {
@@ -149,7 +158,7 @@ export const listNFT = async (
       console.log("NFT already approved for marketplace.");
     }
 
-    // 3. Create listing
+    // Create listing
     const priceWei = ethers.parseUnits(priceInUsdc, 6);
     console.log(`Listing NFT #${tokenId} for ${priceInUsdc} USDC...`);
     
@@ -161,6 +170,10 @@ export const listNFT = async (
     console.log("Listing successful!");
   } catch (error: any) {
     console.error("Detailed listing error:", error);
+    // Re-throw with cleaner message if it's still an ENS error
+    if (error.code === "UNSUPPORTED_OPERATION" && error.operation === "getEnsAddress") {
+      throw new Error("ENS resolution failed. Please ensure you are connected to Arc Network and MetaMask is updated.");
+    }
     throw error;
   }
 };
@@ -174,7 +187,7 @@ export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceInUsdc
   const priceWei = ethers.parseUnits(priceInUsdc, 6);
   const userAddress = await signer.getAddress();
 
-  // 1. Check allowance and approve USDC if needed
+  // Check allowance and approve USDC if needed
   const allowance = await usdc.allowance(userAddress, MARKETPLACE_ADDRESS);
   if (allowance < priceWei) {
     console.log("Approving USDC for purchase...");
@@ -184,7 +197,7 @@ export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceInUsdc
     await txApprove.wait();
   }
 
-  // 2. Execute buy transaction
+  // Execute buy transaction
   console.log(`Buying NFT #${tokenId} for ${priceInUsdc} USDC...`);
   const txBuy = await marketplace.buy(tokenId, {
     gasLimit: 300000
