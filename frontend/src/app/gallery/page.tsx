@@ -7,14 +7,8 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// Упрощенное ABI: только первые 5 полей структуры Perfume
-// Это позволит ethers.js декодировать начало ответа, игнорируя сложные массивы
-const TRIMMED_ABI = [
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, uint8 concentration, uint8 rarity)"
-];
-
-// Interface для генерации calldata (используем полное ABI, чтобы сигнатура функции была правильной)
-const FULL_INTERFACE = new ethers.Interface([
+// Interface только для генерации calldata
+const INTERFACE = new ethers.Interface([
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ]);
 
@@ -61,102 +55,234 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Scanning blockchain...");
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
 
-  useEffect(() => {
-    async function fetchGallery() {
+  // Функция для автоматического переподключения кошелька
+  const reconnectWallet = async () => {
+    try {
+      const win = window as any;
+      if (win.ethereum) {
+        // Пытаемся получить_accounts без запроса подтверждения (если уже подключен)
+        const accounts = await win.ethereum.request({ method: 'eth_accounts' });
+        if (accounts.length > 0) {
+          setIsWalletConnected(true);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn("Auto-reconnect failed:", e);
+    }
+    return false;
+  };
+
+  // Улучшенный ручной парсер с надежным извлечением metadata
+  const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
+    try {
+      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
+      
+      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
+
+      // --- 1. ИЗВЛЕЧЕНИЕ ИМЕНИ (через смещение) ---
+      let name = "";
       try {
-        setStatus("Connecting to Arc Network...");
-        const signer = await getArcSigner();
-        const provider = signer.provider;
+        const nameOffsetHex = hex.substring(0, 64);
+        const nameOffset = parseInt(nameOffsetHex, 16) * 2;
         
-        // Контракт с упрощенным ABI для декодирования
-        const trimmedContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, TRIMMED_ABI, provider);
-
-        const results: GalleryItem[] = [];
-        let consecutiveEmpty = 0;
-        const MAX_CONSECUTIVE_EMPTY = 10; 
-        let currentId = 1;
-        const BATCH_SIZE = 10;
-
-        setStatus(`Scanning IDs (Trimmed ABI Mode)...`);
-
-        while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
-          const batchPromises = [];
-          
-          for (let i = 0; i < BATCH_SIZE; i++) {
-            const idToCheck = currentId + i;
-            
-            // Генерируем calldata для ПОЛНОЙ функции getPerfume
-            const calldata = FULL_INTERFACE.encodeFunctionData("getPerfume", [idToCheck]);
-            
-            // Отправляем через provider.call (низкоуровневый вызов)
-            const promise = provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
-              .then((rawResult: string) => {
-                // Пытаемся декодировать сырой результат с помощью УПРОЩЕННОГО ABI
-                try {
-                  const decoded = trimmedContract.interface.decodeFunctionResult("getPerfume", rawResult);
-                  
-                  if (decoded && decoded.name && typeof decoded.name === 'string' && decoded.name.trim().length > 0) {
-                    return {
-                      tokenId: idToCheck,
-                      name: decoded.name,
-                      rarity: Number(decoded.rarity),
-                      gender: Number(decoded.gender),
-                      pType: Number(decoded.pType)
-                    };
-                  }
-                  return null;
-                } catch (decodeError) {
-                  // Если даже упрощенное ABI не смогло декодировать, возвращаем null
-                  console.warn(`Decode failed for ID ${idToCheck}:`, decodeError);
-                  return null;
-                }
-              })
-              .catch((err) => {
-                // Если ошибка "Not minted" или revert - просто пропускаем
-                if (err.message?.includes("Not minted") || err.message?.includes("revert")) {
-                  return null;
-                }
-                console.warn(`RPC Error for ID ${idToCheck}:`, err.shortMessage);
-                return null;
-              });
-
-            batchPromises.push(promise);
+        const lenHex = hex.substring(nameOffset, nameOffset + 64);
+        const len = parseInt(lenHex, 16);
+        
+        if (len > 0 && len < 100) {
+          const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
+          const nameBytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            nameBytes[i] = parseInt(nameHex.substr(i * 2, 2), 16);
           }
-
-          const batchResults = await Promise.all(batchPromises);
           
-          let foundInBatch = false;
-          for (const result of batchResults) {
-            if (result) {
-              results.push(result);
-              foundInBatch = true;
-              consecutiveEmpty = 0;
+          let decodedName = "";
+          let isValid = true;
+          for (let i = 0; i < nameBytes.length; i++) {
+            const byte = nameBytes[i];
+            if (byte >= 32 && byte <= 126) {
+              decodedName += String.fromCharCode(byte);
             } else {
-              consecutiveEmpty++;
+              isValid = false;
+              break;
             }
           }
-
-          if (results.length > 0 || currentId % 20 === 0) {
-             setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
+          if (isValid && decodedName.trim().length > 0) {
+            name = decodedName.trim();
           }
+        }
+      } catch (e) {}
 
-          currentId += BATCH_SIZE;
+      // Fallback эвристика для имени
+      if (!name) {
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < hex.length; i += 2) {
+          bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
         }
 
-        const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
-        setItems(sorted);
-        setStatus(`Done. Total found: ${sorted.length}`);
-        
-      } catch (e: any) {
-        console.error("CRITICAL ERROR:", e);
-        setStatus(`Error: ${e.shortMessage || e.message}`);
-      } finally {
-        setLoading(false);
+        let currentString = "";
+        const candidates: string[] = [];
+        for (let i = 0; i < bytes.length; i++) {
+          const byte = bytes[i];
+          if (byte >= 32 && byte <= 126) currentString += String.fromCharCode(byte);
+          else {
+            if (currentString.length > 2) candidates.push(currentString);
+            currentString = "";
+          }
+        }
+        if (currentString.length > 2) candidates.push(currentString);
+
+        for (const c of candidates) {
+          if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+          if (/^\d+$/.test(c)) continue;
+          if (["getPerfume", "Not minted"].includes(c)) continue;
+          
+          if (c.includes(" ") && c.length > 3) {
+            name = c;
+            break;
+          }
+          if (!name && c.length > 5 && /^[A-Za-z]+$/.test(c)) {
+            name = c;
+          }
+        }
+        if (!name) {
+          for (const c of candidates) {
+            if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+            if (/^\d+$/.test(c)) continue;
+            name = c;
+            break;
+          }
+        }
       }
+
+      if (!name || name.length < 2) return null;
+
+      // --- 2. ИЗВЛЕЧЕНИЕ METADATA (Gender, PType, Rarity) ---
+      // Структура возврата: [offset_name][gender_slot][pType_slot][offset_topNotes]...[concentration_slot][rarity_slot][createdAt_slot][creator_slot]
+      
+      let gender = 0;
+      let pType = 0;
+      let rarity = 0;
+
+      // Gender обычно во втором слоте (байты 32-63)
+      const genderHex = hex.substring(64, 66); 
+      const genderRaw = parseInt(genderHex, 16);
+      if (genderRaw >= 0 && genderRaw <= 2) gender = genderRaw;
+
+      // PType обычно в третьем слоте (байты 64-95)
+      const pTypeHex = hex.substring(128, 130);
+      const pTypeRaw = parseInt(pTypeHex, 16);
+      if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
+
+      // Rarity ищем в "хвосте" структуры
+      // Creator: last 32 bytes (64 hex)
+      // CreatedAt: prev 32 bytes (64 hex)
+      // Rarity slot: prev 32 bytes (64 hex) -> значение uint8 в последних 2 hex chars
+      const totalLen = hex.length;
+      const raritySlotStart = totalLen - 192; // 64 (creator) + 64 (createdAt) + 64 (rarity_slot)
+      if (raritySlotStart > 0 && raritySlotStart + 64 <= totalLen) {
+         const raritySlotHex = hex.substring(raritySlotStart, raritySlotStart + 64);
+         const rarityVal = parseInt(raritySlotHex.substring(62, 64), 16);
+         if (rarityVal >= 0 && rarityVal <= 3) {
+            rarity = rarityVal;
+         }
+      }
+
+      return {
+        tokenId,
+        name,
+        rarity,
+        gender,
+        pType
+      };
+
+    } catch (e) {
+      console.warn(`Parse failed for ID ${tokenId}`, e);
+      return null;
     }
-    fetchGallery();
+  };
+
+  useEffect(() => {
+    // Автоматическое переподключение кошелька при загрузке
+    const init = async () => {
+      const connected = await reconnectWallet();
+      if (connected) {
+        fetchGallery();
+      } else {
+        setLoading(false);
+        setStatus("Please connect your wallet to view gallery.");
+      }
+    };
+    init();
   }, []);
+
+  const fetchGallery = async () => {
+    try {
+      setStatus("Connecting to Arc Network...");
+      const signer = await getArcSigner();
+      const provider = signer.provider;
+
+      const results: GalleryItem[] = [];
+      let consecutiveEmpty = 0;
+      const MAX_CONSECUTIVE_EMPTY = 10; 
+      let currentId = 1;
+      const BATCH_SIZE = 5;
+
+      setStatus(`Scanning IDs (Manual Parse Mode)...`);
+
+      while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
+        const batchPromises = [];
+        
+        for (let i = 0; i < BATCH_SIZE; i++) {
+          const idToCheck = currentId + i;
+          const calldata = INTERFACE.encodeFunctionData("getPerfume", [idToCheck]);
+
+          batchPromises.push(
+            provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
+              .then((rawResult: string) => {
+                return parsePerfumeFromRawData(rawResult, idToCheck);
+              })
+              .catch((err) => {
+                if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
+                console.warn(`RPC Error for ID ${idToCheck}:`, err.shortMessage);
+                return null;
+              })
+          );
+        }
+
+        const batchResults = await Promise.all(batchPromises);
+        
+        let foundInBatch = false;
+        for (const result of batchResults) {
+          if (result) {
+            results.push(result);
+            foundInBatch = true;
+            consecutiveEmpty = 0;
+          } else {
+            consecutiveEmpty++;
+          }
+        }
+
+        if (results.length > 0 || currentId % 20 === 0) {
+           setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
+        }
+
+        currentId += BATCH_SIZE;
+      }
+
+      const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
+      setItems(sorted);
+      setStatus(`Done. Total found: ${sorted.length}`);
+      
+    } catch (e: any) {
+      console.error("CRITICAL ERROR:", e);
+      setStatus(`Error: ${e.shortMessage || e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto py-16 px-4 relative z-10">
@@ -170,7 +296,11 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {loading ? (
+      {!isWalletConnected && !loading ? (
+        <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8 border border-white/10">
+          <p>Please connect your wallet to view the gallery.</p>
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-48 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
@@ -206,7 +336,7 @@ export default function GalleryPage() {
                 {/* Footer: Gender & Type */}
                 <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-xs text-white/40 border-t border-white/5 pt-4">
                   <div className="flex items-center gap-2">
-                    <span>{GENDER_ICONS[item.gender] || "⚲"}</span>
+                    <span>{GENDER_ICONS[item.gender] || ""}</span>
                     <span>{TYPE_LABELS[item.pType] || "Unknown"}</span>
                   </div>
                   <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-400">→</span>
