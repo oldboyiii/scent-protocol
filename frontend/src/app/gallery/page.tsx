@@ -7,6 +7,7 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
+// Minimal ABI to reduce parsing errors
 const GALLERY_ABI = [
   "function getPerfume(uint256 tokenId) view returns (tuple(string name, uint8 gender, uint8 pType, uint8 concentration, uint8 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt))"
 ];
@@ -20,9 +21,6 @@ interface GalleryItem {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "", "♀"];
-const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
-
 const RARITY_STYLES: Record<number, { badge: string }> = {
   0: { badge: "bg-slate-500/20 text-slate-300 border-slate-500/30" },
   1: { badge: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
@@ -33,81 +31,95 @@ const RARITY_STYLES: Record<number, { badge: string }> = {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Initializing...");
+  const [status, setStatus] = useState("Starting diagnostic scan...");
+  const [rawDebug, setRawDebug] = useState<any>(null);
 
   useEffect(() => {
     async function fetchGallery() {
+      // FORCE CLEAR CACHE for this session to ensure fresh data
+      sessionStorage.removeItem("scent_gallery_cache_v1");
+      
       try {
-        setStatus("Connecting to Arc Network...");
+        setStatus("Connecting to Arc Network via ArcSigner...");
         const signer = await getArcSigner();
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, GALLERY_ABI, signer.provider);
 
         const results: GalleryItem[] = [];
         let consecutiveEmpty = 0;
-        const BATCH_SIZE = 5;
-        const MAX_CONSECUTIVE_EMPTY = 10; // Stop after 10 empty IDs in a row
+        const MAX_CONSECUTIVE_EMPTY = 10; 
         let currentId = 1;
+        const BATCH_SIZE = 5;
 
-        setStatus("Scanning blockchain for scents...");
+        setStatus(`Scanning IDs starting from ${currentId}...`);
 
-        while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY) {
+        while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
           
-          // Create a batch of promises
           for (let i = 0; i < BATCH_SIZE; i++) {
             const idToCheck = currentId + i;
             batchPromises.push(
               contract.getPerfume(idToCheck)
                 .then((p: any) => {
-                  if (p && p.name) {
-                    return { 
-                      tokenId: idToCheck, 
-                      name: p.name, 
-                      rarity: Number(p.rarity), 
-                      gender: Number(p.gender), 
-                      pType: Number(p.pType) 
-                    };
+                  // DEBUG: Log the very first response we get, regardless of content
+                  if (idToCheck === 1 && !rawDebug) {
+                    console.log("DEBUG: Raw response for ID #1:", p);
+                    console.log("DEBUG: Type of p.name:", typeof p?.name);
+                    setRawDebug(p);
+                  }
+
+                  // Check if it's a valid perfume object
+                  // Sometimes 'name' might be empty string "" instead of null
+                  if (p && (p.name || p.name === "")) {
+                     // If name is empty string, it's likely not minted or placeholder
+                     if (p.name && p.name.length > 0) {
+                        return { 
+                          tokenId: idToCheck, 
+                          name: p.name, 
+                          rarity: Number(p.rarity), 
+                          gender: Number(p.gender), 
+                          pType: Number(p.pType) 
+                        };
+                     }
                   }
                   return null;
                 })
-                .catch(() => null) // Silently fail on "Not minted" or RPC errors
+                .catch((err) => {
+                  // Only log unexpected errors, ignore "Not minted"
+                  if (!err.message?.includes("Not minted")) {
+                    console.warn(`Unexpected error for ID ${idToCheck}:`, err.shortMessage);
+                  }
+                  return null;
+                })
             );
           }
 
-          // Wait for batch to complete
           const batchResults = await Promise.all(batchPromises);
           
-          // Process results
           let foundInBatch = false;
           for (const result of batchResults) {
             if (result) {
               results.push(result);
               foundInBatch = true;
-              consecutiveEmpty = 0; // Reset counter when we find a token
+              consecutiveEmpty = 0;
             } else {
               consecutiveEmpty++;
             }
           }
 
-          // Update status for user feedback
-          if (foundInBatch || currentId % 20 === 0) {
-            setStatus(`Scanned up to ID ${currentId + BATCH_SIZE - 1}. Found ${results.length} scents.`);
+          if (results.length > 0 || currentId % 20 === 0) {
+             setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
           }
 
           currentId += BATCH_SIZE;
-          
-          // Safety break to prevent infinite loops in case of weird contract behavior
-          if (currentId > 10000) break; 
         }
 
-        // Sort by ID descending (newest first)
         const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
         setItems(sorted);
-        setStatus(`Scan complete. Found ${sorted.length} scents.`);
+        setStatus(`Done. Total found: ${sorted.length}`);
         
       } catch (e: any) {
-        console.error("Critical Gallery Error:", e);
-        setStatus(`Error: ${e.shortMessage || e.message}`);
+        console.error("CRITICAL ERROR:", e);
+        setStatus(`FATAL: ${e.shortMessage || e.message}`);
       } finally {
         setLoading(false);
       }
@@ -119,10 +131,16 @@ export default function GalleryPage() {
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
       <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent">Gallery</h1>
       
-      {/* Diagnostic Status Bar */}
-      <div className="mb-8 p-4 rounded-lg bg-black/40 border border-white/10 font-mono text-sm">
-        <p className="text-amber-400">Status: {status}</p>
-        <p className="text-white/40 text-xs mt-2">Contract: {NFT_CONTRACT_ADDRESS.slice(0,10)}...</p>
+      {/* Diagnostic Panel */}
+      <div className="mb-8 p-4 rounded-lg bg-black/60 border border-red-500/30 font-mono text-xs overflow-x-auto">
+        <p className="text-amber-400 font-bold mb-2">DIAGNOSTIC MODE ACTIVE</p>
+        <p className="text-white mb-1">Status: {status}</p>
+        {rawDebug && (
+           <div className="mt-2 p-2 bg-gray-900 rounded border border-gray-700">
+             <p className="text-green-400">First Response Received:</p>
+             <pre className="text-gray-300 whitespace-pre-wrap">{JSON.stringify(rawDebug, null, 2).slice(0, 300)}...</pre>
+           </div>
+        )}
       </div>
 
       {loading ? (
@@ -131,8 +149,8 @@ export default function GalleryPage() {
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8">
-          <p>No fragrances found in scanned range.</p>
-          <p className="text-xs mt-2">Check status bar above for details.</p>
+          <p className="text-xl text-red-400 mb-2">Scan returned 0 items.</p>
+          <p>Please check the Diagnostic Panel above and Console (F12).</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -146,10 +164,6 @@ export default function GalleryPage() {
                     <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full border ${style.badge}`}>{RARITY_LABELS[item.rarity]}</span>
                   </div>
                   <h3 className="text-lg font-semibold text-white truncate mb-2 group-hover:text-amber-300">{item.name}</h3>
-                  <div className="mt-auto flex gap-3 text-xs text-white/50 pt-2 border-t border-white/5">
-                    <span>{GENDER_ICONS[item.gender]}</span>
-                    <span>{TYPE_LABELS[item.pType]}</span>
-                  </div>
                 </div>
               </Link>
             );
