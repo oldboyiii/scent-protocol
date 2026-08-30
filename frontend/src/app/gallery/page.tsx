@@ -130,7 +130,7 @@ export default function GalleryPage() {
       const pTypeRaw = parseInt(pTypeHex, 16);
       if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
 
-      // --- 3. EXTRACT RARITY (Precise Slot Parsing) ---
+      // --- 3. EXTRACT RARITY (Direct Slot Parsing) ---
       // The mixed slot (concentration + rarity) is located at:
       // totalLength - 64 (creator) - 64 (createdAt) - 64 (mixed_slot) = totalLength - 192
       let rarity = 0;
@@ -147,27 +147,19 @@ export default function GalleryPage() {
          const val1 = parseInt(byte1Hex, 16);
          const val2 = parseInt(byte2Hex, 16);
          
-         // Heuristic: rarity is 0-3, concentration is usually 5-30
-         // If one value is 0-3 and the other is >3, pick the 0-3 one as rarity
-         if (val1 >= 0 && val1 <= 3 && val2 > 3) {
+         // Simple logic: check if either value is a valid rarity (0-3)
+         // In Solidity memory packing, 'rarity' (declared after concentration) 
+         // usually occupies the lower byte (last 2 hex chars).
+         if (val2 >= 0 && val2 <= 3) {
+            rarity = val2;
+         } else if (val1 >= 0 && val1 <= 3) {
+            // Fallback: if last byte isn't valid, check the previous one
             rarity = val1;
-         } else if (val2 >= 0 && val2 <= 3 && val1 > 3) {
-            rarity = val2;
-         } else if (val1 >= 0 && val1 <= 3 && val2 >= 0 && val2 <= 3) {
-            // Both are 0-3. This is ambiguous. 
-            // In Solidity, variables are packed left-to-right in memory.
-            // 'concentration' comes before 'rarity' in the struct, so it should be in the higher byte.
-            // So val1 (byte 30) = concentration, val2 (byte 31) = rarity.
-            rarity = val2;
-         } else {
-            // Neither is 0-3. Try searching nearby slots just in case.
-            // Look at the slot BEFORE this one (might be misaligned)
-            const prevSlotStart = mixedSlotStart - 64;
-            if (prevSlotStart > 0) {
-               const prevSlot = hex.substring(prevSlotStart, prevSlotStart + 64);
-               const prevVal = parseInt(prevSlot.substring(62, 64), 16);
-               if (prevVal >= 0 && prevVal <= 3) rarity = prevVal;
-            }
+         }
+         
+         // Debug logging to help us understand what we're reading
+         if (tokenId <= 5) {
+            console.log(`ID ${tokenId}: Slot=${mixedSlotHex}, Val1(conc?)=${val1}, Val2(rar?)=${val2}, FinalRarity=${rarity}`);
          }
       }
 
@@ -202,7 +194,7 @@ export default function GalleryPage() {
         let currentId = 1;
         const BATCH_SIZE = 2;
 
-        setStatus(`Scanning IDs (Precise Mode)...`);
+        setStatus(`Scanning IDs (Direct Parse Mode)...`);
 
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
