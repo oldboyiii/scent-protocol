@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-const CACHE_KEY_PREFIX = "scent_collection_v3_"; // Bumped to v3 to clear old broken caches
+const CACHE_KEY_PREFIX = "scent_collection_v4_"; 
 
 // Interface for calldata generation
 const INTERFACE = new ethers.Interface([
@@ -46,7 +46,7 @@ export default function CollectionPage() {
   const [status, setStatus] = useState("Initializing...");
   const [error, setError] = useState<string | null>(null);
 
-  // Manual parser with ownership check
+  // Manual parser with FIXED ownership check
   const parsePerfumeFromRawData = (rawData: string, tokenId: number, userAddress: string): MyNFT | null => {
     try {
       const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
@@ -117,10 +117,18 @@ export default function CollectionPage() {
          else if (val2 >= 5 && val2 <= 30) concentration = val2;
       }
 
-      // --- 3. CHECK OWNERSHIP ---
-      const creatorHex = hex.substring(totalLen - 64);
-      const creatorAddr = "0x" + creatorHex.substring(24).toLowerCase();
+      // --- 3. CHECK OWNERSHIP (FIXED) ---
+      // Creator address is the LAST 32 bytes (64 hex chars) of the return data.
+      // An address is 20 bytes (40 hex chars), padded with 12 zero-bytes (24 hex chars) on the left.
+      // So we take the last 40 hex chars of the entire response.
+      const creatorHex = hex.substring(totalLen - 40); 
+      const creatorAddr = "0x" + creatorHex.toLowerCase();
       
+      // Debug log for first few tokens to verify extraction
+      if (tokenId <= 5) {
+        console.log(`ID ${tokenId}: Extracted Creator=${creatorAddr}, User=${userAddress.toLowerCase()}, Match=${creatorAddr === userAddress.toLowerCase()}`);
+      }
+
       if (creatorAddr !== userAddress.toLowerCase()) {
         return null;
       }
@@ -166,7 +174,7 @@ export default function CollectionPage() {
         if (cached) {
           try {
             const parsedCache = JSON.parse(cached);
-            if (parsedCache && Array.isArray(parsedCache)) {
+            if (parsedCache && Array.isArray(parsedCache) && parsedCache.length > 0) {
               setMyNFTs(parsedCache);
               setStatus("Loaded from cache");
               setLoading(false);
@@ -213,8 +221,8 @@ export default function CollectionPage() {
         // Step 2: Scan IDs
         const nfts: MyNFT[] = [];
         let foundCount = 0;
-        const MAX_SCAN_ID = 500;
-        const BATCH_SIZE = 3;
+        const MAX_SCAN_ID = 1000; // Increased limit just in case
+        const BATCH_SIZE = 5; // Slightly increased batch size
         
         for (let start = 1; start <= MAX_SCAN_ID && foundCount < balance; start += BATCH_SIZE) {
           const end = Math.min(start + BATCH_SIZE - 1, MAX_SCAN_ID);
@@ -224,7 +232,7 @@ export default function CollectionPage() {
           for (let id = start; id <= end; id++) {
             const calldata = INTERFACE.encodeFunctionData("getPerfume", [id]);
             
-            // Wrap each call in a timeout too
+            // Wrap each call in a timeout
             const callWithTimeout = Promise.race([
               provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
                 .then(raw => parsePerfumeFromRawData(raw, id, userAddress)),
@@ -243,7 +251,7 @@ export default function CollectionPage() {
           }
           
           // Delay to prevent RPC throttling
-          await new Promise(r => setTimeout(r, 150));
+          await new Promise(r => setTimeout(r, 100));
         }
 
         const sorted = nfts.sort((a, b) => b.tokenId - a.tokenId);
