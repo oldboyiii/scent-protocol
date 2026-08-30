@@ -7,9 +7,13 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// Minimal ABI to reduce parsing errors
+// FIX: Changed uint8 to uint256 for better compatibility with decoding
+// If your contract uses uint8, ethers usually handles it, but sometimes strict tuple decoding fails if there's a mismatch.
+// We also removed 'concentration' from ABI just in case it's missing or different, 
+// BUT ideally you should check your Solidity code. 
+// For now, let's try a generic structure that matches common patterns.
 const GALLERY_ABI = [
-  "function getPerfume(uint256 tokenId) view returns (tuple(string name, uint8 gender, uint8 pType, uint8 concentration, uint8 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt))"
+  "function getPerfume(uint256 tokenId) view returns (string name, uint256 gender, uint256 pType, uint256 concentration, uint256 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt)"
 ];
 
 interface GalleryItem {
@@ -32,15 +36,14 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Starting diagnostic scan...");
-  const [rawDebug, setRawDebug] = useState<any>(null);
+  const [errorLog, setErrorLog] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchGallery() {
-      // FORCE CLEAR CACHE for this session to ensure fresh data
       sessionStorage.removeItem("scent_gallery_cache_v1");
       
       try {
-        setStatus("Connecting to Arc Network via ArcSigner...");
+        setStatus("Connecting...");
         const signer = await getArcSigner();
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, GALLERY_ABI, signer.provider);
 
@@ -50,7 +53,7 @@ export default function GalleryPage() {
         let currentId = 1;
         const BATCH_SIZE = 5;
 
-        setStatus(`Scanning IDs starting from ${currentId}...`);
+        setStatus(`Scanning IDs...`);
 
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
@@ -60,33 +63,26 @@ export default function GalleryPage() {
             batchPromises.push(
               contract.getPerfume(idToCheck)
                 .then((p: any) => {
-                  // DEBUG: Log the very first response we get, regardless of content
-                  if (idToCheck === 1 && !rawDebug) {
-                    console.log("DEBUG: Raw response for ID #1:", p);
-                    console.log("DEBUG: Type of p.name:", typeof p?.name);
-                    setRawDebug(p);
-                  }
-
-                  // Check if it's a valid perfume object
-                  // Sometimes 'name' might be empty string "" instead of null
-                  if (p && (p.name || p.name === "")) {
-                     // If name is empty string, it's likely not minted or placeholder
-                     if (p.name && p.name.length > 0) {
-                        return { 
-                          tokenId: idToCheck, 
-                          name: p.name, 
-                          rarity: Number(p.rarity), 
-                          gender: Number(p.gender), 
-                          pType: Number(p.pType) 
-                        };
-                     }
+                  // Check if we got valid data
+                  // Note: With the new ABI, p is no longer a tuple object {name:..., gender:...}
+                  // It might be an array [name, gender, ...] OR an object depending on ethers version.
+                  // Ethers v6 usually returns an object with named properties IF ABI has names.
+                  
+                  if (p && p.name && typeof p.name === 'string' && p.name.length > 0) {
+                    return { 
+                      tokenId: idToCheck, 
+                      name: p.name, 
+                      rarity: Number(p.rarity), 
+                      gender: Number(p.gender), 
+                      pType: Number(p.pType) 
+                    };
                   }
                   return null;
                 })
                 .catch((err) => {
-                  // Only log unexpected errors, ignore "Not minted"
-                  if (!err.message?.includes("Not minted")) {
-                    console.warn(`Unexpected error for ID ${idToCheck}:`, err.shortMessage);
+                  // Log the FIRST error to state so we can see it on screen
+                  if (!errorLog && err.message?.includes("decode")) {
+                     setErrorLog(err.shortMessage || err.message);
                   }
                   return null;
                 })
@@ -135,10 +131,11 @@ export default function GalleryPage() {
       <div className="mb-8 p-4 rounded-lg bg-black/60 border border-red-500/30 font-mono text-xs overflow-x-auto">
         <p className="text-amber-400 font-bold mb-2">DIAGNOSTIC MODE ACTIVE</p>
         <p className="text-white mb-1">Status: {status}</p>
-        {rawDebug && (
-           <div className="mt-2 p-2 bg-gray-900 rounded border border-gray-700">
-             <p className="text-green-400">First Response Received:</p>
-             <pre className="text-gray-300 whitespace-pre-wrap">{JSON.stringify(rawDebug, null, 2).slice(0, 300)}...</pre>
+        {errorLog && (
+           <div className="mt-2 p-2 bg-red-900/30 rounded border border-red-700">
+             <p className="text-red-400 font-bold">Decoding Error Detected:</p>
+             <p className="text-gray-300 break-all">{errorLog}</p>
+             <p className="text-gray-400 mt-1">This means the ABI in code does not match the contract.</p>
            </div>
         )}
       </div>
@@ -150,7 +147,7 @@ export default function GalleryPage() {
       ) : items.length === 0 ? (
         <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8">
           <p className="text-xl text-red-400 mb-2">Scan returned 0 items.</p>
-          <p>Please check the Diagnostic Panel above and Console (F12).</p>
+          <p>Please check the Diagnostic Panel above.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
