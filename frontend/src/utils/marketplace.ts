@@ -26,7 +26,7 @@ const NFT_ABI = [
 /**
  * CUSTOM ARC PROVIDER CLASS
  * Completely overrides ENS resolution at the provider level.
- * This is the ONLY way to prevent "UNSUPPORTED_OPERATION" in ethers v6 on custom chains.
+ * Fixes "UNSUPPORTED_OPERATION" errors in ethers v6 for custom chains.
  */
 class ArcProvider extends ethers.BrowserProvider {
   constructor(ethereum: any) {
@@ -39,9 +39,10 @@ class ArcProvider extends ethers.BrowserProvider {
       return null;
     };
 
-    // Override getEnsAddress to ALWAYS return null
-    this.getEnsAddress = async (name: string): Promise<string | null> => {
-      console.warn(`[ArcProvider] Blocked getEnsAddress for: ${name}`);
+    // Override INTERNAL _getEnsAddress to ALWAYS return null
+    // We use 'any' cast because this method is private in ethers v6 types
+    (this as any)._getEnsAddress = async (name: string): Promise<string | null> => {
+      console.warn(`[ArcProvider] Blocked internal _getEnsAddress for: ${name}`);
       return null;
     };
 
