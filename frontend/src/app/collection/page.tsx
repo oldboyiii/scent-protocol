@@ -6,13 +6,13 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-const CACHE_KEY_PREFIX = "scent_collection_v9_"; 
+const CACHE_KEY_PREFIX = "scent_collection_final_"; 
 
-// ABI for contract calls
-const CONTRACT_ABI = [
+// Interface for calldata generation ONLY
+const INTERFACE = new ethers.Interface([
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
   "function balanceOf(address owner) view returns (uint256)"
-];
+]);
 
 interface PerfumeData {
   name: string;
@@ -46,6 +46,78 @@ export default function CollectionPage() {
   const [status, setStatus] = useState("Initializing...");
   const [error, setError] = useState<string | null>(null);
 
+  // Lightweight parser using raw hex (same as working gallery)
+  const parsePerfumeFromRawData = (rawData: string, tokenId: number, userAddress: string): MyNFT | null => {
+    try {
+      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
+      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
+
+      // --- EXTRACT NAME (Heuristic fallback is faster than offset parsing) ---
+      let name = "";
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
+      
+      let currStr = "", candidates: string[] = [];
+      for (const b of bytes) {
+        if (b >= 32 && b <= 126) currStr += String.fromCharCode(b);
+        else { if (currStr.length > 3) candidates.push(currStr); currStr = ""; }
+      }
+      if (currStr.length > 3) candidates.push(currStr);
+      
+      for (const c of candidates) {
+        if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+        if (/^\d+$/.test(c)) continue;
+        if (c.includes(" ") && c.length > 3) { name = c; break; }
+        if (!name && c.length > 5) name = c;
+      }
+      if (!name || name.length < 2) return null;
+
+      // --- EXTRACT METADATA ---
+      let gender = 0, pType = 0, rarity = 0, concentration = 0;
+      
+      const gVal = parseInt(hex.substring(64, 66), 16);
+      if (gVal <= 2) gender = gVal;
+      const pVal = parseInt(hex.substring(128, 130), 16);
+      if (pVal <= 3) pType = pVal;
+
+      // Rarity & Concentration from mixed slot at end
+      const totalLen = hex.length;
+      const mixedSlotStart = totalLen - 192; 
+      
+      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
+         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
+         const val1 = parseInt(mixedSlotHex.substring(60, 62), 16);
+         const val2 = parseInt(mixedSlotHex.substring(62, 64), 16);
+         
+         if (val1 >= 0 && val1 <= 3) rarity = val1;
+         else if (val2 >= 0 && val2 <= 3) rarity = val2;
+         
+         if (val1 >= 5 && val1 <= 30) concentration = val1;
+         else if (val2 >= 5 && val2 <= 30) concentration = val2;
+      }
+
+      // --- CHECK OWNERSHIP (Direct byte comparison) ---
+      // Creator address is ALWAYS the last 20 bytes (40 hex chars) of the response
+      const creatorAddr = "0x" + hex.substring(totalLen - 40).toLowerCase();
+      
+      if (creatorAddr !== userAddress.toLowerCase()) {
+        return null;
+      }
+
+      return {
+        tokenId,
+        perfume: {
+          name, gender, pType, concentration, rarity,
+          topNotes: [], heartNotes: [], baseNotes: [],
+          creator: creatorAddr, createdAt: BigInt(0)
+        }
+      };
+
+    } catch (e) {
+      return null;
+    }
+  };
+
   useEffect(() => {
     const fetchCollection = async () => {
       try {
@@ -68,21 +140,21 @@ export default function CollectionPage() {
               setLoading(false);
               return;
             }
-          } catch (e) {
-            console.warn("Cache parse error", e);
-          }
+          } catch (e) {}
         }
 
-        const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-        
-        // STEP 1: Get balance to know how many tokens to expect
         setStatus("Checking balance...");
+        
+        // Get balance using low-level call
+        const balanceCalldata = INTERFACE.encodeFunctionData("balanceOf", [userAddress]);
         let balance = 0;
         try {
-          const balanceRaw = await contract.balanceOf(userAddress);
-          balance = Number(balanceRaw);
+          const balanceRaw = await provider.call({ 
+            to: NFT_CONTRACT_ADDRESS, 
+            data: balanceCalldata 
+          });
+          balance = Number(BigInt(balanceRaw));
         } catch (e) {
-          console.error("Balance check failed", e);
           setError("Failed to connect to network.");
           setLoading(false);
           return;
@@ -96,48 +168,34 @@ export default function CollectionPage() {
           return;
         }
 
-        setStatus(`Found ${balance} NFT(s). Scanning IDs sequentially...`);
+        setStatus(`Found ${balance} NFT(s). Scanning ownership...`);
         
-        // STEP 2: Sequential scan with SMALL range and FAST delay
-        // Since balance is 32, tokens are likely in first 200 IDs
+        // Sequential scanning with lightweight calls
         const nfts: MyNFT[] = [];
         let foundCount = 0;
-        const MAX_SCAN_ID = 300; // Limited range based on balance
+        const MAX_SCAN_ID = 500; 
         
         for (let id = 1; id <= MAX_SCAN_ID && foundCount < balance; id++) {
           setStatus(`Scanning ID ${id}... Found: ${foundCount}/${balance}`);
           
           try {
-            const perfume = await contract.getPerfume(id);
+            const calldata = INTERFACE.encodeFunctionData("getPerfume", [id]);
+            const rawResult = await provider.call({ 
+              to: NFT_CONTRACT_ADDRESS, 
+              data: calldata 
+            });
             
-            // Check ownership
-            if (perfume.creator && perfume.creator.toLowerCase() === userAddress.toLowerCase()) {
-              nfts.push({
-                tokenId: id,
-                perfume: {
-                  name: perfume.name,
-                  gender: Number(perfume.gender),
-                  pType: Number(perfume.pType),
-                  concentration: Number(perfume.concentration),
-                  rarity: Number(perfume.rarity),
-                  topNotes: Array.from(perfume.topNotes || []),
-                  heartNotes: Array.from(perfume.heartNotes || []),
-                  baseNotes: Array.from(perfume.baseNotes || []),
-                  creator: perfume.creator,
-                  createdAt: perfume.createdAt
-                }
-              });
+            const item = parsePerfumeFromRawData(rawResult, id, userAddress);
+            if (item) {
+              nfts.push(item);
               foundCount++;
             }
           } catch (err: any) {
-            // Ignore "Not minted" errors silently
-            if (!err.message?.includes("Not minted") && !err.message?.includes("revert")) {
-              // For other errors, just skip
-            }
+            // Ignore "Not minted" errors
           }
           
-          // VERY SMALL delay - 30ms is safe for sequential calls
-          await new Promise(r => setTimeout(r, 30)); 
+          // Minimal delay for RPC stability
+          await new Promise(r => setTimeout(r, 50)); 
         }
 
         const sorted = nfts.sort((a, b) => b.tokenId - a.tokenId);
@@ -223,7 +281,7 @@ export default function CollectionPage() {
                         <div className="flex flex-wrap gap-1 mt-1">
                           {nft.perfume.topNotes.length > 0 
                             ? nft.perfume.topNotes.map(n => <span key={n} className="px-2 py-0.5 rounded bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>)
-                            : <span className="text-white/30 text-xs italic">None</span>
+                            : <span className="text-white/30 text-xs italic">View details for notes</span>
                           }
                         </div>
                       </div>
