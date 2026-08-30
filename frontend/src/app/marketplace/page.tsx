@@ -18,7 +18,6 @@ export default function MarketplacePage() {
   useEffect(() => {
     const loadListings = async () => {
       try {
-        // Get safe signer to extract provider without ENS errors
         const signer = await getArcSigner();
         const provider = signer.provider;
         
@@ -37,7 +36,6 @@ export default function MarketplacePage() {
 
   const handleBuy = async (listing: Listing) => {
     try {
-      // Get safe signer for transaction
       const signer = await getArcSigner();
       
       await buyNFT(signer, listing.tokenId, ethers.formatUnits(listing.price, 6));
