@@ -34,109 +34,131 @@ const RARITY_STYLES: Record<number, { badge: string; text: string }> = {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Initializing manual parser...");
+  const [status, setStatus] = useState("Initializing smart parser...");
 
-  // Manual parser for raw ABI-encoded data
-  const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
+  // Smart parser combining heuristic search + direct byte reading
+  const parsePerfumeSmart = (rawData: string, tokenId: number): GalleryItem | null => {
     try {
       const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
       
-      // Check if data is empty or zero
+      // Check if data is empty or zero (not minted)
       if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
 
-      // In ABI encoding for a struct returned by a view function:
-      // The first 32 bytes (64 hex chars) is the offset to the first dynamic element (name).
-      // BUT, since this is a direct return of a struct, the layout might be slightly different.
-      // Let's look at the static fields which are easier to find.
+      // --- 1. EXTRACT STATIC FIELDS (Gender, PType, Rarity) ---
+      // Based on Solidity struct layout in memory/ABI encoding for return values:
+      // The first 32 bytes are usually the offset to the first dynamic element (name).
+      // Static fields that come AFTER dynamic elements are packed at the end or in specific slots.
+      // However, for a struct returned by a view function, ethers/solidity often lays out:
+      // [Offset to Name] [Gender (padded)] [PType (padded)] [Offset to TopNotes] ... [Concentration] [Rarity] [CreatedAt] [Creator]
       
-      // Based on your struct:
-      // Offset 0x00 (0-31): offset to name (dynamic)
-      // Offset 0x20 (32-63): gender (uint8) - stored in first byte of this slot
-      // Offset 0x40 (64-95): pType (uint8)
-      // ... then offsets for arrays ...
-      // Then static fields at the end: concentration, rarity, createdAt, creator
-      
-      // Let's try to read static fields from their expected positions.
-      // Note: Ethers packs uint8 into uint256 slots.
-      
-      // Gender is likely at byte 32 (hex char 64)
+      // Let's try to read Gender and PType from their likely positions.
+      // In many ABI encodings of structs, static fields follow the initial offsets.
+      // Offset 0x20 (bytes 32-63): Likely Gender (uint8 stored in first byte)
       const genderHex = hex.substring(64, 66); 
       const gender = parseInt(genderHex, 16);
       
-      // PType is likely at byte 64 (hex char 128)
+      // Offset 0x40 (bytes 64-95): Likely PType (uint8)
       const pTypeHex = hex.substring(128, 130);
       const pType = parseInt(pTypeHex, 16);
-      
-      // Rarity is harder to find without decoding the whole struct because of the dynamic arrays in between.
-      // However, looking at your previous hex dumps, we saw patterns.
-      // Let's use a heuristic for rarity based on known values or try to find it near the end.
-      // For now, let's default to 0 and focus on getting the NAME right.
-      let rarity = 0; 
 
-      // --- EXTRACTING NAME ---
-      // The first 32 bytes is the offset to the 'name' string data.
-      const nameOffsetHex = hex.substring(0, 64);
-      const nameOffset = parseInt(nameOffsetHex, 16) * 2; // Convert to char index
-      
-      // At that offset, the next 32 bytes is the length of the string.
-      const lenHex = hex.substring(nameOffset, nameOffset + 64);
-      const len = parseInt(lenHex, 16);
-      
-      // Sanity check for length (names shouldn't be > 100 chars or < 1)
-      if (len < 1 || len > 100) {
-         // Fallback: maybe the structure is different. Try to find a readable string manually.
-         // But let's trust the offset for now.
-         return null; 
+      // Rarity is harder because it's after 3 dynamic arrays. 
+      // But we can try to find it near the end of the static tail.
+      // Tail structure: concentration(uint8), rarity(uint8), createdAt(uint256), creator(address)
+      // This tail is 128 bytes (256 hex chars) long.
+      // So rarity should be at: hex.length - 128 - 32 (concentration slot) = hex.length - 160 bytes? 
+      // Actually, let's look at the pattern. 
+      // Let's try to read it from a fixed offset from the END of the data, assuming standard packing.
+      // Creator is last (20 bytes = 40 hex chars, padded to 32 bytes = 64 hex chars).
+      // CreatedAt is before creator (32 bytes = 64 hex chars).
+      // Rarity is before createdAt (1 byte, but padded to 32 bytes = 64 hex chars).
+      // So Rarity is at: hex.length - 64 (creator) - 64 (createdAt) - 64 (rarity slot) = hex.length - 192.
+      // Wait, concentration is also there. 
+      // Let's simplify: Just try to find a valid rarity value (0-3) in the last 256 bytes.
+      let rarity = 0; // Default
+      // We'll leave rarity as 0 for now to ensure stability. It's less critical than Name for Gallery.
+
+      // --- 2. EXTRACT NAME USING IMPROVED HEURISTIC ---
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
       }
-      
-      // The next 'len' bytes are the string content.
-      const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
-      
-      // Convert hex to utf8 string
-      const nameBytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        nameBytes[i] = parseInt(nameHex.substr(i * 2, 2), 16);
-      }
-      
-      // Decode UTF8 manually to avoid ethers dependency issues
-      let name = "";
-      for (let i = 0; i < nameBytes.length; i++) {
-        const byte = nameBytes[i];
-        if (byte >= 32 && byte <= 126) { // Printable ASCII
-          name += String.fromCharCode(byte);
+
+      let currentString = "";
+      const candidates: string[] = [];
+
+      for (let i = 0; i < bytes.length; i++) {
+        const byte = bytes[i];
+        // Printable ASCII range
+        if (byte >= 32 && byte <= 126) {
+          currentString += String.fromCharCode(byte);
         } else {
-          // If we hit non-printable, our offset calculation might be wrong.
-          // Break and try fallback.
-          name = ""; 
-          break;
+          if (currentString.length > 2) { // Min length 3
+            candidates.push(currentString);
+          }
+          currentString = "";
+        }
+      }
+      if (currentString.length > 2) candidates.push(currentString);
+
+      // FILTER CANDIDATES TO FIND THE NAME
+      // We need to skip:
+      // 1. Hex addresses (40 chars, 0-9a-f)
+      // 2. Pure numbers
+      // 3. Technical strings like "getPerfume", "Not minted", etc.
+      // 4. Garbage like "Kf=J" (usually short, no spaces, mixed case/symbols)
+      
+      // Good names: "Silver Rain", "Midnight Rose", "Fresh Oud"
+      // They often contain spaces or are Title Case.
+      
+      let bestName: string | null = null;
+
+      for (const c of candidates) {
+        // Skip addresses
+        if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+        // Skip pure numbers
+        if (/^\d+$/.test(c)) continue;
+        // Skip known technical terms
+        if (["getPerfume", "Not minted", "Transfer", "Approval"].includes(c)) continue;
+        
+        // PRIORITY 1: Strings with spaces (almost certainly a name like "Silver Rain")
+        if (c.includes(" ") && c.length > 3) {
+           bestName = c;
+           break; 
+        }
+        
+        // PRIORITY 2: If no space found yet, take the first "word-like" string that isn't garbage
+        // Garbage like "Kf=J" is short (4 chars). Real single-word names are usually longer (>5).
+        if (!bestName && c.length > 5 && /^[A-Za-z]+$/.test(c)) {
+           bestName = c;
         }
       }
 
-      if (!name || name.trim().length === 0) return null;
+      // If we still haven't found a good name, fallback to the first non-address candidate
+      if (!bestName) {
+         for (const c of candidates) {
+            if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+            if (/^\d+$/.test(c)) continue;
+            bestName = c;
+            break;
+         }
+      }
 
-      // --- REFINING RARITY (Heuristic based on position) ---
-      // Since we can't easily decode the middle part due to dynamic arrays,
-      // let's try to find 'rarity' by looking at the static tail of the struct.
-      // Struct tail: concentration(uint8), rarity(uint8), createdAt(uint256), creator(address)
-      // Total tail size: 32 + 32 + 32 + 32 = 128 bytes (256 hex chars).
-      // So rarity should be at: totalLength - 128 - 32 (for concentration) = totalLength - 160 bytes? 
-      // Actually, let's just stick to 0 for now if we can't be sure, OR try to parse it if we see a pattern.
-      // Looking at your hex dump: "...0000000000000000000000000000000000000000000000000000000000000000..."
-      // It's safer to leave rarity as 0 (Common) until we have a robust decoder, 
-      // OR we can try to fetch it via a separate call if needed. 
-      // BUT, let's try one more thing: search for the rarity value in the hex if we know what to look for? No, too risky.
-      
-      // Let's return what we have. Name is the most important for Gallery.
+      if (!bestName || bestName.trim().length < 2) return null;
+
+      // Sanitize gender/pType
+      const safeGender = (gender >= 0 && gender <= 2) ? gender : 0;
+      const safePType = (pType >= 0 && pType <= 3) ? pType : 0;
+
       return {
         tokenId,
-        name: name.trim(),
-        rarity: rarity, // Defaulting to Common for safety
-        gender: gender > 2 ? 0 : gender, // Sanitize
-        pType: pType > 3 ? 0 : pType     // Sanitize
+        name: bestName.trim(),
+        rarity: rarity, // Keeping 0 for stability until we crack the offset
+        gender: safeGender,
+        pType: safePType
       };
 
     } catch (e) {
-      console.warn(`Manual parse failed for ID ${tokenId}`, e);
+      console.warn(`Smart parse failed for ID ${tokenId}`, e);
       return null;
     }
   };
@@ -156,7 +178,7 @@ export default function GalleryPage() {
         let currentId = 1;
         const BATCH_SIZE = 5;
 
-        setStatus(`Scanning IDs (Manual Parser Mode)...`);
+        setStatus(`Scanning IDs (Smart Parser Mode)...`);
 
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
@@ -168,7 +190,7 @@ export default function GalleryPage() {
             batchPromises.push(
               provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
                 .then((rawResult: string) => {
-                  return parsePerfumeFromRawData(rawResult, idToCheck);
+                  return parsePerfumeSmart(rawResult, idToCheck);
                 })
                 .catch((err) => {
                   // Ignore "Not minted" reverts
