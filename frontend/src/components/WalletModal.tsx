@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ethers } from "ethers";
+import { useWallet } from "@/context/WalletContext";
 
 interface WalletOption {
   id: string;
@@ -58,10 +59,10 @@ const wallets: WalletOption[] = [
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onConnect: (provider: ethers.BrowserProvider) => Promise<void>;
 }
 
-export default function WalletModal({ isOpen, onClose, onConnect }: Props) {
+export default function WalletModal({ isOpen, onClose }: Props) {
+  const { connect } = useWallet();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,7 +89,7 @@ export default function WalletModal({ isOpen, onClose, onConnect }: Props) {
 
       const ethersProvider = new ethers.BrowserProvider(rawProvider);
       await ethersProvider.send("eth_requestAccounts", []);
-      await onConnect(ethersProvider);
+      await connect(ethersProvider);
       onClose();
     } catch (e: any) {
       setError(e.message || "Connection failed");
