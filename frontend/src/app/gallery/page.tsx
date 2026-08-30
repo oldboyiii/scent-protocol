@@ -138,67 +138,47 @@ export default function GalleryPage() {
 
       // --- 2. EXTRACT STATIC FIELDS (Gender, PType) ---
       // These are packed into 32-byte slots right after the initial offsets.
-      // Gender is typically in the second slot (bytes 32-63)
       let gender = 0;
       const genderHex = hex.substring(64, 66); 
       const genderRaw = parseInt(genderHex, 16);
       if (genderRaw >= 0 && genderRaw <= 2) gender = genderRaw;
 
-      // PType is typically in the third slot (bytes 64-95)
       let pType = 0;
       const pTypeHex = hex.substring(128, 130);
       const pTypeRaw = parseInt(pTypeHex, 16);
       if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
 
-      // --- 3. EXTRACT RARITY (Deterministic Offset) ---
-      // The static tail of the struct is: concentration(1b), rarity(1b), createdAt(32b), creator(32b).
-      // Creator is ALWAYS the last 32 bytes (64 hex chars).
-      // CreatedAt is ALWAYS the 32 bytes before creator.
-      // Rarity is ALWAYS the byte immediately before createdAt's slot starts? 
-      // Actually, in Solidity ABI encoding for structs returned by view functions:
-      // Static fields that come AFTER dynamic fields are packed at the END of the return data.
-      // So the order at the very end is: ... [concentration_slot] [rarity_slot] [createdAt_slot] [creator_slot]
-      // Each slot is 32 bytes (64 hex chars).
-      // Therefore, rarity starts at: totalLength - 64 (creator) - 64 (createdAt) - 64 (rarity_slot) = totalLength - 192.
+      // --- 3. EXTRACT RARITY (Fixed Slot Packing Logic) ---
+      // In your contract, 'concentration' (uint8) and 'rarity' (uint8) are packed into ONE 32-byte slot.
+      // This slot is located BEFORE 'createdAt' and 'creator'.
+      // Structure at the end: ... [mixed_slot] [createdAt(32b)] [creator(32b)]
+      // mixed_slot starts at: totalLength - 64 (creator) - 64 (createdAt) - 64 (mixed_slot) = totalLength - 192.
       
       let rarity = 0;
       const totalLen = hex.length;
-      const raritySlotStart = totalLen - 192; 
+      const mixedSlotStart = totalLen - 192; 
       
-      if (raritySlotStart > 0 && raritySlotStart + 64 <= totalLen) {
-         const raritySlotHex = hex.substring(raritySlotStart, raritySlotStart + 64);
-         // uint8 is stored in the LAST 2 hex chars of the 32-byte slot (big-endian padding)
-         const rarityVal = parseInt(raritySlotHex.substring(62, 64), 16);
+      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
+         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
          
-         // Validate that it's a valid rarity value (0-3)
+         // The slot contains two uint8s. 
+         // Usually: 0x00...00[concentration_byte][rarity_byte]
+         // So 'rarity' is in the LAST 2 hex characters (bytes 30-31 of the slot).
+         const rarityByteHex = mixedSlotHex.substring(62, 64);
+         const rarityVal = parseInt(rarityByteHex, 16);
+         
+         // Validate range (0-3)
          if (rarityVal >= 0 && rarityVal <= 3) {
             rarity = rarityVal;
          } else {
-            // If validation fails, it means our offset assumption might be slightly off 
-            // due to how Solidity packs multiple uint8s into one slot.
-            // Let's try searching backwards from the end for a valid rarity byte.
-            // We know creator is last 64 hex. createdAt is prev 64 hex.
-            // Before that should be a slot containing concentration and rarity.
-            // Concentration is usually 5-30, Rarity is 0-3.
-            // They might be packed as: 0x00...00[concentration][rarity] or similar.
-            // Let's scan the 64 hex chars before createdAt for values 0-3.
-            const preCreatedAtSlotStart = totalLen - 64 - 64 - 64; // Before creator and createdAt
-            if (preCreatedAtSlotStart > 0) {
-               const mixedSlot = hex.substring(preCreatedAtSlotStart, preCreatedAtSlotStart + 64);
-               // Try last byte
-               let val = parseInt(mixedSlot.substring(62, 64), 16);
-               if (val >= 0 && val <= 3) rarity = val;
-               // Try second to last byte (if concentration is last)
-               else {
-                 val = parseInt(mixedSlot.substring(60, 62), 16);
-                 if (val >= 0 && val <= 3) rarity = val;
-               }
-            }
+            // Fallback: Try the second-to-last byte just in case order is swapped
+            const altByteHex = mixedSlotHex.substring(60, 62);
+            const altVal = parseInt(altByteHex, 16);
+            if (altVal >= 0 && altVal <= 3) rarity = altVal;
          }
       }
 
-      // --- 4. EXTRACT DESCRIPTION (First Top Note) ---
-      // This is tricky without full decoding. We'll use a fallback.
+      // --- 4. DESCRIPTION FALLBACK ---
       let description = TYPE_LABELS[pType]; 
 
       return {
@@ -244,7 +224,6 @@ export default function GalleryPage() {
                 .catch((err) => {
                   // Ignore "Not minted" reverts
                   if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
-                  console.warn(`RPC Error for ID ${idToCheck}:`, err.shortMessage);
                   return null;
                 })
             );
