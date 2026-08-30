@@ -7,6 +7,7 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
+// Interface used solely for generating calldata
 const INTERFACE = new ethers.Interface([
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ]);
@@ -21,7 +22,7 @@ interface GalleryItem {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["⚲", "", "♀"];
+const GENDER_ICONS = ["⚲", "♂", "♀"];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLES: Record<number, { 
@@ -62,143 +63,229 @@ export default function GalleryPage() {
   const [status, setStatus] = useState("Scanning...");
   const [progress, setProgress] = useState(0);
 
+  // Manual parser for raw ABI-encoded data
   const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
     try {
       const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
+      
+      // Check if data is empty or zero (not minted)
       if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
 
-      // --- 1. ИМЯ ---
+      // --- 1. EXTRACT NAME ---
       let name = "";
       try {
-        const offset = parseInt(hex.substring(0, 64), 16) * 2;
-        const len = parseInt(hex.substring(offset, offset + 64), 16);
+        // First 32 bytes (64 hex chars) is the offset to the 'name' string data
+        const nameOffsetHex = hex.substring(0, 64);
+        const nameOffset = parseInt(nameOffsetHex, 16) * 2; // Convert to char index
+        
+        // Next 32 bytes at that offset is the length of the string
+        const lenHex = hex.substring(nameOffset, nameOffset + 64);
+        const len = parseInt(lenHex, 16);
+        
+        // Sanity check for length
         if (len > 0 && len < 100) {
-          const strHex = hex.substring(offset + 64, offset + 64 + len * 2);
-          let decoded = "";
+          // Next 'len' bytes are the string content
+          const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
+          
+          // Convert hex to utf8 string manually
+          let decodedName = "";
+          let isValid = true;
           for (let i = 0; i < len * 2; i += 2) {
-            const byte = parseInt(strHex.substr(i, 2), 16);
-            if (byte >= 32 && byte <= 126) decoded += String.fromCharCode(byte);
-            else break;
+            const byte = parseInt(nameHex.substr(i, 2), 16);
+            if (byte >= 32 && byte <= 126) { // Printable ASCII
+              decodedName += String.fromCharCode(byte);
+            } else {
+              isValid = false;
+              break;
+            }
           }
-          if (decoded.trim()) name = decoded.trim();
+          if (isValid && decodedName.trim().length > 0) {
+            name = decodedName.trim();
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.warn(`Name extraction failed for ID ${tokenId}`, e);
+      }
 
-      // Fallback для имени
+      // Fallback heuristic for name if offset method fails
       if (!name) {
         const bytes = new Uint8Array(hex.length / 2);
         for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
-        let curr = "", cands: string[] = [];
-        for (const b of bytes) {
-          if (b >= 32 && b <= 126) curr += String.fromCharCode(b);
-          else { if (curr.length > 3) cands.push(curr); curr = ""; }
-        }
-        for (const c of cands) {
-          if (c.length === 40 && /^[0-9a-f]+$/.test(c)) continue;
-          if (/^\d+$/.test(c)) continue;
-          if (c.includes(" ")) { name = c; break; }
-          if (!name && c.length > 5) name = c;
-        }
-      }
-      if (!name) return null;
-
-      // --- 2. GENDER & PTYPE (фиксированные позиции) ---
-      let gender = 0, pType = 0;
-      const gVal = parseInt(hex.substring(64, 66), 16);
-      if (gVal <= 2) gender = gVal;
-      const pVal = parseInt(hex.substring(128, 130), 16);
-      if (pVal <= 3) pType = pVal;
-
-      // --- 3. ПОИСК РЕДКОСТИ (Smart Search) ---
-      // Ищем паттерн: 62 нуля followed by 00, 01, 02, or 03
-      // Это соответствует uint8, упакованному в uint256 slot
-      let rarity = 0;
-      const searchStart = Math.floor(hex.length * 0.6); // Ищем во второй половине данных
-      for (let i = searchStart; i < hex.length - 64; i += 2) {
-        const slot = hex.substring(i, i + 64);
-        if (slot.startsWith("00000000000000000000000000000000000000000000000000000000000000")) {
-          const val = parseInt(slot.substring(62, 64), 16);
-          if (val >= 0 && val <= 3) {
-            // Проверяем контекст: рядом не должно быть других маленьких чисел (чтобы не спутать с concentration)
-            // Но для простоты берем первое валидное значение в хвосте
-            rarity = val;
-            break; 
-          }
-        }
-      }
-
-      // --- 4. ОПИСАНИЕ (Первая нота) ---
-      // Пытаемся найти вторую строку в данных (первая верхняя нота)
-      let description = TYPE_LABELS[pType]; // Fallback
-      try {
-        // После имени идут смещения для массивов. 
-        // Пропускаем первые ~200-300 байт и ищем следующую читаемую строку
-        const afterNameOffset = parseInt(hex.substring(0, 64), 16) * 2 + 64 + (name.length * 2) + 32; // Грубая оценка
-        const searchArea = hex.substring(Math.min(afterNameOffset, hex.length * 0.3));
-        
-        // Ищем первую строку длиной > 3 в этой области
-        const bytes = new Uint8Array(searchArea.length / 2);
-        for(let i=0; i<searchArea.length; i+=2) bytes[i/2] = parseInt(searchArea.substr(i,2), 16);
         
         let currStr = "";
-        for(const b of bytes) {
+        const candidates: string[] = [];
+        for (const b of bytes) {
           if (b >= 32 && b <= 126) currStr += String.fromCharCode(b);
           else {
-            if (currStr.length > 3 && currStr.length < 20 && /^[A-Za-z-]+$/.test(currStr)) {
-              description = currStr;
-              break;
-            }
+            if (currStr.length > 3) candidates.push(currStr);
             currStr = "";
           }
         }
-      } catch {}
+        if (currStr.length > 3) candidates.push(currStr);
 
-      return { tokenId, name, rarity, gender, pType, description };
-    } catch { return null; }
+        for (const c of candidates) {
+          // Skip addresses and numbers
+          if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+          if (/^\d+$/.test(c)) continue;
+          // Prefer strings with spaces (likely names like "Silver Rain")
+          if (c.includes(" ") && c.length > 3) { name = c; break; }
+          // Otherwise take first long word
+          if (!name && c.length > 5) name = c;
+        }
+      }
+
+      if (!name || name.length < 2) return null;
+
+      // --- 2. EXTRACT STATIC FIELDS (Gender, PType) ---
+      // These are packed into 32-byte slots right after the initial offsets.
+      // Gender is typically in the second slot (bytes 32-63)
+      let gender = 0;
+      const genderHex = hex.substring(64, 66); 
+      const genderRaw = parseInt(genderHex, 16);
+      if (genderRaw >= 0 && genderRaw <= 2) gender = genderRaw;
+
+      // PType is typically in the third slot (bytes 64-95)
+      let pType = 0;
+      const pTypeHex = hex.substring(128, 130);
+      const pTypeRaw = parseInt(pTypeHex, 16);
+      if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
+
+      // --- 3. EXTRACT RARITY (Deterministic Offset) ---
+      // The static tail of the struct is: concentration(1b), rarity(1b), createdAt(32b), creator(32b).
+      // Creator is ALWAYS the last 32 bytes (64 hex chars).
+      // CreatedAt is ALWAYS the 32 bytes before creator.
+      // Rarity is ALWAYS the byte immediately before createdAt's slot starts? 
+      // Actually, in Solidity ABI encoding for structs returned by view functions:
+      // Static fields that come AFTER dynamic fields are packed at the END of the return data.
+      // So the order at the very end is: ... [concentration_slot] [rarity_slot] [createdAt_slot] [creator_slot]
+      // Each slot is 32 bytes (64 hex chars).
+      // Therefore, rarity starts at: totalLength - 64 (creator) - 64 (createdAt) - 64 (rarity_slot) = totalLength - 192.
+      
+      let rarity = 0;
+      const totalLen = hex.length;
+      const raritySlotStart = totalLen - 192; 
+      
+      if (raritySlotStart > 0 && raritySlotStart + 64 <= totalLen) {
+         const raritySlotHex = hex.substring(raritySlotStart, raritySlotStart + 64);
+         // uint8 is stored in the LAST 2 hex chars of the 32-byte slot (big-endian padding)
+         const rarityVal = parseInt(raritySlotHex.substring(62, 64), 16);
+         
+         // Validate that it's a valid rarity value (0-3)
+         if (rarityVal >= 0 && rarityVal <= 3) {
+            rarity = rarityVal;
+         } else {
+            // If validation fails, it means our offset assumption might be slightly off 
+            // due to how Solidity packs multiple uint8s into one slot.
+            // Let's try searching backwards from the end for a valid rarity byte.
+            // We know creator is last 64 hex. createdAt is prev 64 hex.
+            // Before that should be a slot containing concentration and rarity.
+            // Concentration is usually 5-30, Rarity is 0-3.
+            // They might be packed as: 0x00...00[concentration][rarity] or similar.
+            // Let's scan the 64 hex chars before createdAt for values 0-3.
+            const preCreatedAtSlotStart = totalLen - 64 - 64 - 64; // Before creator and createdAt
+            if (preCreatedAtSlotStart > 0) {
+               const mixedSlot = hex.substring(preCreatedAtSlotStart, preCreatedAtSlotStart + 64);
+               // Try last byte
+               let val = parseInt(mixedSlot.substring(62, 64), 16);
+               if (val >= 0 && val <= 3) rarity = val;
+               // Try second to last byte (if concentration is last)
+               else {
+                 val = parseInt(mixedSlot.substring(60, 62), 16);
+                 if (val >= 0 && val <= 3) rarity = val;
+               }
+            }
+         }
+      }
+
+      // --- 4. EXTRACT DESCRIPTION (First Top Note) ---
+      // This is tricky without full decoding. We'll use a fallback.
+      let description = TYPE_LABELS[pType]; 
+
+      return {
+        tokenId,
+        name,
+        rarity,
+        gender,
+        pType,
+        description
+      };
+
+    } catch (e) {
+      console.warn(`Parse failed for ID ${tokenId}`, e);
+      return null;
+    }
   };
 
   useEffect(() => {
     const fetchGallery = async () => {
       try {
+        setStatus("Connecting to Arc Network...");
         const signer = await getArcSigner();
         const provider = signer.provider;
-        const results: GalleryItem[] = [];
-        let emptyCount = 0, currentId = 1;
 
-        while (emptyCount < 10 && currentId < 500) {
-          setStatus(`Scanning ID ${currentId}... Found: ${results.length}`);
-          setProgress(currentId);
+        const results: GalleryItem[] = [];
+        let consecutiveEmpty = 0;
+        const MAX_CONSECUTIVE_EMPTY = 10; 
+        let currentId = 1;
+        const BATCH_SIZE = 3; // Small batch to avoid RPC rate limits
+
+        setStatus(`Scanning IDs (Deterministic Mode)...`);
+
+        while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
+          const batchPromises = [];
           
-          const batch = [];
-          for (let i = 0; i < 3; i++) {
-            const id = currentId + i;
-            const calldata = INTERFACE.encodeFunctionData("getPerfume", [id]);
-            batch.push(
+          for (let i = 0; i < BATCH_SIZE; i++) {
+            const idToCheck = currentId + i;
+            const calldata = INTERFACE.encodeFunctionData("getPerfume", [idToCheck]);
+
+            batchPromises.push(
               provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
-                .then(r => parsePerfumeFromRawData(r, id))
-                .catch(() => null)
+                .then((rawResult: string) => parsePerfumeFromRawData(rawResult, idToCheck))
+                .catch((err) => {
+                  // Ignore "Not minted" reverts
+                  if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
+                  console.warn(`RPC Error for ID ${idToCheck}:`, err.shortMessage);
+                  return null;
+                })
             );
           }
+
+          const batchResults = await Promise.all(batchPromises);
           
-          const res = await Promise.all(batch);
-          let found = false;
-          for (const r of res) {
-            if (r) { results.push(r); found = true; emptyCount = 0; }
-            else emptyCount++;
+          let foundInBatch = false;
+          for (const result of batchResults) {
+            if (result) {
+              results.push(result);
+              foundInBatch = true;
+              consecutiveEmpty = 0;
+            } else {
+              consecutiveEmpty++;
+            }
           }
+
+          setProgress(currentId);
+          if (results.length > 0 || currentId % 10 === 0) {
+             setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
+          }
+
+          currentId += BATCH_SIZE;
           
-          currentId += 3;
-          await new Promise(r => setTimeout(r, 150)); // Delay for RPC stability
+          // Delay between batches to prevent RPC throttling
+          await new Promise(r => setTimeout(r, 200)); 
         }
 
-        setItems(results.sort((a, b) => b.tokenId - a.tokenId));
-        setStatus(`Done. Total: ${results.length}`);
+        const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
+        setItems(sorted);
+        setStatus(`Done. Total found: ${sorted.length}`);
+        
       } catch (e: any) {
-        setStatus(`Error: ${e.message}`);
+        console.error("CRITICAL ERROR:", e);
+        setStatus(`Error: ${e.shortMessage || e.message}`);
       } finally {
         setLoading(false);
       }
     };
+    
     fetchGallery();
   }, []);
 
@@ -211,34 +298,62 @@ export default function GalleryPage() {
         </div>
         <div className="text-right hidden md:block min-w-[200px]">
            <p className="text-xs text-white/30 font-mono mb-1">{status}</p>
-           {loading && <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-amber-500 transition-all duration-300" style={{width: `${Math.min((progress / 500) * 100, 100)}%`}} /></div>}
+           {loading && (
+             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+               <div 
+                 className="h-full bg-amber-500 transition-all duration-300" 
+                 style={{width: `${Math.min((progress / 500) * 100, 100)}%`}} 
+               />
+             </div>
+           )}
         </div>
       </div>
 
       {loading && items.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-56 rounded-2xl bg-white/5 animate-pulse border border-white/10" />)}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-56 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
+          ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8 border border-white/10">No fragrances found.</div>
+        <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8 border border-white/10">
+          No fragrances found in scanned range.
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {items.map((item) => {
-            const s = RARITY_STYLES[item.rarity] || RARITY_STYLES[0];
+            const style = RARITY_STYLES[item.rarity] || RARITY_STYLES[0];
             return (
-              <Link key={item.tokenId} href={`/nft/${item.tokenId}`} className={`block group relative rounded-2xl p-6 bg-gradient-to-br ${s.bg} backdrop-blur-md border transition-all duration-300 hover:-translate-y-1 ${s.border} ${s.glow}`}>
+              <Link 
+                key={item.tokenId} 
+                href={`/nft/${item.tokenId}`} 
+                className={`block group relative rounded-2xl p-6 bg-gradient-to-br ${style.bg} backdrop-blur-md border transition-all duration-300 hover:-translate-y-1 ${style.border} ${style.glow}`}
+              >
+                {/* Header: ID & Rarity */}
                 <div className="flex justify-between items-start mb-4">
                   <span className="text-sm font-mono text-white/30">#{item.tokenId}</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${s.badge}`}>{RARITY_LABELS[item.rarity]}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${style.badge}`}>
+                    {RARITY_LABELS[item.rarity]}
+                  </span>
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2 line-clamp-2 group-hover:text-amber-300 transition-colors">{item.name}</h3>
-                <p className="text-xs text-white/40 mb-6 italic truncate">{item.description}</p>
+                
+                {/* Name */}
+                <h3 className="text-xl font-bold text-white mb-2 line-clamp-2 group-hover:text-amber-300 transition-colors">
+                  {item.name}
+                </h3>
+
+                {/* Description / Type */}
+                <p className="text-xs text-white/40 mb-6 italic truncate">
+                  {item.description} fragrance
+                </p>
+                
+                {/* Footer: Gender & Type Icons */}
                 <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-xs text-white/40 border-t border-white/5 pt-4">
                   <div className="flex items-center gap-3">
-                    <span>{GENDER_ICONS[item.gender]}</span>
-                    <span>{TYPE_LABELS[item.pType]}</span>
+                    <span title="Gender">{GENDER_ICONS[item.gender]}</span>
+                    <span title="Type">{TYPE_LABELS[item.pType]}</span>
                   </div>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-400">→</span>
+                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-400 text-sm">→</span>
                 </div>
               </Link>
             );
