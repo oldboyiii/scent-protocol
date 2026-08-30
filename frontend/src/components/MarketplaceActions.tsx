@@ -28,9 +28,12 @@ export default function MarketplaceActions({
 
   useEffect(() => {
     const checkListing = async () => {
-      if (!window.ethereum) return;
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      // FIX: Cast window to 'any' to safely access ethereum property
+      const win = window as any;
+      if (!win.ethereum) return;
+      
       try {
+        const provider = new ethers.BrowserProvider(win.ethereum);
         const data = await checkIfListed(provider, tokenId);
         setIsListed(data.active);
         if (data.active) {
@@ -65,7 +68,7 @@ export default function MarketplaceActions({
     try {
       await buyNFT(signer, tokenId, listingPrice);
       alert(`Successfully purchased Scent #${tokenId}!`);
-      window.location.reload(); // Refresh to update state
+      window.location.reload(); 
     } catch (error) {
       console.error("Buy failed:", error);
       alert("Purchase failed. Check console.");
@@ -89,7 +92,6 @@ export default function MarketplaceActions({
     }
   };
 
-  // If not connected, show connect prompt
   if (!userAddress) {
     return (
       <div className="mt-6 pt-6 border-t border-white/10">
@@ -106,7 +108,6 @@ export default function MarketplaceActions({
         <span>🏪</span> Marketplace Actions
       </h3>
       
-      {/* 1. Owner, not listed, showing form */}
       {isOwner && !isListed && showListForm && (
         <div className="space-y-3 p-4 rounded-xl bg-black/40 border border-white/10 backdrop-blur-sm">
           <label className="text-sm text-white/60">Set Price (USDC)</label>
@@ -136,7 +137,6 @@ export default function MarketplaceActions({
         </div>
       )}
 
-      {/* 2. Owner, not listed, showing "List" button */}
       {isOwner && !isListed && !showListForm && (
         <button 
           onClick={() => setShowListForm(true)}
@@ -146,7 +146,6 @@ export default function MarketplaceActions({
         </button>
       )}
 
-      {/* 3. Owner, currently listed */}
       {isOwner && isListed && (
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 backdrop-blur-sm space-y-3">
           <div className="flex justify-between items-center">
@@ -163,18 +162,16 @@ export default function MarketplaceActions({
         </div>
       )}
 
-      {/* 4. Not owner, currently listed */}
       {!isOwner && isListed && (
         <button 
           onClick={handleBuy}
           disabled={loading}
           className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {loading ? "Processing..." : `⚡ Buy for ${listingPrice} USDC`}
+          {loading ? "Processing..." : ` Buy for ${listingPrice} USDC`}
         </button>
       )}
 
-      {/* 5. Not owner, not listed */}
       {!isOwner && !isListed && (
         <p className="text-center text-white/40 text-sm italic py-2">
           This scent is not currently listed for sale.
