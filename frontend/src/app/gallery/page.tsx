@@ -6,6 +6,7 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+const CACHE_KEY = "scent_gallery_cache_v1";
 
 const GALLERY_ABI = [
   "function getPerfume(uint256 tokenId) view returns (tuple(string name, uint8 gender, uint8 pType, uint8 concentration, uint8 rarity, string[] topNotes, string[] heartNotes, string[] baseNotes, address creator, uint256 createdAt))"
@@ -20,9 +21,8 @@ interface GalleryItem {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["⚲", "", "♀"];
+const GENDER_ICONS = ["", "", "♀"];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
-
 const RARITY_STYLES: Record<number, { badge: string }> = {
   0: { badge: "bg-slate-500/20 text-slate-300 border-slate-500/30" },
   1: { badge: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
@@ -36,38 +36,53 @@ export default function GalleryPage() {
 
   useEffect(() => {
     async function fetchGallery() {
+      // Check cache first
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        try {
+          setItems(JSON.parse(cached));
+          setLoading(false);
+          return;
+        } catch {}
+      }
+
       try {
         const signer = await getArcSigner();
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, GALLERY_ABI, signer.provider);
 
         const results: GalleryItem[] = [];
         let emptyCount = 0;
-        const MAX_EMPTY = 5; 
-        const MAX_ID = 500; // Safety limit for testnet
+        const BATCH_SIZE = 10;
+        const MAX_ID = 300; // Reduced for faster load on testnet
 
-        for (let id = 1; id <= MAX_ID; id++) {
-          try {
-            const p = await contract.getPerfume(id);
-            if (p && p.name) {
-              results.push({
-                tokenId: id,
-                name: p.name,
-                rarity: Number(p.rarity),
-                gender: Number(p.gender),
-                pType: Number(p.pType),
-              });
-              emptyCount = 0;
-            } else {
-              emptyCount++;
-            }
-          } catch {
+        for (let start = 1; start <= MAX_ID; start += BATCH_SIZE) {
+          const end = Math.min(start + BATCH_SIZE - 1, MAX_ID);
+          const batchPromises = [];
+
+          for (let id = start; id <= end; id++) {
+            batchPromises.push(
+              contract.getPerfume(id)
+                .then((p: any) => (p && p.name ? { tokenId: id, name: p.name, rarity: Number(p.rarity), gender: Number(p.gender), pType: Number(p.pType) } : null))
+                .catch(() => null)
+            );
+          }
+
+          const batchResults = await Promise.all(batchPromises);
+          const valid = batchResults.filter((r): r is GalleryItem => r !== null);
+          
+          if (valid.length > 0) {
+            results.push(...valid);
+            emptyCount = 0;
+          } else {
             emptyCount++;
           }
 
-          if (emptyCount >= MAX_EMPTY) break;
+          if (emptyCount >= 3) break; // Stop early if we hit a gap
         }
 
-        setItems(results.reverse());
+        const sorted = results.reverse();
+        setItems(sorted);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(sorted));
       } catch (e) {
         console.error("Gallery load failed:", e);
       } finally {
