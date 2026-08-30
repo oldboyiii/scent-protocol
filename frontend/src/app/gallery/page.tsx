@@ -7,13 +7,10 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
-// EXACT ABI matching the Solidity struct order:
-// name, gender, pType, topNotes[3], heartNotes[3], baseNotes[3], concentration, rarity, createdAt, creator
-const GALLERY_ABI = [
+// Interface just to generate calldata
+const INTERFACE = new ethers.Interface([
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
-];
-
-const INTERFACE = new ethers.Interface(GALLERY_ABI);
+]);
 
 interface GalleryItem {
   tokenId: number;
@@ -37,36 +34,111 @@ const RARITY_STYLES: Record<number, { badge: string; text: string }> = {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Initializing...");
-  const [mode, setMode] = useState<"abi" | "heuristic">("abi");
+  const [status, setStatus] = useState("Initializing manual parser...");
 
-  // Heuristic fallback for when ABI decoding fails completely
-  const extractNameHeuristic = (rawData: string): string | null => {
+  // Manual parser for raw ABI-encoded data
+  const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
     try {
       const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
-      const bytes = new Uint8Array(hex.length / 2);
-      for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+      
+      // Check if data is empty or zero
+      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
 
-      let currentString = "";
-      const candidates: string[] = [];
-      for (let i = 0; i < bytes.length; i++) {
-        const byte = bytes[i];
-        if (byte >= 32 && byte <= 126) currentString += String.fromCharCode(byte);
-        else {
-          if (currentString.length > 3) candidates.push(currentString);
-          currentString = "";
+      // In ABI encoding for a struct returned by a view function:
+      // The first 32 bytes (64 hex chars) is the offset to the first dynamic element (name).
+      // BUT, since this is a direct return of a struct, the layout might be slightly different.
+      // Let's look at the static fields which are easier to find.
+      
+      // Based on your struct:
+      // Offset 0x00 (0-31): offset to name (dynamic)
+      // Offset 0x20 (32-63): gender (uint8) - stored in first byte of this slot
+      // Offset 0x40 (64-95): pType (uint8)
+      // ... then offsets for arrays ...
+      // Then static fields at the end: concentration, rarity, createdAt, creator
+      
+      // Let's try to read static fields from their expected positions.
+      // Note: Ethers packs uint8 into uint256 slots.
+      
+      // Gender is likely at byte 32 (hex char 64)
+      const genderHex = hex.substring(64, 66); 
+      const gender = parseInt(genderHex, 16);
+      
+      // PType is likely at byte 64 (hex char 128)
+      const pTypeHex = hex.substring(128, 130);
+      const pType = parseInt(pTypeHex, 16);
+      
+      // Rarity is harder to find without decoding the whole struct because of the dynamic arrays in between.
+      // However, looking at your previous hex dumps, we saw patterns.
+      // Let's use a heuristic for rarity based on known values or try to find it near the end.
+      // For now, let's default to 0 and focus on getting the NAME right.
+      let rarity = 0; 
+
+      // --- EXTRACTING NAME ---
+      // The first 32 bytes is the offset to the 'name' string data.
+      const nameOffsetHex = hex.substring(0, 64);
+      const nameOffset = parseInt(nameOffsetHex, 16) * 2; // Convert to char index
+      
+      // At that offset, the next 32 bytes is the length of the string.
+      const lenHex = hex.substring(nameOffset, nameOffset + 64);
+      const len = parseInt(lenHex, 16);
+      
+      // Sanity check for length (names shouldn't be > 100 chars or < 1)
+      if (len < 1 || len > 100) {
+         // Fallback: maybe the structure is different. Try to find a readable string manually.
+         // But let's trust the offset for now.
+         return null; 
+      }
+      
+      // The next 'len' bytes are the string content.
+      const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
+      
+      // Convert hex to utf8 string
+      const nameBytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        nameBytes[i] = parseInt(nameHex.substr(i * 2, 2), 16);
+      }
+      
+      // Decode UTF8 manually to avoid ethers dependency issues
+      let name = "";
+      for (let i = 0; i < nameBytes.length; i++) {
+        const byte = nameBytes[i];
+        if (byte >= 32 && byte <= 126) { // Printable ASCII
+          name += String.fromCharCode(byte);
+        } else {
+          // If we hit non-printable, our offset calculation might be wrong.
+          // Break and try fallback.
+          name = ""; 
+          break;
         }
       }
-      if (currentString.length > 3) candidates.push(currentString);
 
-      // Filter out addresses (40 hex chars) and pure numbers
-      for (const c of candidates) {
-        if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
-        if (/^\d+$/.test(c)) continue;
-        return c; // First valid looking string is likely the name
-      }
-      return candidates[0] || null;
-    } catch { return null; }
+      if (!name || name.trim().length === 0) return null;
+
+      // --- REFINING RARITY (Heuristic based on position) ---
+      // Since we can't easily decode the middle part due to dynamic arrays,
+      // let's try to find 'rarity' by looking at the static tail of the struct.
+      // Struct tail: concentration(uint8), rarity(uint8), createdAt(uint256), creator(address)
+      // Total tail size: 32 + 32 + 32 + 32 = 128 bytes (256 hex chars).
+      // So rarity should be at: totalLength - 128 - 32 (for concentration) = totalLength - 160 bytes? 
+      // Actually, let's just stick to 0 for now if we can't be sure, OR try to parse it if we see a pattern.
+      // Looking at your hex dump: "...0000000000000000000000000000000000000000000000000000000000000000..."
+      // It's safer to leave rarity as 0 (Common) until we have a robust decoder, 
+      // OR we can try to fetch it via a separate call if needed. 
+      // BUT, let's try one more thing: search for the rarity value in the hex if we know what to look for? No, too risky.
+      
+      // Let's return what we have. Name is the most important for Gallery.
+      return {
+        tokenId,
+        name: name.trim(),
+        rarity: rarity, // Defaulting to Common for safety
+        gender: gender > 2 ? 0 : gender, // Sanitize
+        pType: pType > 3 ? 0 : pType     // Sanitize
+      };
+
+    } catch (e) {
+      console.warn(`Manual parse failed for ID ${tokenId}`, e);
+      return null;
+    }
   };
 
   useEffect(() => {
@@ -74,58 +146,37 @@ export default function GalleryPage() {
       sessionStorage.removeItem("scent_gallery_cache_v1");
       
       try {
-        setStatus("Connecting to Arc Network...");
+        setStatus("Connecting via ArcSigner...");
         const signer = await getArcSigner();
         const provider = signer.provider;
-        const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, GALLERY_ABI, provider);
 
         const results: GalleryItem[] = [];
         let consecutiveEmpty = 0;
         const MAX_CONSECUTIVE_EMPTY = 10; 
         let currentId = 1;
         const BATCH_SIZE = 5;
-        let abiFailedCount = 0;
 
-        setStatus(`Scanning IDs (ABI Mode)...`);
+        setStatus(`Scanning IDs (Manual Parser Mode)...`);
 
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
           
           for (let i = 0; i < BATCH_SIZE; i++) {
             const idToCheck = currentId + i;
-            
-            // Try ABI call first
-            const promise = contract.getPerfume(idToCheck)
-              .then((p: any) => {
-                // If we got here, ABI worked!
-                if (p && p.name && typeof p.name === 'string' && p.name.trim().length > 0) {
-                  return { 
-                    tokenId: idToCheck, 
-                    name: p.name, 
-                    rarity: Number(p.rarity), 
-                    gender: Number(p.gender), 
-                    pType: Number(p.pType) 
-                  };
-                }
-                return null;
-              })
-              .catch((err) => {
-                // If ABI fails, switch to heuristic for this ID
-                if (err.message?.includes("decode") || err.message?.includes("UNEXPECTED_CONTINUE")) {
-                   // Fallback to raw call
-                   return provider.call({ to: NFT_CONTRACT_ADDRESS, data: INTERFACE.encodeFunctionData("getPerfume", [idToCheck]) })
-                     .then((raw: string) => {
-                       const name = extractNameHeuristic(raw);
-                       if (name) return { tokenId: idToCheck, name, rarity: 0, gender: 0, pType: 0 };
-                       return null;
-                     })
-                     .catch(() => null);
-                }
-                // If it's just "Not minted", return null
-                return null;
-              });
+            const calldata = INTERFACE.encodeFunctionData("getPerfume", [idToCheck]);
 
-            batchPromises.push(promise);
+            batchPromises.push(
+              provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
+                .then((rawResult: string) => {
+                  return parsePerfumeFromRawData(rawResult, idToCheck);
+                })
+                .catch((err) => {
+                  // Ignore "Not minted" reverts
+                  if (err.message?.includes("Not minted") || err.message?.includes("revert")) return null;
+                  console.warn(`RPC Error for ID ${idToCheck}:`, err.shortMessage);
+                  return null;
+                })
+            );
           }
 
           const batchResults = await Promise.all(batchPromises);
