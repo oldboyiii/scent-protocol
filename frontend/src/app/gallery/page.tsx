@@ -15,9 +15,14 @@ interface GalleryItem {
   tokenId: number;
   name: string;
   rarity: number;
+  gender: number;
+  pType: number;
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
+const GENDER_ICONS = ["", "", "♀"];
+const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
+
 const RARITY_STYLES: Record<number, { badge: string }> = {
   0: { badge: "bg-slate-500/20 text-slate-300 border-slate-500/30" },
   1: { badge: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
@@ -29,7 +34,6 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Initializing...");
-  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     async function fetchGallery() {
@@ -39,48 +43,71 @@ export default function GalleryPage() {
         const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, GALLERY_ABI, signer.provider);
 
         const results: GalleryItem[] = [];
-        const BATCH_SIZE = 5; // Reduced batch size for better stability
-        const MAX_ID = 100;   // Start small to test connectivity
+        let consecutiveEmpty = 0;
+        const BATCH_SIZE = 5;
+        const MAX_CONSECUTIVE_EMPTY = 10; // Stop after 10 empty IDs in a row
+        let currentId = 1;
 
-        setStatus(`Scanning IDs 1-${MAX_ID}...`);
+        setStatus("Scanning blockchain for scents...");
 
-        for (let start = 1; start <= MAX_ID; start += BATCH_SIZE) {
-          const end = Math.min(start + BATCH_SIZE - 1, MAX_ID);
-          setStatus(`Checking IDs ${start}-${end}...`);
-          
+        while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY) {
           const batchPromises = [];
-          for (let id = start; id <= end; id++) {
+          
+          // Create a batch of promises
+          for (let i = 0; i < BATCH_SIZE; i++) {
+            const idToCheck = currentId + i;
             batchPromises.push(
-              contract.getPerfume(id)
+              contract.getPerfume(idToCheck)
                 .then((p: any) => {
-                  // Log first successful response to console for debugging
-                  if (id === 1 && p) console.log("First NFT Data:", p); 
-                  
-                  return (p && p.name) 
-                    ? { tokenId: id, name: p.name, rarity: Number(p.rarity) } 
-                    : null;
-                })
-                .catch((err) => {
-                  console.warn(`Error fetching ID ${id}:`, err.message);
+                  if (p && p.name) {
+                    return { 
+                      tokenId: idToCheck, 
+                      name: p.name, 
+                      rarity: Number(p.rarity), 
+                      gender: Number(p.gender), 
+                      pType: Number(p.pType) 
+                    };
+                  }
                   return null;
                 })
+                .catch(() => null) // Silently fail on "Not minted" or RPC errors
             );
           }
 
+          // Wait for batch to complete
           const batchResults = await Promise.all(batchPromises);
-          const valid = batchResults.filter((r): r is GalleryItem => r !== null);
           
-          if (valid.length > 0) {
-            results.push(...valid);
-            setDebugInfo(`Found ${results.length} scents so far.`);
+          // Process results
+          let foundInBatch = false;
+          for (const result of batchResults) {
+            if (result) {
+              results.push(result);
+              foundInBatch = true;
+              consecutiveEmpty = 0; // Reset counter when we find a token
+            } else {
+              consecutiveEmpty++;
+            }
           }
+
+          // Update status for user feedback
+          if (foundInBatch || currentId % 20 === 0) {
+            setStatus(`Scanned up to ID ${currentId + BATCH_SIZE - 1}. Found ${results.length} scents.`);
+          }
+
+          currentId += BATCH_SIZE;
+          
+          // Safety break to prevent infinite loops in case of weird contract behavior
+          if (currentId > 10000) break; 
         }
 
-        setItems(results.reverse());
-        setStatus(results.length > 0 ? "Done!" : "Scan complete. No items found in range.");
+        // Sort by ID descending (newest first)
+        const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
+        setItems(sorted);
+        setStatus(`Scan complete. Found ${sorted.length} scents.`);
+        
       } catch (e: any) {
         console.error("Critical Gallery Error:", e);
-        setStatus(`Error: ${e.message || "Unknown RPC error"}`);
+        setStatus(`Error: ${e.shortMessage || e.message}`);
       } finally {
         setLoading(false);
       }
@@ -95,18 +122,17 @@ export default function GalleryPage() {
       {/* Diagnostic Status Bar */}
       <div className="mb-8 p-4 rounded-lg bg-black/40 border border-white/10 font-mono text-sm">
         <p className="text-amber-400">Status: {status}</p>
-        {debugInfo && <p className="text-emerald-400 mt-1">{debugInfo}</p>}
         <p className="text-white/40 text-xs mt-2">Contract: {NFT_CONTRACT_ADDRESS.slice(0,10)}...</p>
       </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="glass-card-luxury h-40 animate-pulse rounded-xl" />)}
+          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="glass-card-luxury h-40 animate-pulse rounded-xl" />)}
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8">
-          <p>No fragrances found in scanned range (1-100).</p>
-          <p className="text-xs mt-2">Check console (F12) for RPC errors.</p>
+          <p>No fragrances found in scanned range.</p>
+          <p className="text-xs mt-2">Check status bar above for details.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -120,6 +146,10 @@ export default function GalleryPage() {
                     <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full border ${style.badge}`}>{RARITY_LABELS[item.rarity]}</span>
                   </div>
                   <h3 className="text-lg font-semibold text-white truncate mb-2 group-hover:text-amber-300">{item.name}</h3>
+                  <div className="mt-auto flex gap-3 text-xs text-white/50 pt-2 border-t border-white/5">
+                    <span>{GENDER_ICONS[item.gender]}</span>
+                    <span>{TYPE_LABELS[item.pType]}</span>
+                  </div>
                 </div>
               </Link>
             );
