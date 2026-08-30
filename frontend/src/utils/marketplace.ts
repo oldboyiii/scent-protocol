@@ -46,6 +46,31 @@ class ArcProvider extends ethers.BrowserProvider {
       return null;
     };
 
+    // Override getEnsName using 'any' cast to bypass TypeScript strictness
+    // This prevents reverse ENS lookups which also fail on Arc
+    (this as any).getEnsName = async (address: string): Promise<string | null> => {
+      return null;
+    };
+  }
+
+  // Force network config to have no ENS
+  async getNetwork(): Promise<ethers.Network> {
+    const network = await super.getNetwork();
+    // Mutate the network object directly
+    (network as any).ensAddress = null;
+    (network as any)._defaultProvider = undefined;
+    return network;
+  }
+}
+    };
+
+    // Override INTERNAL _getEnsAddress to ALWAYS return null
+    // We use 'any' cast because this method is private in ethers v6 types
+    (this as any)._getEnsAddress = async (name: string): Promise<string | null> => {
+      console.warn(`[ArcProvider] Blocked internal _getEnsAddress for: ${name}`);
+      return null;
+    };
+
     // Override getEnsName to ALWAYS return null
     this.getEnsName = async (address: string): Promise<string | null> => {
       return null;
