@@ -7,9 +7,13 @@ import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
+// Full ABI matching your contract exactly
 const FULL_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
+
+// Interface for calldata generation and decoding
+const INTERFACE = new ethers.Interface(FULL_ABI);
 
 interface GalleryItem {
   tokenId: number;
@@ -62,69 +66,96 @@ export default function GalleryPage() {
   const [status, setStatus] = useState("Initializing...");
   const [progress, setProgress] = useState(0);
 
+  // Reliable parser using ethers decodeFunctionResult
+  const parsePerfumeFromRawData = (rawResult: string, tokenId: number): GalleryItem | null => {
+    try {
+      // Empty response means token is not minted
+      if (!rawResult || rawResult === '0x' || rawResult === '0x00') return null;
+      
+      // Automatic decoder - parses all fields correctly including rarity
+      const decoded = INTERFACE.decodeFunctionResult("getPerfume", rawResult);
+      
+      const name = decoded.name as string;
+      if (!name || name.length < 2) return null;
+      
+      // Generate description from first top note or type
+      const topNotes = decoded.topNotes as string[];
+      const description = (topNotes && topNotes.length > 0 && topNotes[0]) 
+        ? `${topNotes[0]} based` 
+        : TYPE_LABELS[Number(decoded.pType)];
+
+      return {
+        tokenId,
+        name,
+        rarity: Number(decoded.rarity),   // Now correctly returns 0-3
+        gender: Number(decoded.gender),
+        pType: Number(decoded.pType),
+        description
+      };
+    } catch (e) {
+      // If decoding fails, skip this token
+      return null;
+    }
+  };
+
   useEffect(() => {
     const fetchGallery = async () => {
       try {
         setStatus("Connecting to Arc Network...");
         const signer = await getArcSigner();
         const provider = signer.provider;
-        const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, FULL_ABI, provider);
 
         const results: GalleryItem[] = [];
         let consecutiveEmpty = 0;
         const MAX_CONSECUTIVE_EMPTY = 10; 
         let currentId = 1;
 
-        setStatus(`Scanning IDs...`);
+        setStatus(`Scanning IDs (Sequential Mode)...`);
 
+        // Sequential scanning with delay to prevent RPC hanging
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           setProgress(currentId);
           
           try {
-            const perfume = await contract.getPerfume(currentId);
+            // Generate calldata manually
+            const calldata = INTERFACE.encodeFunctionData("getPerfume", [currentId]);
             
-            if (perfume && perfume.name && perfume.name.length > 0) {
-              // Ethers v6: доступ по имени ИЛИ по индексу
-              const name = String(perfume.name || perfume[0]);
-              const gender = Number(perfume.gender !== undefined ? perfume.gender : perfume[1]);
-              const pType = Number(perfume.pType !== undefined ? perfume.pType : perfume[2]);
-              const rarity = Number(perfume.rarity !== undefined ? perfume.rarity : perfume[7]);
-              
-              console.log(`ID ${currentId}: name=${name}, rarity=${rarity}`);
-
-              const topNotesStr = perfume.topNotes?.length > 0 
-                ? `${perfume.topNotes[0]} based` 
-                : TYPE_LABELS[pType];
-
-              results.push({
-                tokenId: currentId,
-                name,
-                rarity,
-                gender,
-                pType,
-                description: topNotesStr
-              });
-              
-              consecutiveEmpty = 0;
+            // Make low-level call
+            const rawResult = await provider.call({ 
+              to: NFT_CONTRACT_ADDRESS, 
+              data: calldata 
+            });
+            
+            const item = parsePerfumeFromRawData(rawResult, currentId);
+            
+            if (item) {
+              results.push(item);
+              consecutiveEmpty = 0; // Reset on success
             } else {
               consecutiveEmpty++;
             }
           } catch (err: any) {
+            // Handle "Not minted" reverts gracefully
             if (err.message?.includes("Not minted") || err.message?.includes("revert")) {
               consecutiveEmpty++;
             } else {
-              console.warn(`RPC issue at ID ${currentId}`, err.shortMessage || err.message);
-              await new Promise(r => setTimeout(r, 1000)); 
-              continue; 
+              // For RPC errors, wait longer and retry same ID
+              console.warn(`RPC error at ID ${currentId}, waiting...`, err.shortMessage);
+              await new Promise(r => setTimeout(r, 1000));
+              continue; // Don't increment ID, retry
             }
           }
 
+          // Update status every 5 IDs
           if (currentId % 5 === 0) {
              setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
           }
 
           currentId++;
-          await new Promise(r => setTimeout(r, 100)); 
+          
+          // CRITICAL: Delay between requests to keep RPC stable
+          // 150ms is safe for Arc testnet
+          await new Promise(r => setTimeout(r, 150)); 
         }
 
         const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
@@ -182,6 +213,7 @@ export default function GalleryPage() {
                 href={`/nft/${item.tokenId}`} 
                 className={`block group relative rounded-2xl p-6 bg-gradient-to-br ${style.bg} backdrop-blur-md border transition-all duration-300 hover:-translate-y-1 ${style.border} ${style.glow}`}
               >
+                {/* Header: ID & Rarity */}
                 <div className="flex justify-between items-start mb-4">
                   <span className="text-sm font-mono text-white/30">#{item.tokenId}</span>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${style.badge}`}>
@@ -189,14 +221,17 @@ export default function GalleryPage() {
                   </span>
                 </div>
                 
+                {/* Name */}
                 <h3 className="text-xl font-bold text-white mb-2 line-clamp-2 group-hover:text-amber-300 transition-colors">
                   {item.name}
                 </h3>
 
+                {/* Description */}
                 <p className="text-xs text-white/40 mb-6 italic truncate">
                   {item.description} fragrance
                 </p>
                 
+                {/* Footer: Gender & Type Icons */}
                 <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-xs text-white/40 border-t border-white/5 pt-4">
                   <div className="flex items-center gap-3">
                     <span title="Gender">{GENDER_ICONS[item.gender]}</span>
