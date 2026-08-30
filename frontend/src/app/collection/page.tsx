@@ -90,11 +90,8 @@ export default function CollectionPage() {
             );
           }
 
-          const batchResults = await Promise.all(batchPromises);
-          
-          // FIX: Explicit type predicate to satisfy TypeScript strictness
-          nfts.push(...batchResults.filter((r): r is MyNFT => r !== null));
-        }
+         const validNfts = batchResults.filter((r) => r !== null) as MyNFT[];
+nfts.push(...validNfts);
         
         setMyNFTs(nfts);
         sessionStorage.setItem(cacheKey, JSON.stringify(nfts));
