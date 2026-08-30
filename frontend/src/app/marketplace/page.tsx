@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { fetchActiveListings, buyNFT } from "@/utils/marketplace";
-// Import your wallet hook/provider here, e.g., useAccount from wagmi or custom hook
+// Import your wallet hook/provider here if you have a global context
 // import { useWallet } from "@/context/WalletContext"; 
 
 interface Listing {
@@ -16,13 +16,20 @@ interface Listing {
 export default function MarketplacePage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  // const { signer, provider, address } = useWallet(); // Replace with your wallet logic
+  // const { signer, provider, address } = useWallet(); // Uncomment if using a global wallet context
 
   useEffect(() => {
     const loadListings = async () => {
-      if (!window.ethereum) return;
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      // FIX: Cast window to 'any' to access ethereum property safely in TS
+      const win = window as any;
+      if (!win.ethereum) {
+        console.warn("No Ethereum provider found");
+        setLoading(false);
+        return;
+      }
+
       try {
+        const provider = new ethers.BrowserProvider(win.ethereum);
         const data = await fetchActiveListings(provider);
         setListings(data);
       } catch (error) {
@@ -35,39 +42,66 @@ export default function MarketplacePage() {
   }, []);
 
   const handleBuy = async (listing: Listing) => {
-    // const signer = await (provider as any).getSigner();
-    // try {
-    //   await buyNFT(signer, listing.tokenId, ethers.formatUnits(listing.price, 6));
-    //   alert("Purchase successful!");
-    //   window.location.reload();
-    // } catch (error) {
-    //   console.error("Buy failed:", error);
-    // }
-    alert(`Buy logic for Token #${listing.tokenId} at ${ethers.formatUnits(listing.price, 6)} USDC`);
+    // FIX: Cast window to 'any' here as well
+    const win = window as any;
+    if (!win.ethereum) {
+      alert("Please install MetaMask or connect your wallet first.");
+      return;
+    }
+
+    try {
+      const provider = new ethers.BrowserProvider(win.ethereum);
+      const signer = await provider.getSigner();
+      
+      // Call the buy function from utils
+      await buyNFT(signer, listing.tokenId, ethers.formatUnits(listing.price, 6));
+      
+      alert("Purchase successful!");
+      // Refresh page or re-fetch listings to update UI
+      window.location.reload(); 
+    } catch (error: any) {
+      console.error("Buy failed:", error);
+      if (error.code === 4001) {
+        alert("Transaction rejected by user.");
+      } else {
+        alert("Purchase failed. Check console for details.");
+      }
+    }
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-white">Loading Marketplace...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900">
+        <div className="animate-pulse text-xl font-bold tracking-wider">Loading Marketplace...</div>
+      </div>
+    );
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white py-12 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-gold mb-4">Scent Marketplace</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-500 mb-4">
+            Scent Marketplace
+          </h1>
           <p className="text-white/60 max-w-2xl mx-auto">
             Buy and sell unique AI-generated digital perfumes. The first secondary market on Arc Network.
           </p>
         </div>
 
         {listings.length === 0 ? (
-          <div className="text-center text-white/50 py-20">
-            <p className="text-xl">No active listings yet. Be the first to list a scent!</p>
+          <div className="text-center text-white/50 py-20 glass-card-luxury rounded-2xl p-8 border border-white/10">
+            <p className="text-xl">No active listings yet.</p>
+            <p className="mt-2 text-sm">Be the first to list a scent from your collection!</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map((listing) => (
-              <div key={listing.tokenId} className="glass-card-luxury rounded-2xl p-6 relative group hover:scale-[1.02] transition-all duration-300">
+              <div 
+                key={listing.tokenId} 
+                className="glass-card-luxury rounded-2xl p-6 relative group hover:scale-[1.02] transition-all duration-300 border border-white/10 bg-slate-900/40 backdrop-blur-md"
+              >
+                {/* Rarity Badge Placeholder - You might want to fetch perfume details to get real rarity */}
                 <div className="flex justify-between items-start mb-4">
                   <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-amber-500/20 text-amber-300 border-amber-500/50">
                     Legendary
@@ -76,7 +110,9 @@ export default function MarketplacePage() {
                 </div>
 
                 <h3 className="text-2xl font-bold text-white mb-2">Scent #{listing.tokenId}</h3>
-                <p className="text-white/50 text-sm mb-6 truncate">Seller: {listing.seller}</p>
+                <p className="text-white/50 text-sm mb-6 truncate">
+                  Seller: {listing.seller.slice(0, 6)}...{listing.seller.slice(-4)}
+                </p>
 
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/10">
                   <div className="flex flex-col">
@@ -87,7 +123,7 @@ export default function MarketplacePage() {
                   </div>
                   <button 
                     onClick={() => handleBuy(listing)}
-                    className="px-6 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-105 transition-all"
+                    className="px-6 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Buy Now
                   </button>
