@@ -6,8 +6,7 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-// Using v2 cache key to force refresh old empty data
-const CACHE_KEY_PREFIX = "scent_collection_v2_"; 
+const CACHE_KEY_PREFIX = "scent_collection_v3_"; // Bumped to v3 to clear old broken caches
 
 // Interface for calldata generation
 const INTERFACE = new ethers.Interface([
@@ -45,6 +44,7 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string | null>(null);
   const [status, setStatus] = useState("Initializing...");
+  const [error, setError] = useState<string | null>(null);
 
   // Manual parser with ownership check
   const parsePerfumeFromRawData = (rawData: string, tokenId: number, userAddress: string): MyNFT | null => {
@@ -159,27 +159,46 @@ export default function CollectionPage() {
         const userAddress = await signer.getAddress();
         setAddress(userAddress);
 
-        // Check cache with NEW version key (v2) to force refresh
+        // Check cache
         const cacheKey = `${CACHE_KEY_PREFIX}${userAddress.toLowerCase()}`;
         const cached = sessionStorage.getItem(cacheKey);
         
-        // Skip cache if it's empty array to force a real scan
         if (cached) {
-          const parsedCache = JSON.parse(cached);
-          if (parsedCache && parsedCache.length > 0) {
-            setMyNFTs(parsedCache);
-            setStatus("Loaded from cache");
-            setLoading(false);
-            return;
+          try {
+            const parsedCache = JSON.parse(cached);
+            if (parsedCache && Array.isArray(parsedCache)) {
+              setMyNFTs(parsedCache);
+              setStatus("Loaded from cache");
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn("Cache parse error", e);
           }
         }
 
         setStatus("Checking balance...");
         
-        // Step 1: Get balance
-        const balanceCalldata = INTERFACE.encodeFunctionData("balanceOf", [userAddress]);
-        const balanceRaw = await provider.call({ to: NFT_CONTRACT_ADDRESS, data: balanceCalldata });
-        const balance = Number(BigInt(balanceRaw));
+        // TIMEOUT WRAPPER for balance check
+        const balancePromise = provider.call({ 
+          to: NFT_CONTRACT_ADDRESS, 
+          data: INTERFACE.encodeFunctionData("balanceOf", [userAddress]) 
+        });
+        
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("RPC Timeout")), 10000)
+        );
+
+        let balance = 0;
+        try {
+          const balanceRaw = await Promise.race([balancePromise, timeoutPromise]) as string;
+          balance = Number(BigInt(balanceRaw));
+        } catch (e) {
+          console.error("Balance check failed or timed out", e);
+          setError("Failed to connect to network. Please try again.");
+          setLoading(false);
+          return;
+        }
         
         if (balance === 0) {
           setMyNFTs([]);
@@ -204,11 +223,15 @@ export default function CollectionPage() {
           const batchPromises = [];
           for (let id = start; id <= end; id++) {
             const calldata = INTERFACE.encodeFunctionData("getPerfume", [id]);
-            batchPromises.push(
+            
+            // Wrap each call in a timeout too
+            const callWithTimeout = Promise.race([
               provider.call({ to: NFT_CONTRACT_ADDRESS, data: calldata })
-                .then(raw => parsePerfumeFromRawData(raw, id, userAddress))
-                .catch(() => null)
-            );
+                .then(raw => parsePerfumeFromRawData(raw, id, userAddress)),
+              new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000))
+            ]).catch(() => null);
+            
+            batchPromises.push(callWithTimeout);
           }
           
           const results = await Promise.all(batchPromises);
@@ -228,9 +251,9 @@ export default function CollectionPage() {
         sessionStorage.setItem(cacheKey, JSON.stringify(sorted));
         setStatus(`Done. Found ${sorted.length} NFT(s)`);
         
-      } catch (error) {
+      } catch (error: any) {
         console.error("Collection load failed:", error);
-        setStatus("Error loading collection");
+        setError(error.message || "Unknown error occurred");
       } finally {
         setLoading(false);
       }
@@ -239,7 +262,23 @@ export default function CollectionPage() {
     fetchCollection();
   }, []);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-white">Loading your scents...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-white">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mb-4"></div>
+      <p className="text-white/50 font-mono">{status}</p>
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-white p-4 text-center">
+      <h2 className="text-2xl font-bold text-red-400 mb-2">Error Loading Collection</h2>
+      <p className="text-white/60 mb-6 max-w-md">{error}</p>
+      <button onClick={() => window.location.reload()} className="px-6 py-2 bg-amber-500 text-black font-bold rounded-lg hover:bg-amber-400">
+        Retry
+      </button>
+    </div>
+  );
+
   if (!address) return <div className="min-h-screen flex items-center justify-center text-white">Connect wallet to see collection</div>;
 
   return (
