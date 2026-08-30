@@ -130,28 +130,45 @@ export default function GalleryPage() {
       const pTypeRaw = parseInt(pTypeHex, 16);
       if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
 
-      // --- 3. EXTRACT RARITY (Pattern Search in Tail) ---
-      // We search for a 32-byte slot that looks like 0000...00XX where XX is 0-3.
-      // This slot should be in the last part of the data, before creator/createdAt.
+      // --- 3. EXTRACT RARITY (Precise Slot Parsing) ---
+      // The mixed slot (concentration + rarity) is located at:
+      // totalLength - 64 (creator) - 64 (createdAt) - 64 (mixed_slot) = totalLength - 192
       let rarity = 0;
       const totalLen = hex.length;
-      // Start searching from 70% of data length to skip dynamic arrays
-      const searchStart = Math.floor(totalLen * 0.7); 
-      // Stop before the last 128 hex chars (creator + createdAt)
-      const searchEnd = totalLen - 128; 
+      const mixedSlotStart = totalLen - 192; 
       
-      // Scan backwards from the end of the static tail area
-      for (let i = searchEnd - 64; i >= searchStart; i -= 64) {
-        if (i < 0) break;
-        const slot = hex.substring(i, i + 64);
-        // Check for padded uint8 pattern: 62 zeros followed by valid rarity value
-        if (slot.startsWith("00000000000000000000000000000000000000000000000000000000000000")) {
-          const val = parseInt(slot.substring(62, 64), 16);
-          if (val >= 0 && val <= 3) {
-            rarity = val;
-            break; // Found valid rarity
-          }
-        }
+      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
+         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
+         
+         // Extract both possible uint8 values from the last 4 hex chars (2 bytes)
+         const byte1Hex = mixedSlotHex.substring(60, 62); // First uint8 (likely concentration)
+         const byte2Hex = mixedSlotHex.substring(62, 64); // Second uint8 (likely rarity)
+         
+         const val1 = parseInt(byte1Hex, 16);
+         const val2 = parseInt(byte2Hex, 16);
+         
+         // Heuristic: rarity is 0-3, concentration is usually 5-30
+         // If one value is 0-3 and the other is >3, pick the 0-3 one as rarity
+         if (val1 >= 0 && val1 <= 3 && val2 > 3) {
+            rarity = val1;
+         } else if (val2 >= 0 && val2 <= 3 && val1 > 3) {
+            rarity = val2;
+         } else if (val1 >= 0 && val1 <= 3 && val2 >= 0 && val2 <= 3) {
+            // Both are 0-3. This is ambiguous. 
+            // In Solidity, variables are packed left-to-right in memory.
+            // 'concentration' comes before 'rarity' in the struct, so it should be in the higher byte.
+            // So val1 (byte 30) = concentration, val2 (byte 31) = rarity.
+            rarity = val2;
+         } else {
+            // Neither is 0-3. Try searching nearby slots just in case.
+            // Look at the slot BEFORE this one (might be misaligned)
+            const prevSlotStart = mixedSlotStart - 64;
+            if (prevSlotStart > 0) {
+               const prevSlot = hex.substring(prevSlotStart, prevSlotStart + 64);
+               const prevVal = parseInt(prevSlot.substring(62, 64), 16);
+               if (prevVal >= 0 && prevVal <= 3) rarity = prevVal;
+            }
+         }
       }
 
       // --- 4. DESCRIPTION FALLBACK ---
@@ -183,9 +200,9 @@ export default function GalleryPage() {
         let consecutiveEmpty = 0;
         const MAX_CONSECUTIVE_EMPTY = 10; 
         let currentId = 1;
-        const BATCH_SIZE = 2; // Reduced batch size for RPC stability
+        const BATCH_SIZE = 2;
 
-        setStatus(`Scanning IDs (Stable Mode)...`);
+        setStatus(`Scanning IDs (Precise Mode)...`);
 
         while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
           const batchPromises = [];
@@ -223,8 +240,6 @@ export default function GalleryPage() {
           }
 
           currentId += BATCH_SIZE;
-          
-          // CRITICAL: Increased delay to prevent RPC throttling (-32603 errors)
           await new Promise(r => setTimeout(r, 500)); 
         }
 
