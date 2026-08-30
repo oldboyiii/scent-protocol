@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { checkIfListed, listNFT, buyNFT, cancelListing } from "@/utils/marketplace";
+import { checkIfListed, listNFT, buyNFT, cancelListing, getArcProvider } from "@/utils/marketplace";
 
 interface MarketplaceActionsProps {
   tokenId: number;
@@ -28,12 +28,9 @@ export default function MarketplaceActions({
 
   useEffect(() => {
     const checkListing = async () => {
-      // FIX: Cast window to 'any' to safely access ethereum property
-      const win = window as any;
-      if (!win.ethereum) return;
-      
       try {
-        const provider = new ethers.BrowserProvider(win.ethereum);
+        // Use the Arc-specific provider that disables ENS
+        const provider = getArcProvider();
         const data = await checkIfListed(provider, tokenId);
         setIsListed(data.active);
         if (data.active) {
