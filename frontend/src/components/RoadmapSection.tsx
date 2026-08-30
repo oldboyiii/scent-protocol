@@ -1,177 +1,116 @@
-// src/components/Roadmap.tsx (или соответствующая секция в page.tsx)
+"use client";
 
-export default function Roadmap() {
+const phases = [
+  {
+    phase: "Phase 1",
+    title: "Live Now",
+    status: "completed",
+    items: [
+      "On-chain perfume generation with unique formulas",
+      "ERC-721 NFT minting with USDC gas",
+      "AI-generated poetic descriptions",
+      "Collection & Gallery pages",
+    ],
+  },
+  // NEW PHASE ADDED HERE
+  {
+    phase: "Phase 1.5",
+    title: "Marketplace Launch",
+    status: "completed",
+    items: [
+      "Peer-to-peer NFT trading platform",
+      "Fixed price & auction listing types",
+      "Royalty enforcement on secondary sales",
+      "Rarity-based filtering & search",
+    ],
+  },
+  {
+    phase: "Phase 2",
+    title: "AI Agent Integration",
+    status: "upcoming",
+    items: [
+      "Personal AI advisor for scent recommendations",
+      "Auto-minting based on mood & context",
+      "Session keys for gasless experience",
+      "Natural language → fragrance pipeline",
+    ],
+  },
+  {
+    phase: "Phase 3",
+    title: "Nanopayments & Samples",
+    status: "upcoming",
+    items: [
+      "$0.01 scent previews (no NFT)",
+      "$0.05 note merging & blending",
+      "$0.001 governance voting",
+      "Subscription 'Scent of the Month'",
+    ],
+  },
+  {
+    phase: "Phase 4",
+    title: "Metaverse & Beyond",
+    status: "upcoming",
+    items: [
+      "Avatar scent status in virtual worlds",
+      "Wearable fragrance as social signal",
+      "Cross-platform NFT interoperability",
+      "Physical redemption partnerships",
+    ],
+  },
+];
+
+export default function RoadmapSection() {
   return (
-    <section className="py-20 px-4 relative">
-      <div className="max-w-5xl mx-auto">
-        
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent mb-4">
-            Roadmap
-          </h2>
-          <p className="text-white/50 text-lg">
-            The future of digital perfumery on Arc
-          </p>
-        </div>
+    <section className="w-full max-w-4xl mx-auto py-16 px-4">
+      <h2 className="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent">
+        Roadmap
+      </h2>
+      <p className="text-white/50 text-center mb-10">
+        The future of digital perfumery on Arc
+      </p>
 
-        {/* Timeline Container */}
-        <div className="relative">
-          
-          {/* Vertical Line */}
-          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-amber-500/50 via-purple-500/30 to-transparent transform -translate-x-1/2" />
+      <div className="relative">
+        {/* Vertical line */}
+        <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-px bg-white/10 md:-translate-x-px" />
 
-          {/* PHASE 1 - LIVE NOW (Left Side) */}
-          <div className="relative flex items-center justify-between mb-16">
-            <div className="w-5/12">
-              <div className="glass-card p-6 rounded-2xl border border-emerald-500/30 bg-emerald-900/10 backdrop-blur-md relative group hover:border-emerald-400/50 transition-all duration-300">
-                {/* Status Badge */}
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Phase 1</span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
-                    LIVE
-                  </span>
+        <div className="space-y-8">
+          {phases.map((p, i) => (
+            <div key={i} className={`relative flex flex-col md:flex-row gap-4 ${i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"}`}>
+              {/* Dot - Color depends on status */}
+              <div 
+                className={`absolute left-4 md:left-1/2 w-3 h-3 rounded-full border-2 border-[#0a0a1a] md:-translate-x-1.5 translate-y-2 z-10 
+                  ${p.status === "completed" ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : "bg-amber-500"}`} 
+              />
+
+              {/* Content */}
+              <div className={`ml-10 md:ml-0 md:w-1/2 ${i % 2 === 0 ? "md:pr-10 md:text-right" : "md:pl-10 md:text-left"}`}>
+                <div className={`glass-card p-5 ${p.status === "completed" ? "border-l-2 border-green-500" : "border-l-2 border-amber-500/50"}`}>
+                  <div className="flex items-center gap-2 mb-2 justify-start md:justify-inherit">
+                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">{p.phase}</span>
+                    {p.status === "completed" && (
+                      <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-[10px] text-green-400 font-bold uppercase border border-green-500/30">
+                        Live
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-3">{p.title}</h3>
+                  <ul className="space-y-1.5">
+                    {p.items.map((item, j) => (
+                      <li key={j} className="text-sm text-white/60 flex items-start gap-2">
+                        <span className={`mt-0.5 ${p.status === "completed" ? "text-green-500" : "text-amber-500"}`}>
+                          {p.status === "completed" ? "✓" : "○"}
+                        </span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                
-                <h3 className="text-xl font-bold text-white mb-4">Live Now</h3>
-                
-                <ul className="space-y-3">
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                    On-chain perfume generation with unique formulas
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                    ERC-721 NFT minting with USDC gas
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                    AI-generated poetic descriptions
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                    Collection & Gallery pages
-                  </li>
-                </ul>
               </div>
+
+              {/* Spacer for other side */}
+              <div className="hidden md:block md:w-1/2" />
             </div>
-
-            {/* Center Dot */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-emerald-400 border-4 border-[#0a0a1a] shadow-[0_0_15px_rgba(52,211,153,0.5)] z-10" />
-
-            <div className="w-5/12" /> {/* Empty space for alignment */}
-          </div>
-
-          {/* PHASE 2 - AI AGENT INTEGRATION (Right Side) */}
-          <div className="relative flex items-center justify-between mb-16">
-            <div className="w-5/12" /> {/* Empty space for alignment */}
-
-            {/* Center Dot */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-amber-400 border-4 border-[#0a0a1a] shadow-[0_0_15px_rgba(251,191,36,0.5)] z-10" />
-
-            <div className="w-5/12">
-              <div className="glass-card p-6 rounded-2xl border border-amber-500/30 bg-amber-900/10 backdrop-blur-md relative group hover:border-amber-400/50 transition-all duration-300">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Phase 2</span>
-                </div>
-                
-                <h3 className="text-xl font-bold text-white mb-4">AI Agent Integration</h3>
-                
-                <ul className="space-y-3">
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-amber-500/50 flex-shrink-0 mt-0.5" />
-                    Personal AI advisor for scent recommendations
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-amber-500/50 flex-shrink-0 mt-0.5" />
-                    Auto-minting based on mood & context
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-amber-500/50 flex-shrink-0 mt-0.5" />
-                    Session keys for gasless experience
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-amber-500/50 flex-shrink-0 mt-0.5" />
-                    Natural language → fragrance pipeline
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          {/* NEW: PHASE 2.5 - MARKETPLACE LAUNCH (Left Side) */}
-          <div className="relative flex items-center justify-between mb-16">
-            <div className="w-5/12">
-              <div className="glass-card p-6 rounded-2xl border border-purple-500/30 bg-purple-900/10 backdrop-blur-md relative group hover:border-purple-400/50 transition-all duration-300">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs font-bold text-purple-400 uppercase tracking-wider">Phase 2.5</span>
-                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
-                    UPCOMING
-                  </span>
-                </div>
-                
-                <h3 className="text-xl font-bold text-white mb-4">Marketplace Launch</h3>
-                
-                <ul className="space-y-3">
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-purple-500/50 flex-shrink-0 mt-0.5" />
-                    Peer-to-peer NFT trading platform
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-purple-500/50 flex-shrink-0 mt-0.5" />
-                    Fixed price & auction listing types
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-purple-500/50 flex-shrink-0 mt-0.5" />
-                    Royalty enforcement on secondary sales
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-purple-500/50 flex-shrink-0 mt-0.5" />
-                    Rarity-based filtering & search
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Center Dot */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-purple-400 border-4 border-[#0a0a1a] shadow-[0_0_15px_rgba(168,85,247,0.5)] z-10" />
-
-            <div className="w-5/12" /> {/* Empty space for alignment */}
-          </div>
-
-          {/* PHASE 3 - NANOPAYMENTS & SAMPLES (Right Side) */}
-          <div className="relative flex items-center justify-between">
-            <div className="w-5/12" /> {/* Empty space for alignment */}
-
-            {/* Center Dot */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-rose-400 border-4 border-[#0a0a1a] shadow-[0_0_15px_rgba(251,113,133,0.5)] z-10" />
-
-            <div className="w-5/12">
-              <div className="glass-card p-6 rounded-2xl border border-rose-500/30 bg-rose-900/10 backdrop-blur-md relative group hover:border-rose-400/50 transition-all duration-300">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs font-bold text-rose-400 uppercase tracking-wider">Phase 3</span>
-                </div>
-                
-                <h3 className="text-xl font-bold text-white mb-4">Nanopayments & Samples</h3>
-                
-                <ul className="space-y-3">
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-rose-500/50 flex-shrink-0 mt-0.5" />
-                    $0.01 scent previews (no NFT)
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-rose-500/50 flex-shrink-0 mt-0.5" />
-                    Micro-transactions for formula access
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-white/70">
-                    <div className="w-5 h-5 rounded-full border border-rose-500/50 flex-shrink-0 mt-0.5" />
-                    Physical sample redemption bridge
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
+          ))}
         </div>
       </div>
     </section>
