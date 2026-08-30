@@ -27,7 +27,6 @@ export default function MarketplaceActions({
   useEffect(() => {
     const checkListing = async () => {
       try {
-        // Use safe signer to get provider without ENS errors
         const signer = await getArcSigner();
         const provider = signer.provider;
         if (!provider) return;
