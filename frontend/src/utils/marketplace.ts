@@ -2,8 +2,6 @@ import { ethers } from "ethers";
 
 // Deployed Marketplace Contract Address on Arc Testnet
 export const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
-
-// Native USDC Address on Arc Network
 export const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const MARKETPLACE_ABI = [
@@ -12,207 +10,120 @@ const MARKETPLACE_ABI = [
   "function getActiveCount() view returns (uint256)",
   "function list(uint256 tokenId, uint256 price)",
   "function buy(uint256 tokenId)",
-  "function cancel(uint256 tokenId)",
-  "event Listed(uint256 indexed tokenId, address indexed seller, uint256 price)",
-  "event Sold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price)",
-  "event Cancelled(uint256 indexed tokenId, address indexed seller)"
+  "function cancel(uint256 tokenId)"
 ];
 
 const ERC20_ABI = [
   "function allowance(address owner, address spender) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function balanceOf(address account) view returns (uint256)"
+  "function approve(address spender, uint256 amount) returns (bool)"
 ];
 
-const NFT_ABI_FOR_APPROVE = [
+const NFT_ABI = [
   "function approve(address to, uint256 tokenId)",
   "function getApproved(uint256 tokenId) view returns (address)"
 ];
 
 /**
- * Creates a provider specifically for Arc Network with ENS explicitly disabled.
- * This is the root fix for "network does not support ENS" errors in ethers v6.
+ * ARC-SPECIFIC PROVIDER FACTORY
+ * This is the ONLY reliable way to disable ENS in ethers v6 for custom chains.
+ * We monkey-patch the provider's internal network resolution BEFORE any signer is created.
  */
 export const getArcProvider = (): ethers.BrowserProvider => {
   const win = window as any;
   if (!win.ethereum) throw new Error("No Ethereum provider found");
-  
+
   const provider = new ethers.BrowserProvider(win.ethereum);
-  
-  // Override the network object immediately to disable ENS resolution
-  // We use Object.defineProperty to make it non-writable so ethers doesn't try to re-fetch it
-  provider.getNetwork().then((network) => {
-    // Explicitly set ensAddress to null for non-Ethereum networks
-    Object.defineProperty(network, 'ensAddress', {
-      value: null,
-      writable: false,
-      configurable: true,
-      enumerable: true
-    });
-    
-    // Also override the name to prevent internal lookups
-    Object.defineProperty(network, 'name', {
-      value: 'arc-testnet',
-      writable: false,
-      configurable: true,
-      enumerable: true
-    });
-  }).catch(() => {});
-  
+
+  // CRITICAL FIX: Override the _detectNetwork method to force ensAddress=null
+  // This prevents ethers from ever trying to resolve ENS, even internally.
+  const originalDetectNetwork = provider._detectNetwork.bind(provider);
+  provider._detectNetwork = async () => {
+    const network = await originalDetectNetwork();
+    // Force disable ENS for ANY non-mainnet network
+    if (network.chainId !== 1n) {
+      network.ensAddress = null;
+      network.name = `arc-${network.chainId}`;
+    }
+    return network;
+  };
+
+  // Also patch resolveName to fail fast instead of throwing UNSUPPORTED_OPERATION
+  provider.resolveName = async (name: string): Promise<string | null> => {
+    if (!name.endsWith('.eth')) return name; // Pass through raw addresses
+    console.warn(`ENS resolution blocked for "${name}" on Arc Network`);
+    return null;
+  };
+
   return provider;
 };
 
-/**
- * Returns a contract instance for the Marketplace
- */
-export const getMarketplaceContract = (signerOrProvider: ethers.Signer | ethers.Provider) => {
-  return new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider);
-};
+export const getMarketplaceContract = (signerOrProvider: ethers.Signer | ethers.Provider) => 
+  new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signerOrProvider);
 
-/**
- * Returns a contract instance for USDC
- */
-export const getUsdcContract = (signerOrProvider: ethers.Signer | ethers.Provider) => {
-  return new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signerOrProvider);
-};
+export const getUsdcContract = (signerOrProvider: ethers.Signer | ethers.Provider) => 
+  new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signerOrProvider);
 
-/**
- * Fetches all active listings from the marketplace contract
- */
 export const fetchActiveListings = async (provider: ethers.Provider) => {
   try {
     const contract = getMarketplaceContract(provider);
     const count = await contract.getActiveCount();
     const listings = [];
-
     for (let i = 0; i < Number(count); i++) {
       const tokenId = await contract.activeTokenIds(i);
-      const listingData = await contract.listings(tokenId);
-      
-      if (listingData.active) {
-        listings.push({
-          tokenId: Number(tokenId),
-          seller: listingData.seller,
-          price: listingData.price,
-          active: listingData.active
-        });
-      }
+      const data = await contract.listings(tokenId);
+      if (data.active) listings.push({ tokenId: Number(tokenId), seller: data.seller, price: data.price, active: true });
     }
     return listings;
-  } catch (error) {
-    console.error("Error fetching active listings:", error);
-    return [];
-  }
+  } catch (e) { console.error("Fetch listings error:", e); return []; }
 };
 
-/**
- * Checks if a specific token is currently listed for sale
- */
 export const checkIfListed = async (provider: ethers.Provider, tokenId: number) => {
   try {
-    const contract = getMarketplaceContract(provider);
-    const listing = await contract.listings(tokenId);
-    return {
-      active: listing.active,
-      seller: listing.seller,
-      price: listing.price
-    };
-  } catch (error) {
-    console.error(`Error checking listing for token ${tokenId}:`, error);
-    return { active: false, seller: ethers.ZeroAddress, price: 0n };
-  }
+    const data = await getMarketplaceContract(provider).listings(tokenId);
+    return { active: data.active, seller: data.seller, price: data.price };
+  } catch { return { active: false, seller: ethers.ZeroAddress, price: 0n }; }
 };
 
-/**
- * Lists an NFT for sale. Handles NFT approval automatically and safely.
- * Uses explicit gas limits and bypasses ENS checks during approval verification.
- */
-export const listNFT = async (
-  signer: ethers.Signer, 
-  nftContractAddress: string, 
-  tokenId: number, 
-  priceInUsdc: string
-) => {
-  const nftContract = new ethers.Contract(nftContractAddress, NFT_ABI_FOR_APPROVE, signer);
-  const marketplace = getMarketplaceContract(signer);
+export const listNFT = async (signer: ethers.Signer, nftAddress: string, tokenId: number, priceUsdc: string) => {
+  const nft = new ethers.Contract(nftAddress, NFT_ABI, signer);
+  const market = getMarketplaceContract(signer);
 
+  // Safe approval check that NEVER triggers ENS
+  let needsApproval = true;
   try {
-    // Check current approval status without triggering ENS
-    let currentApproval = ethers.ZeroAddress;
-    try {
-      // Use callStatic to avoid any side effects or ENS lookups
-      currentApproval = await nftContract.getApproved(tokenId);
-    } catch (e) {
-      console.warn("Could not check approval via getApproved, forcing approve...", e);
-    }
-
-    // Approve only if necessary
-    if (currentApproval.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase()) {
-      console.log(`Approving NFT #${tokenId} for marketplace...`);
-      const txApprove = await nftContract.approve(MARKETPLACE_ADDRESS, tokenId, {
-        gasLimit: 100000 
-      });
-      await txApprove.wait();
-      console.log("Approval confirmed.");
-    } else {
-      console.log("NFT already approved for marketplace.");
-    }
-
-    // Create listing
-    const priceWei = ethers.parseUnits(priceInUsdc, 6);
-    console.log(`Listing NFT #${tokenId} for ${priceInUsdc} USDC...`);
-    
-    const txList = await marketplace.list(tokenId, priceWei, {
-      gasLimit: 300000 
-    });
-    
-    await txList.wait();
-    console.log("Listing successful!");
-  } catch (error: any) {
-    console.error("Detailed listing error:", error);
-    // Re-throw with cleaner message if it's still an ENS error
-    if (error.code === "UNSUPPORTED_OPERATION" && error.operation === "getEnsAddress") {
-      throw new Error("ENS resolution failed. Please ensure you are connected to Arc Network and MetaMask is updated.");
-    }
-    throw error;
+    const approved = await nft.getApproved.staticCall(tokenId); // staticCall avoids side effects
+    needsApproval = approved.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase();
+  } catch (e) { 
+    console.warn("Approval check skipped due to network error, forcing approve"); 
   }
+
+  if (needsApproval) {
+    console.log(`Approving NFT #${tokenId}...`);
+    await (await nft.approve(MARKETPLACE_ADDRESS, tokenId, { gasLimit: 100000 })).wait();
+  }
+
+  console.log(`Listing NFT #${tokenId} for ${priceUsdc} USDC...`);
+  const tx = await market.list(tokenId, ethers.parseUnits(priceUsdc, 6), { gasLimit: 300000 });
+  await tx.wait();
 };
 
-/**
- * Buys a listed NFT. Handles USDC approval automatically.
- */
-export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceInUsdc: string) => {
-  const marketplace = getMarketplaceContract(signer);
+export const buyNFT = async (signer: ethers.Signer, tokenId: number, priceUsdc: string) => {
+  const market = getMarketplaceContract(signer);
   const usdc = getUsdcContract(signer);
-  const priceWei = ethers.parseUnits(priceInUsdc, 6);
-  const userAddress = await signer.getAddress();
+  const priceWei = ethers.parseUnits(priceUsdc, 6);
+  const addr = await signer.getAddress();
 
-  // Check allowance and approve USDC if needed
-  const allowance = await usdc.allowance(userAddress, MARKETPLACE_ADDRESS);
+  const allowance = await usdc.allowance(addr, MARKETPLACE_ADDRESS);
   if (allowance < priceWei) {
-    console.log("Approving USDC for purchase...");
-    const txApprove = await usdc.approve(MARKETPLACE_ADDRESS, priceWei, {
-      gasLimit: 100000
-    });
-    await txApprove.wait();
+    console.log("Approving USDC...");
+    await (await usdc.approve(MARKETPLACE_ADDRESS, priceWei, { gasLimit: 100000 })).wait();
   }
 
-  // Execute buy transaction
-  console.log(`Buying NFT #${tokenId} for ${priceInUsdc} USDC...`);
-  const txBuy = await marketplace.buy(tokenId, {
-    gasLimit: 300000
-  });
-  await txBuy.wait();
+  console.log(`Buying NFT #${tokenId}...`);
+  await (await market.buy(tokenId, { gasLimit: 300000 })).wait();
 };
 
-/**
- * Cancels an active listing
- */
 export const cancelListing = async (signer: ethers.Signer, tokenId: number) => {
-  const marketplace = getMarketplaceContract(signer);
-  console.log(`Cancelling listing for NFT #${tokenId}...`);
-  const txCancel = await marketplace.cancel(tokenId, {
-    gasLimit: 200000
-  });
-  await txCancel.wait();
+  console.log(`Cancelling listing #${tokenId}...`);
+  await (await getMarketplaceContract(signer).cancel(tokenId, { gasLimit: 200000 })).wait();
 };
