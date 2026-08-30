@@ -6,6 +6,10 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
+import MarketplaceActions from "@/components/MarketplaceActions";
+
+// ⚠️ REPLACE THIS WITH YOUR ACTUAL NFT CONTRACT ADDRESS
+const NFT_CONTRACT_ADDRESS = "YOUR_NFT_CONTRACT_ADDRESS"; 
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -100,6 +104,37 @@ export default function NFTDetailPage() {
 
   const [perfume, setPerfume] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // ---------------------------------------------------------
+  // WALLET INTEGRATION PLACEHOLDER
+  // Replace these with your actual wallet hooks (e.g., wagmi)
+  // Example: const { address, signer } = useWallet();
+  // ---------------------------------------------------------
+  const [userAddress, setUserAddress] = useState<string | undefined>(undefined);
+  const [signer, setSigner] = useState<ethers.Signer | null>(null);
+
+  useEffect(() => {
+    // Initialize wallet connection logic here if not using a global provider
+    const initWallet = async () => {
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider((window as any).ethereum);
+          const accounts = await provider.listAccounts();
+          if (accounts.length > 0) {
+            setUserAddress(accounts[0].address);
+            setSigner(await provider.getSigner());
+          } else {
+            // Fallback to your provided address for UI testing if no wallet connected
+            setUserAddress("0x5FEd79A44B663D4A019e83e4DF0b047870eC20DA");
+          }
+        } catch (err) {
+          console.error("Wallet init error:", err);
+        }
+      }
+    };
+    initWallet();
+  }, []);
+  // ---------------------------------------------------------
 
   useEffect(() => {
     if (!id || isNaN(id)) return;
@@ -255,6 +290,17 @@ export default function NFTDetailPage() {
             Next →
           </Link>
         </div>
+
+        {/* 👇 MARKETPLACE ACTIONS INTEGRATED HERE 👇 */}
+        <MarketplaceActions 
+          tokenId={id}
+          nftContractAddress={NFT_CONTRACT_ADDRESS}
+          ownerAddress={perfume.creator}
+          userAddress={userAddress}
+          signer={signer}
+        />
+        {/* 👆 END OF MARKETPLACE ACTIONS 👆 */}
+
       </div>
 
       <style>{`
@@ -266,4 +312,3 @@ export default function NFTDetailPage() {
     </div>
   );
 }
-
