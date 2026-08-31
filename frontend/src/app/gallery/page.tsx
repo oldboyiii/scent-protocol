@@ -112,9 +112,9 @@ export default function GalleryPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
-      <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-normal pb-1">
-        Gallery
-      </h1>
+      <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-[1.3] pb-3">
+  Gallery
+</h1>
       <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
 
       {loading ? (
