@@ -13,7 +13,7 @@ interface GalleryItem {
   pType: number;
 }
 
-// Стили для карточек в зависимости от редкости (градиент, рамка, свечение, бейдж)
+// Styles for cards depending on rarity (gradient, border, glow, badge)
 const RARITY_STYLE: Record<number, { 
   bg: string; 
   border: string; 
@@ -64,7 +64,7 @@ export default function GalleryPage() {
         }
 
         const results: GalleryItem[] = [];
-        // Увеличили до 60, чтобы гарантированно захватить все 43 NFT
+        // Increased to 60 to guarantee capturing all 43 NFTs
         const maxId = 60; 
 
         for (let start = 1; start <= maxId; start += 10) {
@@ -86,7 +86,7 @@ export default function GalleryPage() {
                   }
                   return null;
                 })
-                .catch(() => null) // Игнорируем ошибки "Not minted"
+                .catch(() => null) // Ignore "Not minted" errors
             );
           }
 
@@ -94,7 +94,7 @@ export default function GalleryPage() {
           results.push(...batchResults.filter((r): r is GalleryItem => r !== null));
         }
 
-        // Сортируем от новых к старым
+        // Sort from newest to oldest
         setItems(results.sort((a, b) => b.tokenId - a.tokenId));
       } catch (e) {
         console.error("Gallery fetch error:", e);
@@ -113,8 +113,8 @@ export default function GalleryPage() {
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
       <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-[1.3] pb-3">
-  Gallery
-</h1>
+        Gallery
+      </h1>
       <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
 
       {loading ? (
@@ -137,7 +137,7 @@ export default function GalleryPage() {
                 <div 
                   className={`group relative rounded-2xl p-5 backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} transition-all duration-300 hover:-translate-y-1 cursor-pointer`}
                 >
-                  {/* Верхняя светящаяся линия при наведении */}
+                  {/* Top glowing line on hover */}
                   <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                   <div className="flex items-center justify-between mb-4">
