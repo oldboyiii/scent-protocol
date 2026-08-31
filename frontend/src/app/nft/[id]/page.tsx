@@ -1,15 +1,12 @@
 "use client";
 
+import MarketplaceActions from "@/components/MarketplaceActions";
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
-import MarketplaceActions from "@/components/MarketplaceActions";
-
-// ⚠️ REPLACE THIS WITH YOUR ACTUAL NFT CONTRACT ADDRESS
-const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";  
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -104,37 +101,6 @@ export default function NFTDetailPage() {
 
   const [perfume, setPerfume] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  // ---------------------------------------------------------
-  // WALLET INTEGRATION PLACEHOLDER
-  // Replace these with your actual wallet hooks (e.g., wagmi)
-  // Example: const { address, signer } = useWallet();
-  // ---------------------------------------------------------
-  const [userAddress, setUserAddress] = useState<string | undefined>(undefined);
-  const [signer, setSigner] = useState<ethers.Signer | null>(null);
-
-  useEffect(() => {
-    // Initialize wallet connection logic here if not using a global provider
-    const initWallet = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const provider = new ethers.BrowserProvider((window as any).ethereum);
-          const accounts = await provider.listAccounts();
-          if (accounts.length > 0) {
-            setUserAddress(accounts[0].address);
-            setSigner(await provider.getSigner());
-          } else {
-            // Fallback to your provided address for UI testing if no wallet connected
-            setUserAddress("0x5FEd79A44B663D4A019e83e4DF0b047870eC20DA");
-          }
-        } catch (err) {
-          console.error("Wallet init error:", err);
-        }
-      }
-    };
-    initWallet();
-  }, []);
-  // ---------------------------------------------------------
 
   useEffect(() => {
     if (!id || isNaN(id)) return;
@@ -290,16 +256,6 @@ export default function NFTDetailPage() {
             Next →
           </Link>
         </div>
-
-        {/* 👇 MARKETPLACE ACTIONS INTEGRATED HERE 👇 */}
-        <MarketplaceActions 
-          tokenId={id}
-          nftContractAddress={NFT_CONTRACT_ADDRESS}
-          ownerAddress={perfume.creator}
-          userAddress={userAddress}
-        />
-        {/* 👆 END OF MARKETPLACE ACTIONS 👆 */}
-
       </div>
 
       <style>{`
