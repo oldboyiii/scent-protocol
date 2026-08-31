@@ -161,9 +161,9 @@ export default function CollectionPage() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
-        <h1 className="text-4xl md:text-5xl font-bold text-white text-center leading-normal pb-1">
-          My Collection
-        </h1>
+        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.2] pb-3">
+  My Collection
+</h1>
         <div className="grid gap-6 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
