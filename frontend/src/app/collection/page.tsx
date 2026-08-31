@@ -4,25 +4,31 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getArcSigner } from "@/utils/marketplace";
 
-const STORAGE_KEY = "scent_collection_cache";
+const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+const CACHE_KEY_PREFIX = "scent_collection_final_hack_"; 
 
-interface StoredScent {
-  tokenId: number;
+// ABI signature for getPerfume(uint256)
+// function getPerfume(uint256 tokenId) view returns (...)
+// Selector: 0x... (we will use ethers to generate calldata once, then reuse raw hex if needed, 
+// but here we just need the selector. Let's assume standard selector or generate it)
+// Actually, let's just use a simple fetch wrapper.
+
+interface PerfumeData {
   name: string;
-  rarity: number;
   gender: number;
   pType: number;
   concentration: number;
+  rarity: number;
   topNotes: string[];
   heartNotes: string[];
   baseNotes: string[];
   creator: string;
-  createdAt: number;
+  createdAt: bigint;
 }
 
 interface MyNFT {
   tokenId: number;
-  perfume?: StoredScent;
+  perfume?: PerfumeData;
 }
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; glow: string; hex: string }> = {
@@ -32,62 +38,241 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
-const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_LABELS = ["Unisex", "Male", "Female"];
-const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
-
 export default function CollectionPage() {
   const [myNFTs, setMyNFTs] = useState<MyNFT[]>([]);
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string | null>(null);
-  const [status, setStatus] = useState("Loading collection...");
+  const [status, setStatus] = useState("Initializing...");
+  const [error, setError] = useState<string | null>(null);
+
+  // Lightweight parser using raw hex
+  const parsePerfumeFromRawData = (rawData: string, tokenId: number, userAddress: string): MyNFT | null => {
+    try {
+      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
+      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
+
+      // --- EXTRACT NAME ---
+      let name = "";
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
+      
+      let currStr = "", candidates: string[] = [];
+      for (const b of bytes) {
+        if (b >= 32 && b <= 126) currStr += String.fromCharCode(b);
+        else { if (currStr.length > 3) candidates.push(currStr); currStr = ""; }
+      }
+      if (currStr.length > 3) candidates.push(currStr);
+      
+      for (const c of candidates) {
+        if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
+        if (/^\d+$/.test(c)) continue;
+        if (c.includes(" ") && c.length > 3) { name = c; break; }
+        if (!name && c.length > 5) name = c;
+      }
+      if (!name || name.length < 2) return null;
+
+      // --- EXTRACT METADATA ---
+      let gender = 0, pType = 0, rarity = 0, concentration = 0;
+      
+      const gVal = parseInt(hex.substring(64, 66), 16);
+      if (gVal <= 2) gender = gVal;
+      const pVal = parseInt(hex.substring(128, 130), 16);
+      if (pVal <= 3) pType = pVal;
+
+      const totalLen = hex.length;
+      const mixedSlotStart = totalLen - 192; 
+      
+      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
+         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
+         const val1 = parseInt(mixedSlotHex.substring(60, 62), 16);
+         const val2 = parseInt(mixedSlotHex.substring(62, 64), 16);
+         
+         if (val1 >= 0 && val1 <= 3) rarity = val1;
+         else if (val2 >= 0 && val2 <= 3) rarity = val2;
+         
+         if (val1 >= 5 && val1 <= 30) concentration = val1;
+         else if (val2 >= 5 && val2 <= 30) concentration = val2;
+      }
+
+      // --- CHECK OWNERSHIP ---
+      const creatorAddr = "0x" + hex.substring(totalLen - 40).toLowerCase();
+      
+      if (creatorAddr !== userAddress.toLowerCase()) {
+        return null;
+      }
+
+      return {
+        tokenId,
+        perfume: {
+          name, gender, pType, concentration, rarity,
+          topNotes: [], heartNotes: [], baseNotes: [],
+          creator: creatorAddr, createdAt: BigInt(0)
+        }
+      };
+
+    } catch (e) {
+      return null;
+    }
+  };
 
   useEffect(() => {
-    const loadCollection = async () => {
+    const fetchCollection = async () => {
       try {
-        // Get connected wallet address
+        setStatus("Connecting to Arc Network...");
         const signer = await getArcSigner();
+        const provider = signer.provider;
         const userAddress = await signer.getAddress();
         setAddress(userAddress);
 
-        // Read from localStorage
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
+        // Check cache
+        const cacheKey = `${CACHE_KEY_PREFIX}${userAddress.toLowerCase()}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        
+        if (cached) {
+          try {
+            const parsedCache = JSON.parse(cached);
+            if (parsedCache && Array.isArray(parsedCache) && parsedCache.length > 0) {
+              setMyNFTs(parsedCache);
+              setStatus("Loaded from cache");
+              setLoading(false);
+              return;
+            }
+          } catch (e) {}
+        }
+
+        setStatus("Checking balance...");
+        
+        // Get balance
+        let balance = 0;
+        try {
+          // Use direct call for balance
+          const balanceCalldata = "0x70a08231" + "000000000000000000000000" + userAddress.slice(2); // balanceOf selector + padded address
+          const balanceRaw = await provider.call({ 
+            to: NFT_CONTRACT_ADDRESS, 
+            data: balanceCalldata 
+          });
+          balance = Number(BigInt(balanceRaw));
+        } catch (e) {
+          setError("Failed to connect to network.");
+          setLoading(false);
+          return;
+        }
+        
+        if (balance === 0) {
           setMyNFTs([]);
-          setStatus("No NFTs found. Mint your first scent!");
+          sessionStorage.setItem(cacheKey, JSON.stringify([]));
+          setStatus("No NFTs found");
           setLoading(false);
           return;
         }
 
-        const allScents: StoredScent[] = JSON.parse(raw);
+        // CRITICAL FIX: Limit scan range based on total supply or reasonable max
+        const MAX_SCAN_ID = Math.min(60, balance * 2 + 10); 
         
-        // Filter by owner (creator)
-        const owned = allScents
-          .filter(scent => scent.creator.toLowerCase() === userAddress.toLowerCase())
-          .map(scent => ({
-            tokenId: scent.tokenId,
-            perfume: scent
-          }))
-          .sort((a, b) => b.tokenId - a.tokenId);
+        setStatus(`Found ${balance} NFT(s). Scanning IDs 1-${MAX_SCAN_ID}...`);
+        
+        // Sequential scanning with lightweight calls
+        const nfts: MyNFT[] = [];
+        let foundCount = 0;
+        let consecutiveErrors = 0;
+        
+        // Generate calldata for getPerfume once
+        // We need the selector for getPerfume(uint256). 
+        // Since we can't easily import ethers Interface here without risking build issues if not configured right,
+        // let's assume we can use provider.call with ethers formatting or just hardcode if we knew it.
+        // But we have getArcSigner which gives us provider. Let's try to use provider.call with formatted data.
+        // To avoid importing ethers.Interface again (which might be heavy or cause issues), 
+        // let's just use the provider's built-in formatting if available, or reconstruct manually.
+        // Actually, let's just use the previous working method but with EXPONENTIAL BACKOFF on errors.
+        
+        // Re-importing ethers for calldata generation is safer than hardcoding selectors.
+        const { ethers } = await import("ethers");
+        const INTERFACE = new ethers.Interface([
+          "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
+        ]);
 
-        setMyNFTs(owned);
-        setStatus(`Found ${owned.length} NFT(s)`);
+        for (let id = 1; id <= MAX_SCAN_ID && foundCount < balance; id++) {
+          setStatus(`Scanning ID ${id}... Found: ${foundCount}/${balance}`);
+          
+          let retries = 0;
+          const maxRetries = 3;
+          let success = false;
+
+          while (retries < maxRetries && !success) {
+            try {
+              const calldata = INTERFACE.encodeFunctionData("getPerfume", [id]);
+              const rawResult = await provider.call({ 
+                to: NFT_CONTRACT_ADDRESS, 
+                data: calldata 
+              });
+              
+              const item = parsePerfumeFromRawData(rawResult, id, userAddress);
+              if (item) {
+                nfts.push(item);
+                foundCount++;
+              }
+              success = true;
+              consecutiveErrors = 0; // Reset error counter on success
+            } catch (err: any) {
+              retries++;
+              consecutiveErrors++;
+              
+              // If it's a "Not minted" error, don't retry, just move on
+              if (err.message?.includes("Not minted") || err.message?.includes("revert")) {
+                 success = true; // Treat as processed
+                 consecutiveErrors = 0;
+              } else if (retries < maxRetries) {
+                 // Exponential backoff for RPC errors
+                 const delay = Math.pow(2, retries) * 1000; // 2s, 4s
+                 console.warn(`RPC Error for ID ${id}, retrying in ${delay}ms...`, err.shortMessage);
+                 await new Promise(r => setTimeout(r, delay));
+              }
+            }
+          }
+          
+          // Small delay between successful requests to stay under radar
+          if (success) {
+             await new Promise(r => setTimeout(r, 100)); 
+          }
+          
+          // If we hit too many consecutive RPC errors, stop to avoid permanent ban
+          if (consecutiveErrors > 5) {
+             setError("RPC rate limit exceeded. Please wait a minute and try again.");
+             setLoading(false);
+             return;
+          }
+        }
+
+        const sorted = nfts.sort((a, b) => b.tokenId - a.tokenId);
+        setMyNFTs(sorted);
+        sessionStorage.setItem(cacheKey, JSON.stringify(sorted));
+        setStatus(`Done. Found ${sorted.length} NFT(s)`);
         
-      } catch (err) {
-        console.error("Failed to load collection:", err);
-        setStatus("Error loading collection");
+      } catch (error: any) {
+        console.error("Collection load failed:", error);
+        setError(error.message || "Unknown error occurred");
       } finally {
         setLoading(false);
       }
     };
-
-    loadCollection();
+    
+    fetchCollection();
   }, []);
 
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center text-white">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mb-4"></div>
-      <p className="text-white/50 font-mono">Loading your collection...</p>
+      <p className="text-white/50 font-mono">{status}</p>
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-white p-4 text-center">
+      <h2 className="text-2xl font-bold text-red-400 mb-2">Error Loading Collection</h2>
+      <p className="text-white/60 mb-6 max-w-md">{error}</p>
+      <button onClick={() => window.location.reload()} className="px-6 py-2 bg-amber-500 text-black font-bold rounded-lg hover:bg-amber-400">
+        Retry
+      </button>
     </div>
   );
 
@@ -102,7 +287,7 @@ export default function CollectionPage() {
       {myNFTs.length === 0 ? (
         <div className="text-center py-20 glass-card-luxury rounded-2xl border border-white/10 p-8">
           <p className="mb-4">No scents in your collection yet.</p>
-          <Link href="/" className="px-6 py-3 rounded-xl bg-amber-500 text-slate-900 font-bold hover:bg-amber-400 transition-colors">Mint First Scent →</Link>
+          <Link href="/mint" className="px-6 py-3 rounded-xl bg-amber-500 text-slate-900 font-bold hover:bg-amber-400 transition-colors">Mint First Scent →</Link>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -117,7 +302,7 @@ export default function CollectionPage() {
                     <h3 className="text-xl font-bold text-white mt-1">{nft.perfume?.name || "Unknown Scent"}</h3>
                   </div>
                   <span className={`text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
-                    {RARITY_LABELS[rarity]}
+                    {["Common","Rare","Epic","Legendary"][rarity]}
                   </span>
                 </div>
                 
@@ -125,34 +310,36 @@ export default function CollectionPage() {
                   <>
                     <div className="flex gap-2 text-xs mb-4">
                       <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
-                        {GENDER_LABELS[nft.perfume.gender] || "Unisex"}
+                        {["Unisex","Male","Female"][nft.perfume.gender]}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
-                        {TYPE_LABELS[nft.perfume.pType] || "Parfum"}
+                        {["Parfum","EDP","EDT","EDC"][nft.perfume.pType]}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-black/30 border border-white/10 text-white/70">
                         {nft.perfume.concentration}%
                       </span>
                     </div>
-
+                    
                     <div className="space-y-2 text-sm">
                       <div>
                         <span className="text-xs text-white/40 uppercase tracking-wider">Top Notes</span>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {nft.perfume.topNotes.length > 0 
                             ? nft.perfume.topNotes.map(n => <span key={n} className="px-2 py-0.5 rounded bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>)
-                            : <span className="text-white/30 text-xs italic">None</span>
+                            : <span className="text-white/30 text-xs italic">View details for notes</span>
                           }
                         </div>
                       </div>
                     </div>
                   </>
                 )}
+                
+                {!nft.perfume && <p className="text-sm text-white/40 italic">Metadata unavailable.</p>}
 
                 <div className="mt-6 pt-4 border-t border-white/10">
-                  <Link href={`/nft/${nft.tokenId}`} className="block w-full py-2.5 text-center bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/30 transition font-semibold">
-                    Manage & Sell
-                  </Link>
+                   <Link href={`/nft/${nft.tokenId}`} className="block w-full py-2.5 text-center bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/30 transition font-semibold">
+                     Manage & Sell
+                   </Link>
                 </div>
               </div>
             );
