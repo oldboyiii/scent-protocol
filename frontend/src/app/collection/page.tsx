@@ -76,11 +76,51 @@ const RARITY_STYLE: Record<number, {
 export default function CollectionPage() {
   const [scents, setScents] = useState<StoredScent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [walletReady, setWalletReady] = useState(false);
   const { address } = useWallet();
+
+  // Wait for wallet to auto-connect after page refresh
+  useEffect(() => {
+    if (address) {
+      setWalletReady(true);
+    } else {
+      // Fallback: try to get address directly from MetaMask
+      const checkDirectly = async () => {
+        const w = window as any;
+        if (w.ethereum) {
+          try {
+            const accounts = await w.ethereum.request({ method: 'eth_accounts' });
+            if (accounts && accounts.length > 0) {
+              setWalletReady(true);
+            }
+          } catch {}
+        }
+      };
+      checkDirectly();
+      
+      // Give WalletContext time to initialize
+      const timer = setTimeout(() => setWalletReady(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [address]);
 
   useEffect(() => {
     async function fetchCollection() {
-      if (!address) {
+      if (!walletReady) return;
+
+      // Get current address (from context or directly)
+      let currentAddress = address;
+      if (!currentAddress) {
+        const w = window as any;
+        if (w.ethereum) {
+          try {
+            const accounts = await w.ethereum.request({ method: 'eth_accounts' });
+            currentAddress = accounts?.[0];
+          } catch {}
+        }
+      }
+
+      if (!currentAddress) {
         setLoading(false);
         return;
       }
@@ -96,8 +136,7 @@ export default function CollectionPage() {
           contract = getContract(fallbackProvider);
         }
 
-        // Step 1: Get balance to know how many NFTs user has
-        const balance = await contract.balanceOf(address);
+        const balance = await contract.balanceOf(currentAddress);
         const balanceNum = Number(balance);
 
         if (balanceNum === 0) {
@@ -106,17 +145,15 @@ export default function CollectionPage() {
           return;
         }
 
-        // Step 2: Scan IDs and filter by creator
         const results: StoredScent[] = [];
         let foundCount = 0;
-        const maxId = 60; // Scan up to ID 60
+        const maxId = 60;
 
         for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
           try {
             const perfume = await contract.getPerfume(tokenId);
             
-            // Check if this NFT belongs to current user
-            if (perfume.creator && perfume.creator.toLowerCase() === address.toLowerCase()) {
+            if (perfume.creator && perfume.creator.toLowerCase() === currentAddress.toLowerCase()) {
               results.push({
                 tokenId,
                 name: perfume.name,
@@ -142,11 +179,9 @@ export default function CollectionPage() {
             // Ignore "Not minted" errors
           }
           
-          // Small delay to prevent RPC throttling
           await new Promise(r => setTimeout(r, 50));
         }
 
-        // Sort by tokenId descending
         setScents(results.sort((a, b) => b.tokenId - a.tokenId));
       } catch (e) {
         console.error("Collection fetch error:", e);
@@ -156,14 +191,14 @@ export default function CollectionPage() {
     }
 
     fetchCollection();
-  }, [address]);
+  }, [walletReady, address]);
 
-  if (loading) {
+  if (!walletReady || loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
-        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.2] pb-3">
-  My Collection
-</h1>
+        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">
+          My Collection
+        </h1>
         <div className="grid gap-6 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
@@ -184,9 +219,9 @@ export default function CollectionPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
-      <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-normal pb-1">
-  My Collection
-</h1>
+      <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">
+        My Collection
+      </h1>
       <p className="text-center text-white/50">
         {scents.length} scent{scents.length !== 1 ? "s" : ""} collected
       </p>
@@ -212,9 +247,8 @@ export default function CollectionPage() {
             return (
               <div
                 key={s.tokenId}
-                className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:${style.glow.replace("0.15", "0.3").replace("0.25", "0.4").replace("0.35", "0.5")}`}
+                className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}
               >
-                {/* Animated shimmer border */}
                 <div 
                   className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                   style={{
@@ -228,13 +262,9 @@ export default function CollectionPage() {
                   }}
                 />
 
-                {/* Glass shine */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-
-                {/* Top glow line */}
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                {/* Hover shimmer */}
                 <div 
                   className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
                   style={{
