@@ -28,45 +28,34 @@ const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
-const RARITY_STYLE: Record<number, { 
-  bg: string; 
-  border: string; 
-  badge: string; 
-  text: string; 
-  glow: string;
-  hex: string;
-}> = {
+const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; accent: string }> = {
   0: {
-    bg: "from-slate-800/80 via-slate-700/60 to-slate-900/80",
-    border: "border-slate-500/40",
-    badge: "bg-slate-500/30 text-slate-200 border-slate-400/50",
+    bg: "bg-gradient-to-br from-slate-700/70 via-slate-600/50 to-slate-800/70",
+    border: "border-slate-400/30",
+    badge: "bg-slate-500/30 text-slate-200 border-slate-400/40",
     text: "text-slate-200",
-    glow: "shadow-[0_0_30px_rgba(148,163,184,0.15)]",
-    hex: "#94a3b8",
+    accent: "#94a3b8",
   },
   1: {
-    bg: "from-blue-800/80 via-blue-600/60 to-indigo-900/80",
-    border: "border-blue-400/50",
-    badge: "bg-blue-500/30 text-blue-100 border-blue-400/50",
-    text: "text-blue-100",
-    glow: "shadow-[0_0_40px_rgba(96,165,250,0.25)]",
-    hex: "#60a5fa",
+    bg: "bg-gradient-to-br from-blue-700/70 via-indigo-600/50 to-blue-900/70",
+    border: "border-blue-400/40",
+    badge: "bg-blue-500/30 text-blue-200 border-blue-400/40",
+    text: "text-blue-200",
+    accent: "#60a5fa",
   },
   2: {
-    bg: "from-purple-800/80 via-fuchsia-600/60 to-purple-900/80",
-    border: "border-purple-400/50",
-    badge: "bg-purple-500/30 text-purple-100 border-purple-400/50",
-    text: "text-purple-100",
-    glow: "shadow-[0_0_40px_rgba(192,132,252,0.25)]",
-    hex: "#c084fc",
+    bg: "bg-gradient-to-br from-purple-700/70 via-fuchsia-600/50 to-purple-900/70",
+    border: "border-purple-400/40",
+    badge: "bg-purple-500/30 text-purple-200 border-purple-400/40",
+    text: "text-purple-200",
+    accent: "#c084fc",
   },
   3: {
-    bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90",
-    border: "border-amber-400/60",
-    badge: "bg-amber-500/40 text-amber-100 border-amber-400/60",
+    bg: "bg-gradient-to-br from-amber-600/80 via-orange-500/60 to-amber-800/80",
+    border: "border-amber-400/50",
+    badge: "bg-amber-500/30 text-amber-100 border-amber-400/50",
     text: "text-amber-100",
-    glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]",
-    hex: "#fbbf24",
+    accent: "#fbbf24",
   },
 };
 
@@ -86,7 +75,7 @@ export default function CollectionPage() {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
+    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
       <h1 className="text-4xl md:text-5xl font-bold text-white text-center leading-normal pb-1">
         My Collection
       </h1>
@@ -115,37 +104,13 @@ export default function CollectionPage() {
             return (
               <div
                 key={s.tokenId}
-                className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:${style.glow.replace("0.15", "0.3").replace("0.25", "0.4").replace("0.35", "0.5")}`}
+                className={`relative rounded-2xl p-6 space-y-4 backdrop-blur-xl ${style.bg} border ${style.border} overflow-hidden`}
               >
-                {/* Animated shimmer border */}
-                <div 
-                  className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                  style={{
-                    background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
-                    backgroundSize: "200% 100%",
-                    animation: "shimmer 2s linear infinite",
-                    padding: "2px",
-                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                    WebkitMaskComposite: "xor",
-                    maskComposite: "exclude",
-                  }}
-                />
-
-                {/* Glass shine */}
+                {/* Glass shine overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
 
-                {/* Top glow line */}
-                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-
-                {/* Hover shimmer */}
-                <div 
-                  className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-                  style={{
-                    background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
-                    backgroundSize: "200% 100%",
-                    animation: "shimmer 2.5s infinite",
-                  }}
-                />
+                {/* Inner glow line top */}
+                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
                 <div className="relative flex items-start justify-between">
                   <div>
@@ -166,43 +131,58 @@ export default function CollectionPage() {
                 {hasFullData ? (
                   <>
                     <div className="relative flex flex-wrap gap-2 text-xs">
-                      <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
                         {GENDER[perfume!.gender]}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
                         {TYPE[perfume!.pType]}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+                      <span className="px-2 py-0.5 rounded-full bg-black/20 text-white/70 border border-white/10">
                         {perfume!.concentration}%
                       </span>
                     </div>
 
                     <div className="relative space-y-2 text-sm">
                       <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">Top Notes</span>
+                        <span className="text-white/40 text-xs uppercase tracking-wider">
+                          Top Notes
+                        </span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {perfume!.topNotes.map((n) => (
-                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">
+                            <span
+                              key={n}
+                              className="px-2 py-0.5 rounded-md bg-black/20 text-amber-200 text-xs border border-amber-500/20"
+                            >
                               {n}
                             </span>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">Heart Notes</span>
+                        <span className="text-white/40 text-xs uppercase tracking-wider">
+                          Heart Notes
+                        </span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {perfume!.heartNotes.map((n) => (
-                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-rose-200 text-xs border border-rose-500/30">
+                            <span
+                              key={n}
+                              className="px-2 py-0.5 rounded-md bg-black/20 text-rose-200 text-xs border border-rose-500/20"
+                            >
                               {n}
                             </span>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">Base Notes</span>
+                        <span className="text-white/40 text-xs uppercase tracking-wider">
+                          Base Notes
+                        </span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {perfume!.baseNotes.map((n) => (
-                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-emerald-200 text-xs border border-emerald-500/30">
+                            <span
+                              key={n}
+                              className="px-2 py-0.5 rounded-md bg-black/20 text-emerald-200 text-xs border border-emerald-500/20"
+                            >
                               {n}
                             </span>
                           ))}
@@ -211,18 +191,24 @@ export default function CollectionPage() {
                     </div>
 
                     {s.description && (
-                      <div className="relative bg-black/30 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
+                      <div className="relative bg-black/20 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
                         {s.description}
                       </div>
                     )}
 
                     <div className="relative text-xs text-white/30 space-y-0.5">
                       <p>Creator: {perfume!.creator}</p>
-                      <p>Minted: {new Date(perfume!.createdAt * 1000).toLocaleString()}</p>
+                      <p>
+                        Minted:{" "}
+                        {new Date(perfume!.createdAt * 1000).toLocaleString()}
+                      </p>
                     </div>
 
                     <div className="relative flex items-center justify-between pt-2">
-                      <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">
+                      <Link
+                        href={`/nft/${s.tokenId}`}
+                        className="text-sm text-white/50 hover:text-white transition-colors"
+                      >
                         View Details →
                       </Link>
                       <ShareCard tokenId={s.tokenId} perfume={perfume!} />
@@ -231,9 +217,15 @@ export default function CollectionPage() {
                 ) : (
                   <div className="relative text-sm text-white/40">
                     <p>Legacy entry — full details not available.</p>
-                    <p className="text-xs mt-1">Minted: {new Date(s.timestamp).toLocaleString()}</p>
+                    <p className="text-xs mt-1">
+                      Minted:{" "}
+                      {new Date(s.timestamp).toLocaleString()}
+                    </p>
                     <div className="flex items-center justify-between pt-4">
-                      <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">
+                      <Link
+                        href={`/nft/${s.tokenId}`}
+                        className="text-sm text-white/50 hover:text-white transition-colors"
+                      >
                         View Details →
                       </Link>
                     </div>
@@ -244,13 +236,6 @@ export default function CollectionPage() {
           })}
         </div>
       )}
-
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
     </div>
   );
 }
