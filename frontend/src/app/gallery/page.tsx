@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
-import { getArcSigner } from "@/utils/marketplace";
-
-const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-
-// Interface used solely for generating calldata
-const INTERFACE = new ethers.Interface([
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
-]);
+import { getContract } from "@/utils/contract";
 
 interface GalleryItem {
   tokenId: number;
@@ -18,308 +11,157 @@ interface GalleryItem {
   rarity: number;
   gender: number;
   pType: number;
-  description?: string;
 }
 
-const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["⚲", "♂", "♀"];
-const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
-
-const RARITY_STYLES: Record<number, { 
+// Стили для карточек в зависимости от редкости (градиент, рамка, свечение, бейдж)
+const RARITY_STYLE: Record<number, { 
+  bg: string; 
+  border: string; 
   badge: string; 
-  border: string;
   glow: string;
-  bg: string;
 }> = {
-  0: { 
-    badge: "bg-slate-500/20 text-slate-300 border-slate-500/30", 
-    border: "border-slate-500/30",
-    glow: "hover:shadow-[0_0_15px_rgba(148,163,184,0.1)]",
-    bg: "from-slate-900/80 to-slate-900/40"
+  0: {
+    bg: "from-slate-800/80 via-slate-700/60 to-slate-900/80",
+    border: "border-slate-500/40",
+    badge: "bg-slate-500/30 text-slate-200 border-slate-400/50",
+    glow: "hover:shadow-[0_0_30px_rgba(148,163,184,0.15)]",
   },
-  1: { 
-    badge: "bg-blue-500/20 text-blue-300 border-blue-500/30", 
-    border: "border-blue-500/40",
-    glow: "hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]",
-    bg: "from-blue-950/60 to-slate-900/60"
+  1: {
+    bg: "from-blue-800/80 via-blue-600/60 to-indigo-900/80",
+    border: "border-blue-400/50",
+    badge: "bg-blue-500/30 text-blue-100 border-blue-400/50",
+    glow: "hover:shadow-[0_0_40px_rgba(96,165,250,0.25)]",
   },
-  2: { 
-    badge: "bg-purple-500/20 text-purple-300 border-purple-500/30", 
-    border: "border-purple-500/40",
-    glow: "hover:shadow-[0_0_20px_rgba(168,85,247,0.2)]",
-    bg: "from-purple-950/60 to-slate-900/60"
+  2: {
+    bg: "from-purple-800/80 via-fuchsia-600/60 to-purple-900/80",
+    border: "border-purple-400/50",
+    badge: "bg-purple-500/30 text-purple-100 border-purple-400/50",
+    glow: "hover:shadow-[0_0_40px_rgba(192,132,252,0.25)]",
   },
-  3: { 
-    badge: "bg-amber-500/20 text-amber-300 border-amber-500/30", 
-    border: "border-amber-500/40",
-    glow: "hover:shadow-[0_0_25px_rgba(245,158,11,0.3)]",
-    bg: "from-amber-950/60 to-slate-900/60"
+  3: {
+    bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90",
+    border: "border-amber-400/60",
+    badge: "bg-amber-500/40 text-amber-100 border-amber-400/60",
+    glow: "hover:shadow-[0_0_50px_rgba(251,191,36,0.35)]",
   },
 };
 
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("Initializing...");
-  const [progress, setProgress] = useState(0);
-
-  // Manual parser that correctly handles the struct layout
-  const parsePerfumeFromRawData = (rawData: string, tokenId: number): GalleryItem | null => {
-    try {
-      const hex = rawData.startsWith('0x') ? rawData.slice(2) : rawData;
-      
-      // Check if data is empty or zero (not minted)
-      if (hex.length < 64 || parseInt(hex.substring(0, 64), 16) === 0) return null;
-
-      // --- 1. EXTRACT NAME ---
-      let name = "";
-      try {
-        const nameOffsetHex = hex.substring(0, 64);
-        const nameOffset = parseInt(nameOffsetHex, 16) * 2;
-        
-        const lenHex = hex.substring(nameOffset, nameOffset + 64);
-        const len = parseInt(lenHex, 16);
-        
-        if (len > 0 && len < 100) {
-          const nameHex = hex.substring(nameOffset + 64, nameOffset + 64 + (len * 2));
-          let decodedName = "";
-          let isValid = true;
-          for (let i = 0; i < len * 2; i += 2) {
-            const byte = parseInt(nameHex.substr(i, 2), 16);
-            if (byte >= 32 && byte <= 126) decodedName += String.fromCharCode(byte);
-            else { isValid = false; break; }
-          }
-          if (isValid && decodedName.trim().length > 0) name = decodedName.trim();
-        }
-      } catch (e) {}
-
-      // Fallback heuristic for name if offset method fails
-      if (!name) {
-        const bytes = new Uint8Array(hex.length / 2);
-        for (let i = 0; i < hex.length; i += 2) bytes[i/2] = parseInt(hex.substr(i, 2), 16);
-        
-        let currStr = "";
-        const candidates: string[] = [];
-        for (const b of bytes) {
-          if (b >= 32 && b <= 126) currStr += String.fromCharCode(b);
-          else {
-            if (currStr.length > 3) candidates.push(currStr);
-            currStr = "";
-          }
-        }
-        if (currStr.length > 3) candidates.push(currStr);
-
-        for (const c of candidates) {
-          if (c.length === 40 && /^[0-9a-fA-F]+$/.test(c)) continue;
-          if (/^\d+$/.test(c)) continue;
-          if (c.includes(" ") && c.length > 3) { name = c; break; }
-          if (!name && c.length > 5) name = c;
-        }
-      }
-
-      if (!name || name.length < 2) return null;
-
-      // --- 2. EXTRACT STATIC FIELDS (Gender, PType) ---
-      let gender = 0;
-      const genderHex = hex.substring(64, 66); 
-      const genderRaw = parseInt(genderHex, 16);
-      if (genderRaw >= 0 && genderRaw <= 2) gender = genderRaw;
-
-      let pType = 0;
-      const pTypeHex = hex.substring(128, 130);
-      const pTypeRaw = parseInt(pTypeHex, 16);
-      if (pTypeRaw >= 0 && pTypeRaw <= 3) pType = pTypeRaw;
-
-      // --- 3. EXTRACT RARITY (Correct Slot Location) ---
-      // In your contract struct, 'rarity' is packed with 'concentration' in one 32-byte slot.
-      // This slot is located BEFORE 'createdAt' and 'creator'.
-      // Layout at the end: ... [mixed_slot(32b)] [createdAt(32b)] [creator(32b)]
-      // So mixed_slot starts at: totalLength - 192 (64+64+64 hex chars)
-      
-      let rarity = 0;
-      const totalLen = hex.length;
-      const mixedSlotStart = totalLen - 192; 
-      
-      if (mixedSlotStart > 0 && mixedSlotStart + 64 <= totalLen) {
-         const mixedSlotHex = hex.substring(mixedSlotStart, mixedSlotStart + 64);
-         
-         // The slot contains two uint8s. 
-         // Based on Solidity memory layout, 'concentration' comes first, then 'rarity'.
-         // They are packed into the LAST 2 bytes of the 32-byte slot.
-         // Byte 30 (hex 60-61) = concentration
-         // Byte 31 (hex 62-63) = rarity
-         
-         const rarityByteHex = mixedSlotHex.substring(62, 64);
-         const rarityVal = parseInt(rarityByteHex, 16);
-         
-         // Validate range (0-3)
-         if (rarityVal >= 0 && rarityVal <= 3) {
-            rarity = rarityVal;
-         } else {
-            // If last byte isn't valid, try the previous byte (in case order is swapped)
-            const altByteHex = mixedSlotHex.substring(60, 62);
-            const altVal = parseInt(altByteHex, 16);
-            if (altVal >= 0 && altVal <= 3) rarity = altVal;
-         }
-      }
-
-      // --- 4. DESCRIPTION FALLBACK ---
-      let description = TYPE_LABELS[pType]; 
-
-      return {
-        tokenId,
-        name,
-        rarity,
-        gender,
-        pType,
-        description
-      };
-
-    } catch (e) {
-      console.warn(`Parse failed for ID ${tokenId}`, e);
-      return null;
-    }
-  };
 
   useEffect(() => {
-    const fetchGallery = async () => {
+    async function fetchGallery() {
       try {
-        setStatus("Connecting to Arc Network...");
-        const signer = await getArcSigner();
-        const provider = signer.provider;
-
-        const results: GalleryItem[] = [];
-        let consecutiveEmpty = 0;
-        const MAX_CONSECUTIVE_EMPTY = 10; 
-        let currentId = 1;
-
-        setStatus(`Scanning IDs (Sequential Mode)...`);
-
-        // Sequential scanning with delay to prevent RPC hanging
-        while (consecutiveEmpty < MAX_CONSECUTIVE_EMPTY && currentId < 500) {
-          setProgress(currentId);
-          
-          try {
-            // Generate calldata manually
-            const calldata = INTERFACE.encodeFunctionData("getPerfume", [currentId]);
-            
-            // Make low-level call
-            const rawResult = await provider.call({ 
-              to: NFT_CONTRACT_ADDRESS, 
-              data: calldata 
-            });
-            
-            const item = parsePerfumeFromRawData(rawResult, currentId);
-            
-            if (item) {
-              results.push(item);
-              consecutiveEmpty = 0; // Reset on success
-            } else {
-              consecutiveEmpty++;
-            }
-          } catch (err: any) {
-            // Handle "Not minted" reverts gracefully
-            if (err.message?.includes("Not minted") || err.message?.includes("revert")) {
-              consecutiveEmpty++;
-            } else {
-              // For RPC errors, wait longer and retry same ID
-              console.warn(`RPC error at ID ${currentId}, waiting...`, err.shortMessage);
-              await new Promise(r => setTimeout(r, 1000));
-              continue; // Don't increment ID, retry
-            }
-          }
-
-          // Update status every 5 IDs
-          if (currentId % 5 === 0) {
-             setStatus(`Scanned up to ID ${currentId}. Found: ${results.length}`);
-          }
-
-          currentId++;
-          
-          // CRITICAL: Delay between requests to keep RPC stable
-          await new Promise(r => setTimeout(r, 150)); 
+        let contract;
+        const w = window as any;
+        if (w.ethereum) {
+          const browserProvider = new ethers.BrowserProvider(w.ethereum);
+          contract = getContract(browserProvider);
+        } else {
+          const fallbackProvider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+          contract = getContract(fallbackProvider);
         }
 
-        const sorted = results.sort((a, b) => b.tokenId - a.tokenId);
-        setItems(sorted);
-        setStatus(`Done. Total found: ${sorted.length}`);
-        
-      } catch (e: any) {
-        console.error("CRITICAL ERROR:", e);
-        setStatus(`Error: ${e.shortMessage || e.message}`);
+        const results: GalleryItem[] = [];
+        // Увеличили до 60, чтобы гарантированно захватить все 43 NFT
+        const maxId = 60; 
+
+        for (let start = 1; start <= maxId; start += 10) {
+          const end = Math.min(start + 9, maxId);
+          const batch = [];
+
+          for (let tokenId = start; tokenId <= end; tokenId++) {
+            batch.push(
+              contract.getPerfume(tokenId)
+                .then((p: any) => {
+                  if (p && p.name) {
+                    return {
+                      tokenId,
+                      name: p.name,
+                      rarity: Number(p.rarity),
+                      gender: Number(p.gender),
+                      pType: Number(p.pType),
+                    };
+                  }
+                  return null;
+                })
+                .catch(() => null) // Игнорируем ошибки "Not minted"
+            );
+          }
+
+          const batchResults = await Promise.all(batch);
+          results.push(...batchResults.filter((r): r is GalleryItem => r !== null));
+        }
+
+        // Сортируем от новых к старым
+        setItems(results.sort((a, b) => b.tokenId - a.tokenId));
+      } catch (e) {
+        console.error("Gallery fetch error:", e);
       } finally {
         setLoading(false);
       }
-    };
-    
+    }
+
     fetchGallery();
   }, []);
 
-  return (
-    <div className="max-w-7xl mx-auto py-16 px-4 relative z-10">
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent">Gallery</h1>
-          <p className="text-white/50 mt-2">All fragrances minted on ScentProtocol.</p>
-        </div>
-        <div className="text-right hidden md:block min-w-[200px]">
-           <p className="text-xs text-white/30 font-mono mb-1">{status}</p>
-           {loading && (
-             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-               <div 
-                 className="h-full bg-amber-500 transition-all duration-300" 
-                 style={{width: `${Math.min((progress / 500) * 100, 100)}%`}} 
-               />
-             </div>
-           )}
-        </div>
-      </div>
+  const rarityLabel = ["Common", "Rare", "Epic", "Legendary"];
+  const genderIcon = ["⚲", "♂", "♀"];
+  const typeLabel = ["Parfum", "EDP", "EDT", "EDC"];
 
-      {loading && items.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+  return (
+    <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
+      <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-normal pb-1">
+        Gallery
+      </h1>
+      <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-56 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
+            <div key={i} className="h-44 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 text-white/40 glass-card-luxury rounded-2xl p-8 border border-white/10">
-          No fragrances found in scanned range.
+        <div className="text-center py-20 text-white/40 glass-card rounded-2xl p-8 border border-white/10">
+          <p>No fragrances found on-chain.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {items.map((item) => {
-            const style = RARITY_STYLES[item.rarity] || RARITY_STYLES[0];
+            const style = RARITY_STYLE[item.rarity] || RARITY_STYLE[0];
+            
             return (
-              <Link 
-                key={item.tokenId} 
-                href={`/nft/${item.tokenId}`} 
-                className={`block group relative rounded-2xl p-6 bg-gradient-to-br ${style.bg} backdrop-blur-md border transition-all duration-300 hover:-translate-y-1 ${style.border} ${style.glow}`}
-              >
-                {/* Header: ID & Rarity */}
-                <div className="flex justify-between items-start mb-4">
-                  <span className="text-sm font-mono text-white/30">#{item.tokenId}</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${style.badge}`}>
-                    {RARITY_LABELS[item.rarity]}
-                  </span>
-                </div>
-                
-                {/* Name */}
-                <h3 className="text-xl font-bold text-white mb-2 line-clamp-2 group-hover:text-amber-300 transition-colors">
-                  {item.name}
-                </h3>
+              <Link key={item.tokenId} href={`/nft/${item.tokenId}`}>
+                <div 
+                  className={`group relative rounded-2xl p-5 backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} transition-all duration-300 hover:-translate-y-1 cursor-pointer`}
+                >
+                  {/* Верхняя светящаяся линия при наведении */}
+                  <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                {/* Description */}
-                <p className="text-xs text-white/40 mb-6 italic truncate">
-                  {item.description} fragrance
-                </p>
-                
-                {/* Footer: Gender & Type Icons */}
-                <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-xs text-white/40 border-t border-white/5 pt-4">
-                  <div className="flex items-center gap-3">
-                    <span title="Gender">{GENDER_ICONS[item.gender]}</span>
-                    <span title="Type">{TYPE_LABELS[item.pType]}</span>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-mono text-white/40">#{item.tokenId}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${style.badge}`}>
+                      {rarityLabel[item.rarity]}
+                    </span>
                   </div>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-400 text-sm">→</span>
+                  
+                  <h3 className="text-lg font-bold text-white truncate mb-4 group-hover:text-amber-300 transition-colors">
+                    {item.name}
+                  </h3>
+                  
+                  <div className="flex items-center gap-3 text-xs text-white/50 border-t border-white/5 pt-3">
+                    <span className="flex items-center gap-1" title="Gender">
+                      {genderIcon[item.gender]}
+                    </span>
+                    <span className="flex items-center gap-1" title="Type">
+                      {typeLabel[item.pType]}
+                    </span>
+                    <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-amber-400">
+                      →
+                    </span>
+                  </div>
                 </div>
               </Link>
             );
