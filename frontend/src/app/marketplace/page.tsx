@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 import { getContract } from "@/utils/contract";
 
 const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
+const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
 const MARKETPLACE_ABI = [
   "function getActiveListings() view returns (uint256[])",
@@ -22,6 +22,8 @@ const USDC_ABI = [
   "function decimals() view returns (uint8)"
 ];
 
+type SortOption = "priceLow" | "priceHigh" | "rarity" | "newest";
+
 interface ListingData {
   tokenId: number;
   seller: string;
@@ -34,7 +36,7 @@ interface ListingData {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "", "♀"];
+const GENDER_ICONS = ["", "♂", "♀"];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLE: Record<number, { 
@@ -75,6 +77,8 @@ export default function MarketplacePage() {
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [usdcAddress, setUsdcAddress] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [sortBy, setSortBy] = useState<SortOption>("priceLow");
+  const [showSort, setShowSort] = useState(false);
 
   const loadListings = async () => {
     try {
@@ -85,14 +89,11 @@ export default function MarketplacePage() {
       if (!provider) throw new Error("Provider not found");
 
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-      
-      // Use getContract() for NFT contract - it has the correct ABI
       const nftContract = getContract(provider);
 
       const usdcAddr = await marketplace.usdc();
       setUsdcAddress(usdcAddr);
 
-      // Get active count first
       const activeCount = await marketplace.getActiveCount();
       console.log("Active listings count:", Number(activeCount));
 
@@ -102,7 +103,6 @@ export default function MarketplacePage() {
         return;
       }
 
-      // Get all active IDs
       const activeIds: bigint[] = await marketplace.getActiveListings();
       console.log("Active IDs:", activeIds.map(id => Number(id)));
       
@@ -110,28 +110,24 @@ export default function MarketplacePage() {
       for (const id of activeIds) {
         try {
           const tokenId = Number(id);
-          const listing = await marketplace.listings(tokenId);
-          
-          console.log(`Listing ${tokenId}:`, listing);
+          const [listing, perfume] = await Promise.all([
+            marketplace.listings(tokenId),
+            nftContract.getPerfume(tokenId)
+          ]);
 
-          if (listing.active) {
-            // Use getContract() which has the correct ABI for getPerfume
-            const perfume = await nftContract.getPerfume(tokenId);
-            
-            console.log(`Perfume ${tokenId}:`, perfume.name);
+          console.log(`Listing ${tokenId}:`, listing, "Perfume:", perfume.name);
 
-            if (perfume.name) {
-              results.push({
-                tokenId,
-                seller: listing.seller,
-                price: listing.price,
-                active: listing.active,
-                name: perfume.name,
-                rarity: Number(perfume.rarity),
-                gender: Number(perfume.gender),
-                pType: Number(perfume.pType),
-              });
-            }
+          if (listing.active && perfume.name) {
+            results.push({
+              tokenId,
+              seller: listing.seller,
+              price: listing.price,
+              active: listing.active,
+              name: perfume.name,
+              rarity: Number(perfume.rarity),
+              gender: Number(perfume.gender),
+              pType: Number(perfume.pType),
+            });
           }
         } catch (e) {
           console.warn(`Failed to load listing metadata for ID ${id}`, e);
@@ -151,6 +147,34 @@ export default function MarketplacePage() {
   useEffect(() => {
     loadListings();
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.sort-dropdown-container')) {
+        setShowSort(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Sorting logic
+  const sortedListings = [...listings].sort((a, b) => {
+    switch (sortBy) {
+      case "priceLow":
+        return a.price < b.price ? -1 : a.price > b.price ? 1 : 0;
+      case "priceHigh":
+        return a.price < b.price ? 1 : a.price > b.price ? -1 : 0;
+      case "rarity":
+        return b.rarity - a.rarity;
+      case "newest":
+        return b.tokenId - a.tokenId;
+      default:
+        return 0;
+    }
+  });
 
   const handleBuy = async (listing: ListingData) => {
     try {
@@ -191,6 +215,13 @@ export default function MarketplacePage() {
     return Number(ethers.formatUnits(price, 6)).toFixed(2);
   };
 
+  const sortOptions = [
+    { value: "priceLow", label: "Price: Low to High" },
+    { value: "priceHigh", label: "Price: High to Low" },
+    { value: "rarity", label: "Rarity (High to Low)" },
+    { value: "newest", label: "Newest First" },
+  ];
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
@@ -223,8 +254,53 @@ export default function MarketplacePage() {
           onClick={loadListings}
           className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all text-sm font-medium"
         >
-           Refresh
+          ↻ Refresh
         </button>
+      </div>
+
+      {/* Sort Controls */}
+      <div className="mb-6 flex items-center gap-3 relative sort-dropdown-container">
+        <span className="text-white/50 text-sm">Sort by:</span>
+        
+        <div className="relative">
+          <button
+            onClick={() => setShowSort(!showSort)}
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[180px] justify-between"
+          >
+            <span>
+              {sortBy === "priceLow" && "Price: Low to High"}
+              {sortBy === "priceHigh" && "Price: High to Low"}
+              {sortBy === "rarity" && "Rarity (High to Low)"}
+              {sortBy === "newest" && "Newest First"}
+            </span>
+            <svg className={`w-4 h-4 transition-transform ${showSort ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showSort && (
+            <div className="absolute top-full mt-1 left-0 w-full bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl">
+              {sortOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setSortBy(option.value as SortOption);
+                    setShowSort(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                    sortBy === option.value ? "text-amber-400 bg-white/5" : "text-white/70"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <span className="text-white/30 text-sm ml-auto">
+          {listings.length} listing{listings.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {error && (
@@ -233,14 +309,14 @@ export default function MarketplacePage() {
         </div>
       )}
 
-      {listings.length === 0 ? (
+      {sortedListings.length === 0 ? (
         <div className="text-center py-20 text-white/40 glass-card rounded-2xl p-8 border border-white/10">
           <p className="text-xl mb-2">No active listings yet.</p>
           <p className="text-sm">Be the first to list a scent from your collection!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {listings.map((listing) => {
+          {sortedListings.map((listing) => {
             const style = RARITY_STYLE[listing.rarity] || RARITY_STYLE[0];
             const isBuying = buyingId === listing.tokenId;
 
