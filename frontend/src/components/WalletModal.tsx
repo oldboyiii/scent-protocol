@@ -11,85 +11,51 @@ interface WalletOption {
   check: () => boolean;
 }
 
-// Official SVG icons from trusted sources
+// Official wallet icons from trusted CDN sources
 const WalletIcons = {
-  // Official MetaMask icon - exact copy from MetaMask extension
+  // MetaMask - using img tag with official CDN
   metamask: (
-    <svg viewBox="0 0 318.6 318.6" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <path d="M274.1 35.5l-99.5 73.9L193 65.8z" fill="#e2761b" stroke="#e2761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M44.4 35.5l98.7 74.6-17.5-44.3z" fill="#e4761b" stroke="#e4761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M238.3 206.8l-26.5 40.6 56.7 15.6 16.3-55.3z" fill="#e4761b" stroke="#e4761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M33.9 207.7L50.1 263l56.7-15.6-26.5-40.6z" fill="#e4761b" stroke="#e4761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M103.6 138.2l-15.8 23.9 56.3 2.5-2-60.5z" fill="#e4761b" stroke="#e4761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M214.9 138.2l-39-34.8-1.3 61.2 56.2-2.5z" fill="#e4761b" stroke="#e4761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M106.8 247.4l33.8-16.5-29.2-22.8z" fill="#e4761b" stroke="#e4761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M211.8 247.4l33.9-16.5-4.7-39.3z" fill="#e4761b" stroke="#e4761b" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M211.8 247.4l-33.9-16.5 2.7 22.1-.3 9.3z" fill="#d7c1b3" stroke="#d7c1b3" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M106.8 247.4l31.5 14.9-.2-9.3 2.5-22.1z" fill="#d7c1b3" stroke="#d7c1b3" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M138.8 193.5l-28.2-8.3 19.9-9.1z" fill="#233447" stroke="#233447" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M179.7 193.5l8.3-17.4 20 9.1z" fill="#233447" stroke="#233447" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M106.8 247.4l4.8-40.6-31.3.9z" fill="#cd6116" stroke="#cd6116" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M207 206.8l4.8 40.6 26.5-39.7z" fill="#cd6116" stroke="#cd6116" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M230.8 162.1l-56.2 2.5 5.2 28.9 8.3-17.4 20 9.1z" fill="#cd6116" stroke="#cd6116" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M110.6 185.2l20-9.1 8.2 17.4 5.3-28.9-56.3-2.5z" fill="#cd6116" stroke="#cd6116" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M87.8 162.1l23.6 46-.8-22.9z" fill="#e4751f" stroke="#e4751f" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M208.1 185.2l-1 22.9 23.7-46z" fill="#e4751f" stroke="#e4751f" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M144.1 164.6l-5.3 28.9-4.3 16.7 1.9-27.6z" fill="#e4751f" stroke="#e4751f" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M132.8 197.7l4.3 11.1 6.4-17.5-1.9-27.6z" fill="#e4751f" stroke="#e4751f" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M160.7 170.1l6.8 17.5 4.5-11.1-2.4-28.8z" fill="#e4751f" stroke="#e4751f" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M170.2 246.6l-10 7.9 26.5 7.4 2.4-9.3z" fill="#d7c1b3" stroke="#d7c1b3" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M176.5 244.1l4.5 15.3 2.3-18.1z" fill="#233447" stroke="#233447" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M198.4 219.7l-23.7-1.7 2.5 23.1 3.6-22.2z" fill="#161616" stroke="#161616" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    <img 
+      src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" 
+      alt="MetaMask"
+      className="w-8 h-8"
+    />
   ),
-
-  // Official Rabby icon - from Rabby official website
+  
+  // Rabby - from official website
   rabby: (
-    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="rabbyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style={{ stopColor: '#9D95F5', stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: '#6B5FDD', stopOpacity: 1 }} />
-        </linearGradient>
-      </defs>
-      <rect width="512" height="512" rx="96" fill="url(#rabbyGrad)"/>
-      <circle cx="256" cy="256" r="160" fill="white" opacity="0.95"/>
-      <circle cx="256" cy="256" r="120" fill="url(#rabbyGrad)"/>
-      <circle cx="256" cy="256" r="80" fill="white" opacity="0.95"/>
-    </svg>
+    <img 
+      src="https://rabby.io/assets/logo-256.png" 
+      alt="Rabby"
+      className="w-8 h-8 rounded-full"
+    />
   ),
-
-  // Official Coinbase icon - from Coinbase Wallet SDK
+  
+  // Coinbase Wallet - official icon
   coinbase: (
-    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="256" cy="256" r="256" fill="#0052FF"/>
-      <path d="M256 128c-70.7 0-128 57.3-128 128s57.3 128 128 128 128-57.3 128-128-57.3-128-128-128zm64 144h-128v-32h128v32z" fill="white"/>
-    </svg>
+    <img 
+      src="https://www.coinbase.com/favicon.ico" 
+      alt="Coinbase"
+      className="w-8 h-8"
+    />
   ),
-
-  // Official Trust Wallet icon - from Trust Wallet official
+  
+  // Trust Wallet - official icon
   trust: (
-    <svg viewBox="0 0 444 501" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="trustGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style={{ stopColor: '#0500FF', stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: '#0094FF', stopOpacity: 1 }} />
-        </linearGradient>
-      </defs>
-      <path d="M0.71 72.41L222.16 0.11v500.52C63.98 433.89 0.71 305.98 0.71 233.69V72.41z" fill="url(#trustGrad)"/>
-      <path d="M443.62 72.41L222.17 0.11v500.52c158.18-66.74 221.45-194.65 221.45-266.94V72.41z" fill="#3375BB"/>
-    </svg>
+    <img 
+      src="https://trustwallet.com/assets/images/favicon.png" 
+      alt="Trust Wallet"
+      className="w-8 h-8"
+    />
   ),
-
-  // Official OKX icon - from OKX official
+  
+  // OKX Wallet - official icon
   okx: (
-    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <rect width="512" height="512" rx="96" fill="#000000"/>
-      <rect x="160" y="160" width="64" height="64" fill="#FFFFFF"/>
-      <rect x="288" y="160" width="64" height="64" fill="#FFFFFF"/>
-      <rect x="160" y="288" width="64" height="64" fill="#FFFFFF"/>
-      <rect x="288" y="288" width="64" height="64" fill="#FFFFFF"/>
-    </svg>
+    <img 
+      src="https://www.okx.com/favicon.ico" 
+      alt="OKX"
+      className="w-8 h-8"
+    />
   ),
 };
 
