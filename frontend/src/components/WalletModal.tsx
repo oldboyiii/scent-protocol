@@ -11,69 +11,64 @@ interface WalletOption {
   check: () => boolean;
 }
 
-// Official wallet icons as inline SVG
+// Clean, high-contrast SVG icons optimized for 32x32px display
 const WalletIcons = {
-  // MetaMask
   metamask: (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M29.5 4L17 10.5L18.5 7L29.5 4Z" fill="#E2761B"/>
-      <path d="M2.5 4L14.8 10.8L13.5 7L2.5 4Z" fill="#E4761B"/>
-      <path d="M25.5 23L23 27.5L28.5 29L30 23.5L25.5 23Z" fill="#E4761B"/>
-      <path d="M4 23.5L5.5 29L11 27.5L8.5 23L4 23.5Z" fill="#E4761B"/>
-      <path d="M10.5 20L9 23.5L14.5 23.5L14 18.5L10.5 20Z" fill="#D7C1B3"/>
-      <path d="M21.5 20L18 18.5L17.5 23.5L23 23.5L21.5 20Z" fill="#D7C1B3"/>
-      <path d="M11 27.5L14.5 25.5L12.5 24L11 27.5Z" fill="#233447"/>
-      <path d="M21 27.5L19.5 24L17.5 25.5L21 27.5Z" fill="#233447"/>
-      <path d="M23 27.5L21 23.5L19.5 25L19.5 27.5L23 27.5Z" fill="#CD6116"/>
-      <path d="M9 27.5L12.5 27.5L12.5 25L11 23.5L9 27.5Z" fill="#CD6116"/>
-      <path d="M15 19.5L14 22L17.5 20.5L18 19.5L15 19.5Z" fill="#E4751F"/>
-      <path d="M17 19.5L17.5 20.5L21 22L20.5 19.5L17 19.5Z" fill="#E4751F"/>
-      <path d="M20.5 22L17.5 20.5L18.5 23L18 25.5L20.5 22Z" fill="#F6851B"/>
-      <path d="M11.5 22L14 25.5L13.5 23L14.5 20.5L11.5 22Z" fill="#F6851B"/>
-      <path d="M17.5 25.5L18.5 23L13.5 23L14.5 25.5L17.5 25.5Z" fill="#C0AD9E"/>
-      <path d="M21 25.5L18.5 23L17.5 25.5L21 25.5Z" fill="#C0AD9E"/>
-      <path d="M21 25.5L22.5 27.5L24 25.5L21 25.5Z" fill="#161616"/>
-      <path d="M11 25.5L12.5 27.5L14 25.5L11 25.5Z" fill="#161616"/>
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      {/* Main head shape */}
+      <path d="M27 6L24.5 4L16 9L7.5 4L5 6L2 11L6.5 15L4.5 22L9 27L16 30L23 27L27.5 22L25.5 15L30 11L27 6Z" fill="#E17726"/>
+      {/* Inner face details (lighter for contrast) */}
+      <path d="M16 11L14 14L16 15L18 14L16 11Z" fill="#F5A623"/>
+      <path d="M11.5 14L9 20L16 22L16 17L11.5 14Z" fill="#F5A623"/>
+      <path d="M20.5 14L16 17L16 22L23 20L20.5 14Z" fill="#F5A623"/>
+      {/* Eyes (larger, clearly visible) */}
+      <circle cx="13" cy="16" r="1.5" fill="#1A1A1A"/>
+      <circle cx="19" cy="16" r="1.5" fill="#1A1A1A"/>
+      {/* Nose */}
+      <path d="M15 19L16 20L17 19L16 21L15 19Z" fill="#1A1A1A"/>
     </svg>
   ),
-
-  // Rabby
+  
   rabby: (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="#8285EB"/>
-      <path d="M16 8C11.582 8 8 11.582 8 16C8 20.418 11.582 24 16 24C20.418 24 24 20.418 24 16C24 11.582 20.418 8 16 8ZM16 21C13.239 21 11 18.761 11 16C11 13.239 13.239 11 16 11C18.761 11 21 13.239 21 16C21 18.761 18.761 21 16 21Z" fill="white"/>
-      <circle cx="16" cy="16" r="2.5" fill="white"/>
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      {/* Background circle */}
+      <circle cx="16" cy="16" r="16" fill="#8697FF"/>
+      {/* Rabbit face (solid white) */}
+      <path d="M16 9C11.5 9 8 12.5 8 17C8 21.5 11.5 25 16 25C20.5 25 24 21.5 24 17C24 12.5 20.5 9 16 9Z" fill="white"/>
+      {/* Ears (solid white) */}
+      <ellipse cx="12" cy="10" rx="2.5" ry="4" fill="white" transform="rotate(-15 12 10)"/>
+      <ellipse cx="20" cy="10" rx="2.5" ry="4" fill="white" transform="rotate(15 20 10)"/>
+      {/* Eyes */}
+      <circle cx="13.5" cy="16" r="1.5" fill="#8697FF"/>
+      <circle cx="18.5" cy="16" r="1.5" fill="#8697FF"/>
+      {/* Nose */}
+      <path d="M15 19L16 20L17 19Z" fill="#8697FF"/>
     </svg>
   ),
 
-  // Coinbase
   coinbase: (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
       <circle cx="16" cy="16" r="16" fill="#0052FF"/>
-      <path d="M16 8C11.582 8 8 11.582 8 16C8 20.418 11.582 24 16 24C20.418 24 24 20.418 24 16C24 11.582 20.418 8 16 8ZM19 17H13V15H19V17Z" fill="white"/>
+      <path d="M16 8C11.58 8 8 11.58 8 16C8 20.42 11.58 24 16 24C20.42 24 24 20.42 24 16C24 11.58 20.42 8 16 8ZM16 21C13.24 21 11 18.76 11 16C11 13.24 13.24 11 16 11C18.76 11 21 13.24 21 16C21 18.76 18.76 21 16 21Z" fill="white"/>
     </svg>
   ),
 
-  // Trust Wallet
   trust: (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#3375BB"/>
-      <path d="M16 3L4 9V16C4 22.5 8.5 27.5 16 29C23.5 27.5 28 22.5 28 16V9L16 3Z" fill="white" fillOpacity="0.2"/>
-      <path d="M16 6L7 10.5V16C7 20.5 10.5 25 16 26.5C21.5 25 25 20.5 25 16V10.5L16 6Z" fill="white" fillOpacity="0.3"/>
-      <path d="M16 9L10 12.5V16C10 19 12.5 22 16 23C19.5 22 22 19 22 16V12.5L16 9Z" fill="white"/>
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 2L4 7V15C4 22.18 9.12 28.86 16 30C22.88 28.86 28 22.18 28 15V7L16 2Z" fill="#3375BB"/>
+      <path d="M16 9L9 12V17C9 21 11.5 24 16 25C20.5 24 23 21 23 17V12L16 9Z" fill="white"/>
     </svg>
   ),
 
-  // OKX
   okx: (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
       <rect width="32" height="32" rx="6" fill="#000000"/>
-      <rect x="10" y="10" width="4" height="4" fill="#FFFFFF"/>
-      <rect x="18" y="10" width="4" height="4" fill="#FFFFFF"/>
-      <rect x="10" y="18" width="4" height="4" fill="#FFFFFF"/>
-      <rect x="18" y="18" width="4" height="4" fill="#FFFFFF"/>
+      <rect x="8" y="8" width="6" height="6" fill="#FFFFFF"/>
+      <rect x="18" y="8" width="6" height="6" fill="#FFFFFF"/>
+      <rect x="8" y="18" width="6" height="6" fill="#FFFFFF"/>
+      <rect x="18" y="18" width="6" height="6" fill="#FFFFFF"/>
     </svg>
-  ),
+  )
 };
 
 const wallets: WalletOption[] = [
