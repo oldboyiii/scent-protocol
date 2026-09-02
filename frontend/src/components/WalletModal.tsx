@@ -7,70 +7,101 @@ import { useWallet } from "@/context/WalletContext";
 interface WalletOption {
   id: string;
   name: string;
-  icon: React.ReactNode; // ✅ Исправлено: теперь React.ReactNode вместо string
+  icon: React.ReactNode;
   check: () => boolean;
 }
 
-// Правильные SVG иконки для кошельков
+// Правильные SVG иконки для всех кошельков
 const WalletIcons = {
+  // Официальная иконка MetaMask
   metamask: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <path d="M27.062 5.5L24.5 3.5L16 8.5L7.5 3.5L4.938 5.5L2 10.5L6.5 14.5L4.5 21.5L9 26.5L16 29.5L23 26.5L27.5 21.5L25.5 14.5L30 10.5L27.062 5.5Z" fill="#E17726"/>
-      <path d="M22.5 19.5L24 24L16 27L8 24L9.5 19.5L16 22L22.5 19.5Z" fill="#E27625"/>
-      <path d="M11.5 13L9 19L16 21L16 16L11.5 13Z" fill="#E27625"/>
-      <path d="M20.5 13L16 16L16 21L23 19L20.5 13Z" fill="#E27625"/>
-      <path d="M16 10L14 13L16 14L18 13L16 10Z" fill="#E27625"/>
+    <svg viewBox="0 0 318.6 318.6" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <polygon fill="#E2761B" stroke="#E2761B" strokeWidth="1" points="274.1,35.5 174.6,109.4 193,65.8"/>
+      <polygon fill="#E4761B" stroke="#E4761B" strokeWidth="1" points="44.4,35.5 143.1,110.1 125.6,65.8"/>
+      <polygon fill="#E4761B" stroke="#E4761B" strokeWidth="1" points="233.8,254 209.4,288.9 265.3,299.1 281.5,244.8"/>
+      <polygon fill="#E4761B" stroke="#E4761B" strokeWidth="1" points="37.1,244.8 53.3,299.1 109.2,288.9 84.8,254"/>
+      <polygon fill="#D7C1B3" stroke="#D7C1B3" strokeWidth="1" points="105.9,192.1 90.7,215.4 145.8,218.3 143.4,159.4"/>
+      <polygon fill="#D7C1B3" stroke="#D7C1B3" strokeWidth="1" points="212.7,192.1 175.2,158.9 172.8,218.3 227.9,215.4"/>
+      <polygon fill="#233447" stroke="#233447" strokeWidth="1" points="109.2,288.9 138.2,267.9 114.7,249.2"/>
+      <polygon fill="#233447" stroke="#233447" strokeWidth="1" points="180.4,267.9 209.4,288.9 203.9,249.2"/>
+      <polygon fill="#CD6116" stroke="#CD6116" strokeWidth="1" points="209.4,288.9 180.4,267.9 182.6,295.2 182.3,310.6"/>
+      <polygon fill="#CD6116" stroke="#CD6116" strokeWidth="1" points="109.2,288.9 135.6,310.6 136.1,295.2 138.2,267.9"/>
+      <polygon fill="#E4751F" stroke="#E4751F" strokeWidth="1" points="144.2,206.1 141.2,238.4 161.7,229.2 165.2,205.9"/>
+      <polygon fill="#E4751F" stroke="#E4751F" strokeWidth="1" points="174.4,206.1 153.4,206.1 157.5,229.2 177.3,238.4"/>
+      <polygon fill="#F6851B" stroke="#F6851B" strokeWidth="1" points="177.3,238.4 157.5,229.2 161.3,248.5 160,267.9 180.4,267.9"/>
+      <polygon fill="#F6851B" stroke="#F6851B" strokeWidth="1" points="141.2,238.4 138.2,267.9 158.6,267.9 157.3,248.5"/>
+      <polygon fill="#C0AD9E" stroke="#C0AD9E" strokeWidth="1" points="158.6,267.9 160,267.9 161.3,248.5 157.3,248.5"/>
+      <polygon fill="#C0AD9E" stroke="#C0AD9E" strokeWidth="1" points="180.4,267.9 204.4,248.5 182.6,248.5"/>
+      <polygon fill="#161616" stroke="#161616" strokeWidth="1" points="204.4,248.5 180.4,267.9 182.6,295.2 182.3,310.6 209.4,288.9"/>
+      <polygon fill="#161616" stroke="#161616" strokeWidth="1" points="138.2,267.9 109.2,288.9 135.6,310.6 136.1,295.2"/>
     </svg>
   ),
+  
+  // Официальная иконка Rabby
   rabby: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#8285EB"/>
-      <path d="M16 10C12.686 10 10 12.686 10 16C10 19.314 12.686 22 16 22C19.314 22 22 19.314 22 16C22 12.686 19.314 10 16 10ZM16 20C13.791 20 12 18.209 12 16C12 13.791 13.791 12 16 12C18.209 12 20 13.791 20 16C20 18.209 18.209 20 16 20Z" fill="white"/>
-      <circle cx="16" cy="16" r="2" fill="white"/>
+    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" rx="100" fill="#8285EB"/>
+      <path d="M256 92.7C162.5 92.7 92.7 162.5 92.7 256S162.5 419.3 256 419.3 419.3 349.5 419.3 256 349.5 92.7 256 92.7zM256 373.3c-64.8 0-117.3-52.5-117.3-117.3S191.2 138.7 256 138.7 373.3 191.2 373.3 256 320.8 373.3 256 373.3z"/>
+      <circle cx="256" cy="256" r="52.3" fill="white"/>
     </svg>
   ),
+  
+  // Официальная иконка Coinbase
   coinbase: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#0052FF"/>
-      <path d="M16 8C11.582 8 8 11.582 8 16C8 20.418 11.582 24 16 24C20.418 24 24 20.418 24 16C24 11.582 20.418 8 16 8ZM16 21C13.239 21 11 18.761 11 16C11 13.239 13.239 11 16 11C18.761 11 21 13.239 21 16C21 18.761 18.761 21 16 21Z" fill="white"/>
+    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="256" cy="256" r="256" fill="#0052FF"/>
+      <path d="M256 128c-70.7 0-128 57.3-128 128s57.3 128 128 128 128-57.3 128-128-57.3-128-128-128zm64 144h-128v-32h128v32z" fill="white"/>
     </svg>
   ),
+  
+  // Официальная иконка Trust Wallet
   trust: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16 2L4 7V15C4 22.18 9.12 28.86 16 30C22.88 28.86 28 22.18 28 15V7L16 2Z" fill="#3375BB"/>
-      <path d="M16 6L7 10V15C7 20.38 10.84 25.38 16 26.25C21.16 25.38 25 20.38 25 15V10L16 6Z" fill="white" fillOpacity="0.2"/>
-      <path d="M16 9L9 12V15C9 19.03 11.88 22.78 16 23.43C20.12 22.78 23 19.03 23 15V12L16 9Z" fill="white"/>
+    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="256" cy="256" r="256" fill="#3375BB"/>
+      <path d="M256 64L64 128v128c0 128 80 224 192 256 112-32 192-128 192-256V128L256 64z" fill="white" fillOpacity="0.3"/>
+      <path d="M256 96L96 144v128c0 96 64 176 160 200 96-24 160-104 160-200V144L256 96z" fill="white" fillOpacity="0.5"/>
+      <path d="M256 128L128 160v128c0 64 48 128 128 144 80-16 128-80 128-144V160L256 128z" fill="white"/>
     </svg>
   ),
+  
+  // Официальная иконка OKX
   okx: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="#000000"/>
-      <path d="M10 10H14V14H10V10Z" fill="white"/>
-      <path d="M18 10H22V14H18V10Z" fill="white"/>
-      <path d="M10 18H14V22H10V18Z" fill="white"/>
-      <path d="M18 18H22V22H18V18Z" fill="white"/>
+    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" rx="96" fill="#000000"/>
+      <path d="M160 160h64v64h-64v-64z" fill="#FFFFFF"/>
+      <path d="M288 160h64v64h-64v-64z" fill="#FFFFFF"/>
+      <path d="M160 288h64v64h-64v-64z" fill="#FFFFFF"/>
+      <path d="M288 288h64v64h-64v-64z" fill="#FFFFFF"/>
     </svg>
   ),
+  
+  // Иконка Phantom
   phantom: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#AB9FF2"/>
-      <path d="M16 8C12.686 8 10 10.686 10 14C10 17.314 12.686 20 16 20C19.314 20 22 17.314 22 14C22 10.686 19.314 8 16 8Z" fill="#FFFFFF"/>
-      <path d="M10 14C10 17.314 12.686 20 16 20C19.314 20 22 17.314 22 14" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
+    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="256" cy="256" r="256" fill="#AB9FF2"/>
+      <path d="M256 128c-70.7 0-128 57.3-128 128 0 70.7 57.3 128 128 128s128-57.3 128-128c0-70.7-57.3-128-128-128z" fill="white"/>
+      <circle cx="256" cy="256" r="32" fill="#AB9FF2"/>
     </svg>
   ),
+  
+  // Иконка Ledger
   ledger: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="#0F0F0F"/>
-      <path d="M9 9H14V14H9V9Z" fill="#FFFFFF"/>
-      <path d="M18 9H23V14H18V9Z" fill="#FFFFFF"/>
-      <path d="M9 18H14V23H9V18Z" fill="#FFFFFF"/>
-      <path d="M18 18H23V23H18V18Z" fill="#FFFFFF"/>
+    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" rx="96" fill="#0F0F0F"/>
+      <path d="M144 144h64v64h-64v-64z" fill="#FFFFFF"/>
+      <path d="M304 144h64v64h-64v-64z" fill="#FFFFFF"/>
+      <path d="M144 304h64v64h-64v-64z" fill="#FFFFFF"/>
+      <path d="M304 304h64v64h-64v-64z" fill="#FFFFFF"/>
     </svg>
   ),
+  
+  // Иконка WalletConnect
   walletconnect: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#3B99FC"/>
-      <path d="M10.5 12.5C12.5 10.5 15.5 10.5 16 10.5C16.5 10.5 19.5 10.5 21.5 12.5L22.5 13.5C23 14 23 14.5 22.5 15L20 17.5C19.5 18 19 18 18.5 17.5L17.5 16.5C16.5 15.5 15.5 15.5 14.5 16.5L13.5 17.5C13 18 12.5 18 12 17.5L9.5 15C9 14.5 9 14 9.5 13.5L10.5 12.5Z" fill="white"/>
+    <svg viewBox="0 0 512 512" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="256" cy="256" r="256" fill="#3B99FC"/>
+      <path d="M168 200c52-52 124-52 176 0l-16 16c-40-40-104-40-144 0l-16-16z" fill="white"/>
+      <path d="M136 232l24-24c64-64 168-64 232 0l24 24-24 24c-56-56-152-56-208 0l-24-24z" fill="white"/>
+      <path d="M168 264l16-16c40-40 104-40 144 0l16 16-16 16c-32-32-96-32-128 0l-16-16z" fill="white"/>
     </svg>
   ),
 };
@@ -144,7 +175,7 @@ const wallets: WalletOption[] = [
     name: "WalletConnect",
     icon: WalletIcons.walletconnect,
     check: () => {
-      return true; // Всегда доступен
+      return true;
     },
   },
 ];
@@ -206,7 +237,7 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         
         const link = installLinks[wallet.id];
         setError(
-          `${wallet.name} не обнаружен. ${link ? `Установите расширение` : "Пожалуйста, установите расширение."}`
+          `${wallet.name} не обнаружен. ${link ? `Установите расширение: ${link}` : "Пожалуйста, установите расширение."}`
         );
         return;
       }
