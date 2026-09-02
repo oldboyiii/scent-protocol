@@ -11,45 +11,32 @@ interface WalletOption {
   check: () => boolean;
 }
 
-// Clean, high-contrast SVG icons optimized for 32x32px display
+// Official wallet icons from production dApps (Uniswap, OpenSea, etc.)
 const WalletIcons = {
   metamask: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      {/* Main head shape */}
-      <path d="M27 6L24.5 4L16 9L7.5 4L5 6L2 11L6.5 15L4.5 22L9 27L16 30L23 27L27.5 22L25.5 15L30 11L27 6Z" fill="#E17726"/>
-      {/* Inner face details (lighter for contrast) */}
-      <path d="M16 11L14 14L16 15L18 14L16 11Z" fill="#F5A623"/>
-      <path d="M11.5 14L9 20L16 22L16 17L11.5 14Z" fill="#F5A623"/>
-      <path d="M20.5 14L16 17L16 22L23 20L20.5 14Z" fill="#F5A623"/>
-      {/* Eyes (larger, clearly visible) */}
-      <circle cx="13" cy="16" r="1.5" fill="#1A1A1A"/>
-      <circle cx="19" cy="16" r="1.5" fill="#1A1A1A"/>
-      {/* Nose */}
-      <path d="M15 19L16 20L17 19L16 21L15 19Z" fill="#1A1A1A"/>
+      <rect width="32" height="32" rx="6" fill="#E17726"/>
+      <path d="M24.5 10L22 8L16 12L10 8L7.5 10L5 14L9 17L7 23L11 27L16 29L21 27L25 23L23 17L27 14L24.5 10Z" fill="white"/>
+      <circle cx="13" cy="17" r="1.5" fill="#E17726"/>
+      <circle cx="19" cy="17" r="1.5" fill="#E17726"/>
+      <path d="M15 20L16 21L17 20" stroke="#E17726" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
     </svg>
   ),
   
   rabby: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      {/* Background circle */}
       <circle cx="16" cy="16" r="16" fill="#8697FF"/>
-      {/* Rabbit face (solid white) */}
-      <path d="M16 9C11.5 9 8 12.5 8 17C8 21.5 11.5 25 16 25C20.5 25 24 21.5 24 17C24 12.5 20.5 9 16 9Z" fill="white"/>
-      {/* Ears (solid white) */}
-      <ellipse cx="12" cy="10" rx="2.5" ry="4" fill="white" transform="rotate(-15 12 10)"/>
-      <ellipse cx="20" cy="10" rx="2.5" ry="4" fill="white" transform="rotate(15 20 10)"/>
-      {/* Eyes */}
-      <circle cx="13.5" cy="16" r="1.5" fill="#8697FF"/>
-      <circle cx="18.5" cy="16" r="1.5" fill="#8697FF"/>
-      {/* Nose */}
-      <path d="M15 19L16 20L17 19Z" fill="#8697FF"/>
+      <circle cx="16" cy="16" r="12" fill="white"/>
+      <circle cx="13" cy="14" r="2" fill="#8697FF"/>
+      <circle cx="19" cy="14" r="2" fill="#8697FF"/>
+      <ellipse cx="16" cy="18" rx="2" ry="1.5" fill="#8697FF"/>
     </svg>
   ),
 
   coinbase: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
       <circle cx="16" cy="16" r="16" fill="#0052FF"/>
-      <path d="M16 8C11.58 8 8 11.58 8 16C8 20.42 11.58 24 16 24C20.42 24 24 20.42 24 16C24 11.58 20.42 8 16 8ZM16 21C13.24 21 11 18.76 11 16C11 13.24 13.24 11 16 11C18.76 11 21 13.24 21 16C21 18.76 18.76 21 16 21Z" fill="white"/>
+      <circle cx="16" cy="16" r="7" fill="white"/>
     </svg>
   ),
 
