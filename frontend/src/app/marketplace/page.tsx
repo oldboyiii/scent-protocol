@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 
@@ -13,13 +12,11 @@ const MARKETPLACE_ABI = [
   "function listings(uint256) view returns (address seller, uint256 price, bool active)",
   "function buy(uint256 tokenId)",
   "function usdc() view returns (address)",
-  "function nft() view returns (address)"
+  "function getActiveCount() view returns (uint256)"
 ];
 
 const NFT_ABI = [
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)",
-  "function ownerOf(uint256 tokenId) view returns (address)",
-  "function setApprovalForAll(address operator, bool approved)"
+  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
 const USDC_ABI = [
@@ -80,64 +77,75 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [usdcAddress, setUsdcAddress] = useState<string>("");
+  const [error, setError] = useState<string>("");
+
+  const loadListings = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const signer = await getArcSigner();
+      const provider = signer.provider;
+      if (!provider) throw new Error("Provider not found");
+
+      const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, provider);
+
+      const usdcAddr = await marketplace.usdc();
+      setUsdcAddress(usdcAddr);
+
+      // Get active count first
+      const activeCount = await marketplace.getActiveCount();
+      console.log("Active listings count:", Number(activeCount));
+
+      if (Number(activeCount) === 0) {
+        setListings([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get all active IDs
+      const activeIds: bigint[] = await marketplace.getActiveListings();
+      console.log("Active IDs:", activeIds.map(id => Number(id)));
+      
+      const results: ListingData[] = [];
+      for (const id of activeIds) {
+        try {
+          const tokenId = Number(id);
+          const [listing, perfume] = await Promise.all([
+            marketplace.listings(tokenId),
+            nftContract.getPerfume(tokenId)
+          ]);
+
+          console.log(`Listing ${tokenId}:`, listing, "Perfume:", perfume.name);
+
+          if (listing.active && perfume.name) {
+            results.push({
+              tokenId,
+              seller: listing.seller,
+              price: listing.price,
+              active: listing.active,
+              name: perfume.name,
+              rarity: Number(perfume.rarity),
+              gender: Number(perfume.gender),
+              pType: Number(perfume.pType),
+            });
+          }
+        } catch (e) {
+          console.warn(`Failed to load listing metadata for ID ${id}`, e);
+        }
+      }
+
+      console.log("Final listings:", results);
+      setListings(results);
+    } catch (error: any) {
+      console.error("Failed to fetch listings:", error);
+      setError(error.message || "Failed to load marketplace");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadListings = async () => {
-      try {
-        const signer = await getArcSigner();
-        const provider = signer.provider;
-        if (!provider) throw new Error("Provider not found");
-
-        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-        const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, provider);
-
-        // Get USDC address for later use
-        const usdcAddr = await marketplace.usdc();
-        setUsdcAddress(usdcAddr);
-
-        // ONE call to get all active listing IDs
-        const activeIds: bigint[] = await marketplace.getActiveListings();
-        
-        if (activeIds.length === 0) {
-          setListings([]);
-          setLoading(false);
-          return;
-        }
-
-        // Fetch metadata for each active listing
-        const results: ListingData[] = [];
-        for (const id of activeIds) {
-          try {
-            const tokenId = Number(id);
-            const [listing, perfume] = await Promise.all([
-              marketplace.listings(tokenId),
-              nftContract.getPerfume(tokenId)
-            ]);
-
-            if (listing.active && perfume.name) {
-              results.push({
-                tokenId,
-                seller: listing.seller,
-                price: listing.price,
-                active: listing.active,
-                name: perfume.name,
-                rarity: Number(perfume.rarity),
-                gender: Number(perfume.gender),
-                pType: Number(perfume.pType),
-              });
-            }
-          } catch (e) {
-            console.warn(`Failed to load listing metadata`, e);
-          }
-        }
-
-        setListings(results);
-      } catch (error) {
-        console.error("Failed to fetch listings:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadListings();
   }, []);
 
@@ -150,7 +158,6 @@ export default function MarketplacePage() {
       const usdcContract = new ethers.Contract(usdcAddress, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-      // Step 1: Check if user has approved enough USDC
       const currentAllowance: bigint = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
       
       if (currentAllowance < listing.price) {
@@ -159,13 +166,12 @@ export default function MarketplacePage() {
         await approveTx.wait();
       }
 
-      // Step 2: Execute buy
       console.log("Buying NFT...");
       const buyTx = await marketplace.buy(listing.tokenId);
       await buyTx.wait();
 
       alert("Purchase successful!");
-      window.location.reload();
+      await loadListings();
     } catch (error: any) {
       console.error("Buy failed:", error);
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
@@ -185,10 +191,12 @@ export default function MarketplacePage() {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-[1.3] pb-3">
-          Marketplace
-        </h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-[1.3] pb-3">
+            Marketplace
+          </h1>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-56 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
           ))}
@@ -199,14 +207,28 @@ export default function MarketplacePage() {
 
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-[1.3] pb-3">
-          Marketplace
-        </h1>
-        <p className="text-white/50">
-          Buy and sell unique AI-generated digital perfumes on Arc Network.
-        </p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-[1.3] pb-3">
+            Marketplace
+          </h1>
+          <p className="text-white/50">
+            Buy and sell unique AI-generated digital perfumes on Arc Network.
+          </p>
+        </div>
+        <button
+          onClick={loadListings}
+          className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all text-sm font-medium"
+        >
+           Refresh
+        </button>
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+          {error}
+        </div>
+      )}
 
       {listings.length === 0 ? (
         <div className="text-center py-20 text-white/40 glass-card rounded-2xl p-8 border border-white/10">
