@@ -12,6 +12,7 @@ const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
 const MARKETPLACE_ABI = [
   "function list(uint256 tokenId, uint256 price)",
+  "function cancel(uint256 tokenId)",
   "function listings(uint256) view returns (address seller, uint256 price, bool active)"
 ];
 
@@ -268,6 +269,34 @@ export default function CollectionPage() {
     }
   };
 
+  const handleCancelListing = async (tokenId: number) => {
+    if (!confirm(`Remove Scent #${tokenId} from the marketplace?`)) return;
+    
+    try {
+      setListingStatus("listing");
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
+
+      console.log("Canceling listing...");
+      const cancelTx = await marketplaceContract.cancel(tokenId);
+      await cancelTx.wait();
+
+      alert("Listing removed successfully!");
+      setListingStatus("idle");
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Cancel failed:", error);
+      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+        alert("Transaction rejected by user.");
+      } else {
+        alert(`Cancel failed: ${error.shortMessage || error.message || "Check console"}`);
+      }
+      setListingStatus("idle");
+    }
+  };
+
   if (!walletReady || loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
@@ -430,9 +459,13 @@ export default function CollectionPage() {
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                         {s.isListed ? (
-                          <span className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white/50 text-xs font-bold cursor-not-allowed">
-                            Listed
-                          </span>
+                          <button
+                            onClick={() => handleCancelListing(s.tokenId)}
+                            disabled={listingStatus === "listing"}
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                          >
+                            {listingStatus === "listing" ? "Removing..." : "Remove"}
+                          </button>
                         ) : (
                           <button
                             onClick={() => handleListClick(s.tokenId)}
