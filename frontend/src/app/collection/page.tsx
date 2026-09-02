@@ -44,6 +44,8 @@ interface StoredScent {
   description?: string;
 }
 
+type SortOption = "newest" | "oldest" | "name" | "rarity";
+
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
@@ -94,6 +96,8 @@ export default function CollectionPage() {
   const [scents, setScents] = useState<StoredScent[]>([]);
   const [loading, setLoading] = useState(true);
   const [walletReady, setWalletReady] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [showSort, setShowSort] = useState(false);
   const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; price: string }>({
     open: false,
     tokenId: null,
@@ -122,6 +126,18 @@ export default function CollectionPage() {
       return () => clearTimeout(timer);
     }
   }, [address]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.sort-dropdown-container')) {
+        setShowSort(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     async function fetchCollection() {
@@ -209,7 +225,7 @@ export default function CollectionPage() {
           await new Promise(r => setTimeout(r, 50));
         }
 
-        setScents(results.sort((a, b) => b.tokenId - a.tokenId));
+        setScents(results);
       } catch (e) {
         console.error("Collection fetch error:", e);
       } finally {
@@ -219,6 +235,22 @@ export default function CollectionPage() {
 
     fetchCollection();
   }, [walletReady, address]);
+
+  // Sorting logic
+  const sortedScents = [...scents].sort((a, b) => {
+    switch (sortBy) {
+      case "newest":
+        return b.tokenId - a.tokenId;
+      case "oldest":
+        return a.tokenId - b.tokenId;
+      case "name":
+        return (a.perfume?.name || a.name || "").localeCompare(b.perfume?.name || b.name || "");
+      case "rarity":
+        return (b.perfume?.rarity ?? b.rarity ?? 0) - (a.perfume?.rarity ?? a.rarity ?? 0);
+      default:
+        return 0;
+    }
+  });
 
   const handleListClick = (tokenId: number) => {
     setListingModal({ open: true, tokenId, price: "" });
@@ -297,6 +329,13 @@ export default function CollectionPage() {
     }
   };
 
+  const sortOptions = [
+    { value: "newest", label: "Newest First" },
+    { value: "oldest", label: "Oldest First" },
+    { value: "name", label: "Name (A-Z)" },
+    { value: "rarity", label: "Rarity (High to Low)" },
+  ];
+
   if (!walletReady || loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
@@ -330,6 +369,51 @@ export default function CollectionPage() {
         {scents.length} scent{scents.length !== 1 ? "s" : ""} collected
       </p>
 
+      {/* Sort Controls */}
+      <div className="mb-6 flex items-center gap-3 relative sort-dropdown-container">
+        <span className="text-white/50 text-sm">Sort by:</span>
+        
+        <div className="relative">
+          <button
+            onClick={() => setShowSort(!showSort)}
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
+          >
+            <span>
+              {sortBy === "newest" && "Newest First"}
+              {sortBy === "oldest" && "Oldest First"}
+              {sortBy === "name" && "Name (A-Z)"}
+              {sortBy === "rarity" && "Rarity (High to Low)"}
+            </span>
+            <svg className={`w-4 h-4 transition-transform ${showSort ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showSort && (
+            <div className="absolute top-full mt-1 left-0 w-full bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl">
+              {sortOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setSortBy(option.value as SortOption);
+                    setShowSort(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                    sortBy === option.value ? "text-amber-400 bg-white/5" : "text-white/70"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <span className="text-white/30 text-sm ml-auto">
+          {scents.length} items
+        </span>
+      </div>
+
       {scents.length === 0 ? (
         <div className="text-center text-white/40 py-20">
           <p className="text-lg mb-4">No scents in your collection yet.</p>
@@ -342,7 +426,7 @@ export default function CollectionPage() {
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
-          {scents.map((s) => {
+          {sortedScents.map((s) => {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
