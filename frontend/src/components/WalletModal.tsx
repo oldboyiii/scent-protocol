@@ -11,42 +11,44 @@ interface WalletOption {
   check: () => boolean;
 }
 
-// Official SVG Icons for Wallets
+// Correct Official SVG Icons
 const WalletIcons = {
   metamask: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M30.144 10.28l-2.816-8.384c-.32-.928-1.376-1.376-2.272-.992L16 4.896 6.944.904c-.896-.384-1.952.064-2.272.992L1.856 10.28c-.32.928.16 1.92 1.088 2.272l2.56 1.088L3.84 20.48c-.32.928.16 1.92 1.088 2.272l3.2 1.376L6.4 29.28c-.32.928.16 1.92 1.088 2.272l7.68 3.2c.512.224 1.088.224 1.6 0l7.68-3.2c.928-.384 1.408-1.344 1.088-2.272l-1.728-5.152 3.2-1.376c.928-.384 1.408-1.344 1.088-2.272l-1.664-6.848 2.56-1.088c.928-.352 1.408-1.344 1.088-2.272z" fill="#E17726"/>
-      <path d="M23.36 24.128l-1.728-5.152L24.8 20.352l-1.44 3.776z" fill="#E27625"/>
-      <path d="M8.64 24.128l1.728-5.152L7.2 20.352l1.44 3.776z" fill="#E27625"/>
-      <path d="M13.76 13.44l-1.92 5.696 4.16.192.192-4.48-2.432-1.408z" fill="#E27625"/>
-      <path d="M18.24 13.44l2.432-1.408-.192 4.48 4.16-.192-1.92-5.696-4.48 2.816z" fill="#E27625"/>
-      <path d="M12.16 26.688l2.688-1.312-2.336-1.824-.352 3.136z" fill="#E27625"/>
-      <path d="M19.84 26.688l-.352-3.136-2.336 1.824 2.688 1.312z" fill="#E27625"/>
+      <path d="M27.062 5.5L24.5 3.5L16 8.5L7.5 3.5L4.938 5.5L2 10.5L6.5 14.5L4.5 21.5L9 26.5L16 29.5L23 26.5L27.5 21.5L25.5 14.5L30 10.5L27.062 5.5Z" fill="#E17726"/>
+      <path d="M22.5 19.5L24 24L16 27L8 24L9.5 19.5L16 22L22.5 19.5Z" fill="#E27625"/>
+      <path d="M11.5 13L9 19L16 21L16 16L11.5 13Z" fill="#E27625"/>
+      <path d="M20.5 13L16 16L16 21L23 19L20.5 13Z" fill="#E27625"/>
+      <path d="M16 10L14 13L16 14L18 13L16 10Z" fill="#E27625"/>
     </svg>
   ),
   rabby: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#4E85F7"/>
-      <path d="M16 8c-4.418 0-8 3.582-8 8 0 3.314 2.016 6.156 4.88 7.416.4.176.544-.176.544-.39 0-.192-.008-.832-.012-1.504-1.984.432-2.4-1.064-2.4-1.064-.324-.824-.788-1.044-.788-1.044-.644-.44.048-.432.048-.432.712.05 1.088.732 1.088.732.632 1.084 1.66.772 2.064.592.064-.46.248-.772.452-.948-1.584-.18-3.248-.792-3.248-3.528 0-.78.276-1.416.732-1.916-.076-.18-.32-.904.068-1.884 0 0 .6-.192 1.968.732.572-.16 1.184-.24 1.792-.244.608.004 1.22.084 1.792.244 1.368-.924 1.968-.732 1.968-.732.388.98.144 1.704.068 1.884.456.5.732 1.136.732 1.916 0 2.744-1.668 3.348-3.256 3.524.256.22.484.656.484 1.324 0 .956-.008 1.728-.008 1.964 0 .216.144.472.548.392C21.984 22.156 24 19.314 24 16c0-4.418-3.582-8-8-8z" fill="#FFFFFF"/>
+      <circle cx="16" cy="16" r="16" fill="#8285EB"/>
+      <path d="M16 9C12.134 9 9 12.134 9 16C9 19.866 12.134 23 16 23C19.866 23 23 19.866 23 16C23 12.134 19.866 9 16 9ZM16 21C13.239 21 11 18.761 11 16C11 13.239 13.239 11 16 11C18.761 11 21 13.239 21 16C21 18.761 18.761 21 16 21Z" fill="white"/>
+      <path d="M16 12C13.791 12 12 13.791 12 16C12 18.209 13.791 20 16 20C18.209 20 20 18.209 20 16C20 13.791 18.209 12 16 12ZM16 18C14.896 18 14 17.104 14 16C14 14.896 14.896 14 16 14C17.104 14 18 14.896 18 16C18 17.104 17.104 18 16 18Z" fill="white"/>
     </svg>
   ),
   coinbase: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="16" cy="16" r="16" fill="#0052FF"/>
-      <path d="M16 8c-4.418 0-8 3.582-8 8s3.582 8 8 8 8-3.582 8-8-3.582-8-8-8zm0 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" fill="#FFFFFF"/>
+      <path d="M16 8C11.582 8 8 11.582 8 16C8 20.418 11.582 24 16 24C20.418 24 24 20.418 24 16C24 11.582 20.418 8 16 8ZM16 21C13.239 21 11 18.761 11 16C11 13.239 13.239 11 16 11C18.761 11 21 13.239 21 16C21 18.761 18.761 21 16 21Z" fill="white"/>
     </svg>
   ),
   trust: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16 2L4 7v8c0 7.18 5.12 13.86 12 15 6.88-1.14 12-7.82 12-15V7L16 2z" fill="#3375BB"/>
-      <path d="M16 6.5L7 10.5v6.5c0 5.38 3.84 10.38 9 11.25 5.16-.87 9-5.87 9-11.25v-6.5L16 6.5z" fill="#FFFFFF" fillOpacity="0.2"/>
-      <path d="M16 9.5l-6 2.5v5c0 4.03 2.88 7.78 6 8.43 3.12-.65 6-4.4 6-8.43v-5L16 9.5z" fill="#FFFFFF"/>
+      <path d="M16 2L4 7V15C4 22.18 9.12 28.86 16 30C22.88 28.86 28 22.18 28 15V7L16 2Z" fill="#3375BB"/>
+      <path d="M16 6L7 10V15C7 20.38 10.84 25.38 16 26.25C21.16 25.38 25 20.38 25 15V10L16 6Z" fill="white" fillOpacity="0.2"/>
+      <path d="M16 9L9 12V15C9 19.03 11.88 22.78 16 23.43C20.12 22.78 23 19.03 23 15V12L16 9Z" fill="white"/>
     </svg>
   ),
   okx: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="8" fill="#000000"/>
-      <path d="M8 12h4v8H8v-8zm6 0h4v8h-4v-8zm6 0h4v8h-4v-8z" fill="#FFFFFF"/>
+      <rect width="32" height="32" rx="6" fill="black"/>
+      <path d="M10 10H14V14H10V10Z" fill="white"/>
+      <path d="M18 10H22V14H18V10Z" fill="white"/>
+      <path d="M10 18H14V22H10V18Z" fill="white"/>
+      <path d="M18 18H22V22H18V18Z" fill="white"/>
     </svg>
   )
 };
@@ -58,14 +60,10 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.metamask,
     check: () => {
       const w = window as any;
-      // Check various MetaMask indicators
-      const hasMetaMask = 
+      return (
         w.ethereum?.isMetaMask ||
-        w.ethereum?.providers?.some((p: any) => p.isMetaMask) ||
-        (w.ethereum && !w.ethereum.isRabby && !w.ethereum.isCoinbaseWallet && !w.ethereum.isTrust);
-      
-      if (hasMetaMask) console.log("✅ MetaMask detected");
-      return hasMetaMask;
+        (w.ethereum && !w.ethereum.isRabby && !w.ethereum.isCoinbaseWallet && !w.ethereum.isTrust)
+      );
     },
   },
   {
@@ -74,14 +72,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.rabby,
     check: () => {
       const w = window as any;
-      const hasRabby = 
-        w.ethereum?.isRabby ||
-        w.ethereum?.providers?.some((p: any) => p.isRabby) ||
-        w.rabby ||
-        w.ethereum?.rabby;
-      
-      if (hasRabby) console.log("✅ Rabby detected");
-      return hasRabby;
+      return w.ethereum?.isRabby || w.rabby;
     },
   },
   {
@@ -90,14 +81,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.coinbase,
     check: () => {
       const w = window as any;
-      const hasCoinbase = 
-        w.ethereum?.isCoinbaseWallet ||
-        w.ethereum?.providers?.some((p: any) => p.isCoinbaseWallet) ||
-        w.coinbaseWalletExtension ||
-        w.coinbaseWallet;
-      
-      if (hasCoinbase) console.log("✅ Coinbase detected");
-      return hasCoinbase;
+      return w.ethereum?.isCoinbaseWallet || w.coinbaseWalletExtension || w.coinbaseWallet;
     },
   },
   {
@@ -106,14 +90,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.trust,
     check: () => {
       const w = window as any;
-      const hasTrust = 
-        w.ethereum?.isTrust ||
-        w.ethereum?.providers?.some((p: any) => p.isTrust) ||
-        w.trustwallet ||
-        w.trust;
-      
-      if (hasTrust) console.log("✅ Trust detected");
-      return hasTrust;
+      return w.ethereum?.isTrust || w.trustwallet || w.trust;
     },
   },
   {
@@ -122,14 +99,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.okx,
     check: () => {
       const w = window as any;
-      const hasOKX = 
-        w.okxwallet ||
-        w.okxchain ||
-        w.ethereum?.providers?.some((p: any) => p.isOKXWallet || p.isOkxWallet) ||
-        w.ethereum?.okxwallet;
-      
-      if (hasOKX) console.log("✅ OKX detected");
-      return hasOKX;
+      return w.okxwallet || w.okxchain;
     },
   },
 ];
@@ -143,31 +113,6 @@ export default function WalletModal({ isOpen, onClose }: Props) {
   const { connect } = useWallet();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [detectedWallets, setDetectedWallets] = useState<string[]>([]);
-
-  // Debug: Log all wallet-related window properties
-  useEffect(() => {
-    if (isOpen) {
-      const w = window as any;
-      console.log("=== Wallet Detection Debug ===");
-      console.log("window.ethereum:", w.ethereum);
-      console.log("window.ethereum?.isMetaMask:", w.ethereum?.isMetaMask);
-      console.log("window.ethereum?.isRabby:", w.ethereum?.isRabby);
-      console.log("window.ethereum?.isCoinbaseWallet:", w.ethereum?.isCoinbaseWallet);
-      console.log("window.ethereum?.isTrust:", w.ethereum?.isTrust);
-      console.log("window.ethereum?.providers:", w.ethereum?.providers);
-      console.log("window.okxwallet:", w.okxwallet);
-      console.log("window.rabby:", w.rabby);
-      console.log("window.coinbaseWallet:", w.coinbaseWallet);
-      console.log("window.trustwallet:", w.trustwallet);
-      
-      // Check which wallets are detected
-      const detected = wallets.filter(w => w.check()).map(w => w.name);
-      setDetectedWallets(detected);
-      console.log("Detected wallets:", detected);
-      console.log("=============================");
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -186,16 +131,6 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         rawProvider = w.trustwallet || w.trust;
       } else if (wallet.id === "rabby" && w.rabby) {
         rawProvider = w.rabby;
-      } else if (w.ethereum?.providers) {
-        // Try to find specific provider
-        const provider = w.ethereum.providers.find((p: any) => {
-          if (wallet.id === "metamask") return p.isMetaMask;
-          if (wallet.id === "rabby") return p.isRabby;
-          if (wallet.id === "coinbase") return p.isCoinbaseWallet;
-          if (wallet.id === "trust") return p.isTrust;
-          return false;
-        });
-        rawProvider = provider || w.ethereum;
       } else {
         rawProvider = w.ethereum;
       }
@@ -205,14 +140,11 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         return;
       }
 
-      console.log(`Connecting to ${wallet.name}...`, rawProvider);
-      
       const ethersProvider = new ethers.BrowserProvider(rawProvider);
       await ethersProvider.send("eth_requestAccounts", []);
       await connect(ethersProvider);
       onClose();
     } catch (e: any) {
-      console.error("Connection error:", e);
       setError(e.message || "Connection failed");
     } finally {
       setConnecting(null);
@@ -228,7 +160,6 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         className="glass-card w-full max-w-sm mx-4 p-6 relative overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Shine */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
 
         <h3 className="text-xl font-bold text-white mb-1 relative z-10">Connect Wallet</h3>
@@ -250,7 +181,6 @@ export default function WalletModal({ isOpen, onClose }: Props) {
                   disabled:opacity-50
                 `}
               >
-                {/* Render SVG Icon */}
                 <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
                   {w.icon}
                 </div>
@@ -269,12 +199,6 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         {error && (
           <p className="mt-4 text-red-400 text-sm text-center relative z-10 bg-red-500/10 py-2 rounded-lg border border-red-500/20">
             {error}
-          </p>
-        )}
-
-        {detectedWallets.length === 0 && (
-          <p className="mt-3 text-amber-400/60 text-xs text-center relative z-10">
-            No wallets detected. Please check your browser extensions.
           </p>
         )}
 
