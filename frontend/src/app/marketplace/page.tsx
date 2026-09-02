@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
+import { getContract } from "@/utils/contract";
 
 const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
-const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 
 const MARKETPLACE_ABI = [
   "function getActiveListings() view returns (uint256[])",
@@ -13,10 +14,6 @@ const MARKETPLACE_ABI = [
   "function buy(uint256 tokenId)",
   "function usdc() view returns (address)",
   "function getActiveCount() view returns (uint256)"
-];
-
-const NFT_ABI = [
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
 const USDC_ABI = [
@@ -37,7 +34,7 @@ interface ListingData {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "♂", "♀"];
+const GENDER_ICONS = ["", "", "♀"];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLE: Record<number, { 
@@ -88,7 +85,9 @@ export default function MarketplacePage() {
       if (!provider) throw new Error("Provider not found");
 
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, provider);
+      
+      // Use getContract() for NFT contract - it has the correct ABI
+      const nftContract = getContract(provider);
 
       const usdcAddr = await marketplace.usdc();
       setUsdcAddress(usdcAddr);
@@ -111,24 +110,28 @@ export default function MarketplacePage() {
       for (const id of activeIds) {
         try {
           const tokenId = Number(id);
-          const [listing, perfume] = await Promise.all([
-            marketplace.listings(tokenId),
-            nftContract.getPerfume(tokenId)
-          ]);
+          const listing = await marketplace.listings(tokenId);
+          
+          console.log(`Listing ${tokenId}:`, listing);
 
-          console.log(`Listing ${tokenId}:`, listing, "Perfume:", perfume.name);
+          if (listing.active) {
+            // Use getContract() which has the correct ABI for getPerfume
+            const perfume = await nftContract.getPerfume(tokenId);
+            
+            console.log(`Perfume ${tokenId}:`, perfume.name);
 
-          if (listing.active && perfume.name) {
-            results.push({
-              tokenId,
-              seller: listing.seller,
-              price: listing.price,
-              active: listing.active,
-              name: perfume.name,
-              rarity: Number(perfume.rarity),
-              gender: Number(perfume.gender),
-              pType: Number(perfume.pType),
-            });
+            if (perfume.name) {
+              results.push({
+                tokenId,
+                seller: listing.seller,
+                price: listing.price,
+                active: listing.active,
+                name: perfume.name,
+                rarity: Number(perfume.rarity),
+                gender: Number(perfume.gender),
+                pType: Number(perfume.pType),
+              });
+            }
           }
         } catch (e) {
           console.warn(`Failed to load listing metadata for ID ${id}`, e);
