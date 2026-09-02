@@ -7,6 +7,19 @@ import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
 
+const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
+const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+
+const MARKETPLACE_ABI = [
+  "function list(uint256 tokenId, uint256 price)",
+  "function listings(uint256) view returns (address seller, uint256 price, bool active)"
+];
+
+const NFT_ABI = [
+  "function setApprovalForAll(address operator, bool approved)",
+  "function isApprovedForAll(address owner, address operator) view returns (bool)"
+];
+
 interface StoredScent {
   tokenId: number;
   name?: string;
@@ -77,14 +90,18 @@ export default function CollectionPage() {
   const [scents, setScents] = useState<StoredScent[]>([]);
   const [loading, setLoading] = useState(true);
   const [walletReady, setWalletReady] = useState(false);
+  const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; price: string }>({
+    open: false,
+    tokenId: null,
+    price: ""
+  });
+  const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
   const { address } = useWallet();
 
-  // Wait for wallet to auto-connect after page refresh
   useEffect(() => {
     if (address) {
       setWalletReady(true);
     } else {
-      // Fallback: try to get address directly from MetaMask
       const checkDirectly = async () => {
         const w = window as any;
         if (w.ethereum) {
@@ -97,8 +114,6 @@ export default function CollectionPage() {
         }
       };
       checkDirectly();
-      
-      // Give WalletContext time to initialize
       const timer = setTimeout(() => setWalletReady(true), 2000);
       return () => clearTimeout(timer);
     }
@@ -108,7 +123,6 @@ export default function CollectionPage() {
     async function fetchCollection() {
       if (!walletReady) return;
 
-      // Get current address (from context or directly)
       let currentAddress = address;
       if (!currentAddress) {
         const w = window as any;
@@ -175,9 +189,7 @@ export default function CollectionPage() {
               });
               foundCount++;
             }
-          } catch (e) {
-            // Ignore "Not minted" errors
-          }
+          } catch (e) {}
           
           await new Promise(r => setTimeout(r, 50));
         }
@@ -192,6 +204,57 @@ export default function CollectionPage() {
 
     fetchCollection();
   }, [walletReady, address]);
+
+  const handleListClick = (tokenId: number) => {
+    setListingModal({ open: true, tokenId, price: "" });
+    setListingStatus("idle");
+  };
+
+  const handleListConfirm = async () => {
+    if (!listingModal.tokenId || !listingModal.price) return;
+    
+    try {
+      setListingStatus("approving");
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+
+      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, signer);
+      const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
+
+      // Check if marketplace is approved
+      const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
+      
+      if (!isApproved) {
+        console.log("Approving marketplace...");
+        const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
+        await approveTx.wait();
+      }
+
+      // List the NFT
+      setListingStatus("listing");
+      const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
+      console.log("Listing NFT...");
+      const listTx = await marketplaceContract.list(listingModal.tokenId, priceInUSDC);
+      await listTx.wait();
+
+      setListingStatus("success");
+      setTimeout(() => {
+        setListingModal({ open: false, tokenId: null, price: "" });
+        setListingStatus("idle");
+        window.location.reload();
+      }, 1500);
+    } catch (error: any) {
+      console.error("Listing failed:", error);
+      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+        alert("Transaction rejected by user.");
+      } else {
+        alert(`Listing failed: ${error.shortMessage || error.message || "Check console"}`);
+      }
+      setListingStatus("idle");
+    }
+  };
 
   if (!walletReady || loading) {
     return (
@@ -348,11 +411,19 @@ export default function CollectionPage() {
                       <p>Minted: {new Date(perfume!.createdAt * 1000).toLocaleString()}</p>
                     </div>
 
-                    <div className="relative flex items-center justify-between pt-2">
+                    <div className="relative flex items-center justify-between pt-2 gap-2">
                       <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">
                         View Details →
                       </Link>
-                      <ShareCard tokenId={s.tokenId} perfume={perfume!} />
+                      <div className="flex gap-2">
+                        <ShareCard tokenId={s.tokenId} perfume={perfume!} />
+                        <button
+                          onClick={() => handleListClick(s.tokenId)}
+                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all"
+                        >
+                          List for Sale
+                        </button>
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -369,6 +440,73 @@ export default function CollectionPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Listing Modal */}
+      {listingModal.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}>
+          <div className="glass-card w-full max-w-sm mx-4 p-6 relative" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-white mb-2">List Scent #{listingModal.tokenId}</h3>
+            <p className="text-white/40 text-sm mb-5">Set your price in USDC</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Price (USDC)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="e.g. 10.00"
+                  value={listingModal.price}
+                  onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-amber-500/50 transition-colors"
+                />
+              </div>
+
+              {listingStatus === "approving" && (
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-2"></div>
+                  <p className="text-sm text-white/70">Approving marketplace...</p>
+                  <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
+                </div>
+              )}
+
+              {listingStatus === "listing" && (
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-2"></div>
+                  <p className="text-sm text-white/70">Creating listing...</p>
+                  <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
+                </div>
+              )}
+
+              {listingStatus === "success" && (
+                <div className="text-center py-4">
+                  <div className="text-4xl mb-2">✓</div>
+                  <p className="text-emerald-400 font-bold">Successfully listed!</p>
+                  <p className="text-xs text-white/40 mt-1">Redirecting...</p>
+                </div>
+              )}
+
+              {listingStatus === "idle" && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}
+                    className="flex-1 py-3 bg-white/5 border border-white/10 text-white/70 rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleListConfirm}
+                    disabled={!listingModal.price || parseFloat(listingModal.price) <= 0}
+                    className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    List NFT
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
