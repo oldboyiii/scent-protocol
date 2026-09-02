@@ -57,8 +57,14 @@ const wallets: WalletOption[] = [
     name: "MetaMask",
     icon: WalletIcons.metamask,
     check: () => {
-      const e = (window as any).ethereum;
-      return e && e.isMetaMask && !e.isCoinbaseWallet && !e.isRabby;
+      const w = window as any;
+      const e = w.ethereum;
+      // Multiple checks for MetaMask detection
+      return (
+        (e && e.isMetaMask) ||
+        (e && !e.isRabby && !e.isCoinbaseWallet && !e.isTrust && w.ethereum?.providers?.some((p: any) => p.isMetaMask)) ||
+        (!!w.ethereum && !w.ethereum.isRabby && !w.ethereum.isCoinbaseWallet)
+      );
     },
   },
   {
@@ -66,8 +72,14 @@ const wallets: WalletOption[] = [
     name: "Rabby Wallet",
     icon: WalletIcons.rabby,
     check: () => {
-      const e = (window as any).ethereum;
-      return e && e.isRabby;
+      const w = window as any;
+      const e = w.ethereum;
+      // Check for Rabby-specific properties
+      return (
+        (e && e.isRabby) ||
+        (e && e.providers && e.providers.some((p: any) => p.isRabby)) ||
+        !!w.rabby
+      );
     },
   },
   {
@@ -75,8 +87,13 @@ const wallets: WalletOption[] = [
     name: "Coinbase Wallet",
     icon: WalletIcons.coinbase,
     check: () => {
-      const e = (window as any).ethereum;
-      return (e && e.isCoinbaseWallet) || !!(window as any).coinbaseWalletExtension;
+      const w = window as any;
+      const e = w.ethereum;
+      return (
+        (e && e.isCoinbaseWallet) ||
+        !!w.coinbaseWalletExtension ||
+        !!w.ethereum?.providers?.some((p: any) => p.isCoinbaseWallet)
+      );
     },
   },
   {
@@ -84,15 +101,27 @@ const wallets: WalletOption[] = [
     name: "Trust Wallet",
     icon: WalletIcons.trust,
     check: () => {
-      const e = (window as any).ethereum;
-      return e && e.isTrust;
+      const w = window as any;
+      const e = w.ethereum;
+      return (
+        (e && e.isTrust) ||
+        !!w.trustwallet ||
+        !!w.ethereum?.providers?.some((p: any) => p.isTrust)
+      );
     },
   },
   {
     id: "okx",
     name: "OKX Wallet",
     icon: WalletIcons.okx,
-    check: () => !!(window as any).okxwallet,
+    check: () => {
+      const w = window as any;
+      return (
+        !!w.okxwallet ||
+        !!w.okxchain ||
+        !!w.ethereum?.providers?.some((p: any) => p.isOKXWallet || p.isOkxWallet)
+      );
+    },
   },
 ];
 
@@ -112,14 +141,32 @@ export default function WalletModal({ isOpen, onClose }: Props) {
     setConnecting(wallet.id);
     setError(null);
     try {
+      const w = window as any;
       let rawProvider: any;
 
-      if (wallet.id === "coinbase" && (window as any).coinbaseWalletExtension) {
-        rawProvider = (window as any).coinbaseWalletExtension;
-      } else if (wallet.id === "okx" && (window as any).okxwallet) {
-        rawProvider = (window as any).okxwallet;
+      if (wallet.id === "coinbase" && w.coinbaseWalletExtension) {
+        rawProvider = w.coinbaseWalletExtension;
+      } else if (wallet.id === "okx" && (w.okxwallet || w.okxchain)) {
+        rawProvider = w.okxwallet || w.okxchain;
+      } else if (wallet.id === "trust" && w.trustwallet) {
+        rawProvider = w.trustwallet;
+      } else if (wallet.id === "rabby" && w.rabby) {
+        rawProvider = w.rabby;
       } else {
-        rawProvider = (window as any).ethereum;
+        // For MetaMask or default ethereum provider
+        if (w.ethereum?.providers) {
+          // If multiple providers, try to find the right one
+          const provider = w.ethereum.providers.find((p: any) => {
+            if (wallet.id === "metamask") return p.isMetaMask;
+            if (wallet.id === "rabby") return p.isRabby;
+            if (wallet.id === "coinbase") return p.isCoinbaseWallet;
+            if (wallet.id === "trust") return p.isTrust;
+            return false;
+          });
+          rawProvider = provider || w.ethereum;
+        } else {
+          rawProvider = w.ethereum;
+        }
       }
 
       if (!rawProvider) {
