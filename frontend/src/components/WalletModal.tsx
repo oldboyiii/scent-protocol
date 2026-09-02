@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 
 interface WalletOption {
   id: string;
   name: string;
-  icon: React.ReactNode;
+  icon: React.ReactNode; // ✅ Исправлено: теперь React.ReactNode вместо string
   check: () => boolean;
 }
 
-// Professional SVG Icons based on official logos
+// Правильные SVG иконки для кошельков
 const WalletIcons = {
   metamask: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
@@ -20,21 +20,13 @@ const WalletIcons = {
       <path d="M11.5 13L9 19L16 21L16 16L11.5 13Z" fill="#E27625"/>
       <path d="M20.5 13L16 16L16 21L23 19L20.5 13Z" fill="#E27625"/>
       <path d="M16 10L14 13L16 14L18 13L16 10Z" fill="#E27625"/>
-      <path d="M11.5 13L14 16L16 14L14 11L11.5 13Z" fill="#E27625"/>
-      <path d="M20.5 13L18 11L16 14L18 16L20.5 13Z" fill="#E27625"/>
-      <path d="M16 14L14 16L16 21L18 16L16 14Z" fill="#E27625"/>
-      <circle cx="13" cy="15" r="1" fill="white"/>
-      <circle cx="19" cy="15" r="1" fill="white"/>
-      <path d="M15 18L16 19L17 18L16 20L15 18Z" fill="white"/>
     </svg>
   ),
   rabby: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
       <circle cx="16" cy="16" r="16" fill="#8285EB"/>
-      <path d="M16 9C12.134 9 9 12.134 9 16C9 19.866 12.134 23 16 23C19.866 23 23 19.866 23 16C23 12.134 19.866 9 16 9Z" fill="white"/>
-      <path d="M14 14C13.448 14 13 14.448 13 15C13 15.552 13.448 16 14 16C14.552 16 15 15.552 15 15C15 14.448 14.552 14 14 14Z" fill="#8285EB"/>
-      <path d="M18 14C17.448 14 17 14.448 17 15C17 15.552 17.448 16 18 16C18.552 16 19 15.552 19 15C19 14.448 18.552 14 18 14Z" fill="#8285EB"/>
-      <path d="M15 17C15 17 15.5 18 16 18C16.5 18 17 17 17 17" stroke="#8285EB" strokeWidth="0.5" fill="none"/>
+      <path d="M16 10C12.686 10 10 12.686 10 16C10 19.314 12.686 22 16 22C19.314 22 22 19.314 22 16C22 12.686 19.314 10 16 10ZM16 20C13.791 20 12 18.209 12 16C12 13.791 13.791 12 16 12C18.209 12 20 13.791 20 16C20 18.209 18.209 20 16 20Z" fill="white"/>
+      <circle cx="16" cy="16" r="2" fill="white"/>
     </svg>
   ),
   coinbase: (
@@ -52,13 +44,35 @@ const WalletIcons = {
   ),
   okx: (
     <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="black"/>
+      <rect width="32" height="32" rx="6" fill="#000000"/>
       <path d="M10 10H14V14H10V10Z" fill="white"/>
       <path d="M18 10H22V14H18V10Z" fill="white"/>
       <path d="M10 18H14V22H10V18Z" fill="white"/>
       <path d="M18 18H22V22H18V18Z" fill="white"/>
     </svg>
-  )
+  ),
+  phantom: (
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#AB9FF2"/>
+      <path d="M16 8C12.686 8 10 10.686 10 14C10 17.314 12.686 20 16 20C19.314 20 22 17.314 22 14C22 10.686 19.314 8 16 8Z" fill="#FFFFFF"/>
+      <path d="M10 14C10 17.314 12.686 20 16 20C19.314 20 22 17.314 22 14" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  ),
+  ledger: (
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="6" fill="#0F0F0F"/>
+      <path d="M9 9H14V14H9V9Z" fill="#FFFFFF"/>
+      <path d="M18 9H23V14H18V9Z" fill="#FFFFFF"/>
+      <path d="M9 18H14V23H9V18Z" fill="#FFFFFF"/>
+      <path d="M18 18H23V23H18V18Z" fill="#FFFFFF"/>
+    </svg>
+  ),
+  walletconnect: (
+    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#3B99FC"/>
+      <path d="M10.5 12.5C12.5 10.5 15.5 10.5 16 10.5C16.5 10.5 19.5 10.5 21.5 12.5L22.5 13.5C23 14 23 14.5 22.5 15L20 17.5C19.5 18 19 18 18.5 17.5L17.5 16.5C16.5 15.5 15.5 15.5 14.5 16.5L13.5 17.5C13 18 12.5 18 12 17.5L9.5 15C9 14.5 9 14 9.5 13.5L10.5 12.5Z" fill="white"/>
+    </svg>
+  ),
 };
 
 const wallets: WalletOption[] = [
@@ -68,10 +82,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.metamask,
     check: () => {
       const w = window as any;
-      return (
-        w.ethereum?.isMetaMask ||
-        (w.ethereum && !w.ethereum.isRabby && !w.ethereum.isCoinbaseWallet && !w.ethereum.isTrust)
-      );
+      return w.ethereum?.isMetaMask && !w.ethereum?.isRabby;
     },
   },
   {
@@ -89,7 +100,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.coinbase,
     check: () => {
       const w = window as any;
-      return w.ethereum?.isCoinbaseWallet || w.coinbaseWalletExtension || w.coinbaseWallet;
+      return w.ethereum?.isCoinbaseWallet || w.coinbaseWalletExtension;
     },
   },
   {
@@ -98,7 +109,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.trust,
     check: () => {
       const w = window as any;
-      return w.ethereum?.isTrust || w.trustwallet || w.trust;
+      return w.ethereum?.isTrust || w.trustwallet;
     },
   },
   {
@@ -108,6 +119,32 @@ const wallets: WalletOption[] = [
     check: () => {
       const w = window as any;
       return w.okxwallet || w.okxchain;
+    },
+  },
+  {
+    id: "phantom",
+    name: "Phantom",
+    icon: WalletIcons.phantom,
+    check: () => {
+      const w = window as any;
+      return w.phantom?.ethereum || w.phantom;
+    },
+  },
+  {
+    id: "ledger",
+    name: "Ledger",
+    icon: WalletIcons.ledger,
+    check: () => {
+      const w = window as any;
+      return w.ethereum?.isLedger;
+    },
+  },
+  {
+    id: "walletconnect",
+    name: "WalletConnect",
+    icon: WalletIcons.walletconnect,
+    check: () => {
+      return true; // Всегда доступен
     },
   },
 ];
@@ -131,20 +168,46 @@ export default function WalletModal({ isOpen, onClose }: Props) {
       const w = window as any;
       let rawProvider: any;
 
-      if (wallet.id === "coinbase" && (w.coinbaseWalletExtension || w.coinbaseWallet)) {
-        rawProvider = w.coinbaseWalletExtension || w.coinbaseWallet;
-      } else if (wallet.id === "okx" && (w.okxwallet || w.okxchain)) {
-        rawProvider = w.okxwallet || w.okxchain;
-      } else if (wallet.id === "trust" && (w.trustwallet || w.trust)) {
-        rawProvider = w.trustwallet || w.trust;
-      } else if (wallet.id === "rabby" && w.rabby) {
-        rawProvider = w.rabby;
-      } else {
-        rawProvider = w.ethereum;
+      switch (wallet.id) {
+        case "coinbase":
+          rawProvider = w.coinbaseWalletExtension || w.coinbaseWallet;
+          break;
+        case "okx":
+          rawProvider = w.okxwallet || w.okxchain;
+          break;
+        case "trust":
+          rawProvider = w.trustwallet || w.trust;
+          break;
+        case "rabby":
+          rawProvider = w.rabby;
+          break;
+        case "phantom":
+          rawProvider = w.phantom?.ethereum || w.phantom;
+          break;
+        case "ledger":
+          rawProvider = w.ethereum;
+          break;
+        case "walletconnect":
+          throw new Error("WalletConnect integration required");
+        default:
+          rawProvider = w.ethereum;
       }
 
       if (!rawProvider) {
-        setError(`${wallet.name} not detected. Please install the extension.`);
+        const installLinks: Record<string, string> = {
+          metamask: "https://metamask.io/download/",
+          rabby: "https://rabby.io/",
+          coinbase: "https://www.coinbase.com/wallet/download",
+          trust: "https://trustwallet.com/download",
+          okx: "https://www.okx.com/web3",
+          phantom: "https://phantom.app/download",
+          ledger: "https://www.ledger.com/ledger-live",
+        };
+        
+        const link = installLinks[wallet.id];
+        setError(
+          `${wallet.name} не обнаружен. ${link ? `Установите расширение` : "Пожалуйста, установите расширение."}`
+        );
         return;
       }
 
@@ -153,6 +216,7 @@ export default function WalletModal({ isOpen, onClose }: Props) {
       await connect(ethersProvider);
       onClose();
     } catch (e: any) {
+      console.error("Connection error:", e);
       setError(e.message || "Connection failed");
     } finally {
       setConnecting(null);
@@ -170,23 +234,23 @@ export default function WalletModal({ isOpen, onClose }: Props) {
       >
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
 
-        <h3 className="text-xl font-bold text-white mb-1 relative z-10">Connect Wallet</h3>
-        <p className="text-white/40 text-sm mb-5 relative z-10">Choose your wallet to continue</p>
+        <h3 className="text-xl font-bold text-white mb-1 relative z-10">Подключить кошелек</h3>
+        <p className="text-white/40 text-sm mb-5 relative z-10">Выберите кошелек для продолжения</p>
 
-        <div className="space-y-2 relative z-10">
+        <div className="space-y-2 relative z-10 max-h-[400px] overflow-y-auto custom-scrollbar">
           {wallets.map((w) => {
             const detected = w.check();
             return (
               <button
                 key={w.id}
                 onClick={() => handleConnect(w)}
-                disabled={connecting === w.id}
+                disabled={connecting === w.id || !detected}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left
                   ${detected 
                     ? "bg-white/5 border-white/10 hover:bg-white/10 hover:border-amber-500/30" 
                     : "bg-white/[0.02] border-white/5 opacity-50 cursor-not-allowed"
                   }
-                  disabled:opacity-50
+                  disabled:opacity-50 disabled:cursor-not-allowed
                 `}
               >
                 <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
@@ -194,10 +258,20 @@ export default function WalletModal({ isOpen, onClose }: Props) {
                 </div>
                 <div className="flex-1">
                   <span className="text-white font-medium block">{w.name}</span>
-                  {!detected && <span className="text-white/30 text-xs">Not installed</span>}
+                  {!detected && w.id !== "walletconnect" && (
+                    <span className="text-white/30 text-xs">Не установлен</span>
+                  )}
+                  {w.id === "walletconnect" && (
+                    <span className="text-white/30 text-xs">Подключение через QR</span>
+                  )}
                 </div>
                 {connecting === w.id && (
-                  <span className="text-amber-400 text-xs font-medium">Connecting...</span>
+                  <span className="text-amber-400 text-xs font-medium animate-pulse">
+                    Подключение...
+                  </span>
+                )}
+                {detected && connecting !== w.id && (
+                  <span className="text-green-400 text-xs">✓</span>
                 )}
               </button>
             );
@@ -205,7 +279,7 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         </div>
 
         {error && (
-          <p className="mt-4 text-red-400 text-sm text-center relative z-10 bg-red-500/10 py-2 rounded-lg border border-red-500/20">
+          <p className="mt-4 text-red-400 text-sm text-center relative z-10 bg-red-500/10 py-2 rounded-lg border border-red-500/20 break-all">
             {error}
           </p>
         )}
@@ -214,7 +288,7 @@ export default function WalletModal({ isOpen, onClose }: Props) {
           onClick={onClose}
           className="mt-4 w-full py-2.5 text-white/40 hover:text-white text-sm font-medium transition-colors relative z-10 rounded-lg hover:bg-white/5"
         >
-          Cancel
+          Отмена
         </button>
       </div>
     </div>
