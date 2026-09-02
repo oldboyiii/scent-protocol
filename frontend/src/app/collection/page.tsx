@@ -166,7 +166,6 @@ export default function CollectionPage() {
         let foundCount = 0;
         const maxId = 60;
 
-        // Create marketplace contract for checking listings
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network"));
 
         for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
@@ -174,7 +173,6 @@ export default function CollectionPage() {
             const perfume = await contract.getPerfume(tokenId);
             
             if (perfume.creator && perfume.creator.toLowerCase() === currentAddress.toLowerCase()) {
-              // Check if already listed
               let isListed = false;
               try {
                 const listing = await marketplace.listings(tokenId);
@@ -205,9 +203,7 @@ export default function CollectionPage() {
               });
               foundCount++;
             }
-          } catch (e) {
-            // Ignore "Not minted" errors
-          }
+          } catch (e) {}
           
           await new Promise(r => setTimeout(r, 50));
         }
@@ -241,7 +237,6 @@ export default function CollectionPage() {
       const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, signer);
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-      // Check if marketplace is approved
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
       
       if (!isApproved) {
@@ -250,7 +245,6 @@ export default function CollectionPage() {
         await approveTx.wait();
       }
 
-      // List the NFT
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
       console.log("Listing NFT...");
@@ -261,7 +255,6 @@ export default function CollectionPage() {
       setTimeout(() => {
         setListingModal({ open: false, tokenId: null, price: "" });
         setListingStatus("idle");
-        // Reload collection to update isListed status
         window.location.reload();
       }, 1500);
     } catch (error: any) {
@@ -468,72 +461,111 @@ export default function CollectionPage() {
         </div>
       )}
 
-      {/* Listing Modal */}
-      {listingModal.open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}>
-          <div className="glass-card w-full max-w-sm mx-4 p-6 relative" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-white mb-2">List Scent #{listingModal.tokenId}</h3>
-            <p className="text-white/40 text-sm mb-5">Set your price in USDC</p>
+      {/* Listing Modal - Styled by Rarity */}
+      {listingModal.open && (() => {
+        const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
+        const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
+        const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
+        
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}>
+            <div 
+              className={`w-full max-w-sm mx-4 p-6 relative rounded-2xl backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} overflow-hidden`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Animated shimmer border */}
+              <div 
+                className="absolute inset-0 rounded-2xl pointer-events-none"
+                style={{
+                  background: `linear-gradient(90deg, transparent, ${style.hex}40, transparent)`,
+                  backgroundSize: "200% 100%",
+                  animation: "shimmer 2s linear infinite",
+                  padding: "2px",
+                  WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                  WebkitMaskComposite: "xor",
+                  maskComposite: "exclude",
+                }}
+              />
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Price (USDC)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="e.g. 10.00"
-                  value={listingModal.price}
-                  onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })}
-                  className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-amber-500/50 transition-colors"
-                />
+              {/* Glass shine */}
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+              
+              {/* Top glow line */}
+              <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+
+              <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-white">
+                    List Scent #{listingModal.tokenId}
+                  </h3>
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                    {RARITY[rarity]}
+                  </span>
+                </div>
+                
+                <p className="text-white/60 text-sm mb-5">Set your price in USDC</p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Price (USDC)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="e.g. 10.00"
+                      value={listingModal.price}
+                      onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })}
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-white/50 transition-colors placeholder:text-white/30"
+                    />
+                  </div>
+
+                  {listingStatus === "approving" && (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-2"></div>
+                      <p className="text-sm text-white/80 font-medium">Approving marketplace...</p>
+                      <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
+                    </div>
+                  )}
+
+                  {listingStatus === "listing" && (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-2"></div>
+                      <p className="text-sm text-white/80 font-medium">Creating listing...</p>
+                      <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
+                    </div>
+                  )}
+
+                  {listingStatus === "success" && (
+                    <div className="text-center py-4">
+                      <div className="text-4xl mb-2">✓</div>
+                      <p className="text-emerald-400 font-bold">Successfully listed!</p>
+                      <p className="text-xs text-white/40 mt-1">Redirecting...</p>
+                    </div>
+                  )}
+
+                  {listingStatus === "idle" && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}
+                        className="flex-1 py-3 bg-black/30 border border-white/10 text-white/70 rounded-lg hover:bg-black/40 transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleListConfirm}
+                        disabled={!listingModal.price || parseFloat(listingModal.price) <= 0}
+                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
+                      >
+                        List NFT
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-
-              {listingStatus === "approving" && (
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-2"></div>
-                  <p className="text-sm text-white/70">Approving marketplace...</p>
-                  <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
-                </div>
-              )}
-
-              {listingStatus === "listing" && (
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-2"></div>
-                  <p className="text-sm text-white/70">Creating listing...</p>
-                  <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
-                </div>
-              )}
-
-              {listingStatus === "success" && (
-                <div className="text-center py-4">
-                  <div className="text-4xl mb-2">✓</div>
-                  <p className="text-emerald-400 font-bold">Successfully listed!</p>
-                  <p className="text-xs text-white/40 mt-1">Redirecting...</p>
-                </div>
-              )}
-
-              {listingStatus === "idle" && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}
-                    className="flex-1 py-3 bg-white/5 border border-white/10 text-white/70 rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleListConfirm}
-                    disabled={!listingModal.price || parseFloat(listingModal.price) <= 0}
-                    className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    List NFT
-                  </button>
-                </div>
-              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <style>{`
         @keyframes shimmer {
