@@ -13,7 +13,8 @@ interface GalleryItem {
   pType: number;
 }
 
-// Styles for cards depending on rarity (gradient, border, glow, badge)
+type SortOption = "newest" | "oldest" | "name" | "rarity";
+
 const RARITY_STYLE: Record<number, { 
   bg: string; 
   border: string; 
@@ -49,6 +50,7 @@ const RARITY_STYLE: Record<number, {
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
 
   useEffect(() => {
     async function fetchGallery() {
@@ -64,8 +66,7 @@ export default function GalleryPage() {
         }
 
         const results: GalleryItem[] = [];
-        // Increased to 60 to guarantee capturing all 43 NFTs
-        const maxId = 60; 
+        const maxId = 60;
 
         for (let start = 1; start <= maxId; start += 10) {
           const end = Math.min(start + 9, maxId);
@@ -86,7 +87,7 @@ export default function GalleryPage() {
                   }
                   return null;
                 })
-                .catch(() => null) // Ignore "Not minted" errors
+                .catch(() => null)
             );
           }
 
@@ -94,8 +95,7 @@ export default function GalleryPage() {
           results.push(...batchResults.filter((r): r is GalleryItem => r !== null));
         }
 
-        // Sort from newest to oldest
-        setItems(results.sort((a, b) => b.tokenId - a.tokenId));
+        setItems(results);
       } catch (e) {
         console.error("Gallery fetch error:", e);
       } finally {
@@ -106,8 +106,23 @@ export default function GalleryPage() {
     fetchGallery();
   }, []);
 
+  const sortedItems = [...items].sort((a, b) => {
+    switch (sortBy) {
+      case "newest":
+        return b.tokenId - a.tokenId;
+      case "oldest":
+        return a.tokenId - b.tokenId;
+      case "name":
+        return a.name.localeCompare(b.name);
+      case "rarity":
+        return b.rarity - a.rarity;
+      default:
+        return 0;
+    }
+  });
+
   const rarityLabel = ["Common", "Rare", "Epic", "Legendary"];
-  const genderIcon = ["⚲", "♂", "♀"];
+  const genderIcon = ["", "♂", "♀"];
   const typeLabel = ["Parfum", "EDP", "EDT", "EDC"];
 
   return (
@@ -116,6 +131,24 @@ export default function GalleryPage() {
         Gallery
       </h1>
       <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
+
+      {/* Sort Controls */}
+      <div className="mb-6 flex items-center gap-3">
+        <span className="text-white/50 text-sm">Sort by:</span>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortOption)}
+          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500/50"
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="name">Name (A-Z)</option>
+          <option value="rarity">Rarity (High to Low)</option>
+        </select>
+        <span className="text-white/30 text-sm ml-auto">
+          {items.length} items
+        </span>
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -129,7 +162,7 @@ export default function GalleryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const style = RARITY_STYLE[item.rarity] || RARITY_STYLE[0];
             
             return (
@@ -137,7 +170,6 @@ export default function GalleryPage() {
                 <div 
                   className={`group relative rounded-2xl p-5 backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} transition-all duration-300 hover:-translate-y-1 cursor-pointer`}
                 >
-                  {/* Top glowing line on hover */}
                   <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                   <div className="flex items-center justify-between mb-4">
@@ -152,12 +184,8 @@ export default function GalleryPage() {
                   </h3>
                   
                   <div className="flex items-center gap-3 text-xs text-white/50 border-t border-white/5 pt-3">
-                    <span className="flex items-center gap-1" title="Gender">
-                      {genderIcon[item.gender]}
-                    </span>
-                    <span className="flex items-center gap-1" title="Type">
-                      {typeLabel[item.pType]}
-                    </span>
+                    <span>{genderIcon[item.gender]}</span>
+                    <span>{typeLabel[item.pType]}</span>
                     <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-amber-400">
                       →
                     </span>
