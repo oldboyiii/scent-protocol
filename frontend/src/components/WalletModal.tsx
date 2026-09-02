@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 
@@ -11,47 +11,48 @@ interface WalletOption {
   check: () => boolean;
 }
 
-// Simple but recognizable SVG Icons
+// Simple but recognizable wallet icons
 const WalletIcons = {
   metamask: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="#E17726"/>
-      <path d="M16 8 L12 12 L8 10 L10 16 L8 22 L16 26 L24 22 L22 16 L24 10 L20 12 Z" fill="white" opacity="0.9"/>
-      <circle cx="13" cy="15" r="1.5" fill="#E17726"/>
-      <circle cx="19" cy="15" r="1.5" fill="#E17726"/>
-      <path d="M14.5 19 Q16 20.5 17.5 19" stroke="#E17726" strokeWidth="1.2" fill="none"/>
-    </svg>
+    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-xs">
+      🦊
+    </div>
   ),
   rabby: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#8285EB"/>
-      <circle cx="16" cy="16" r="11" fill="white"/>
-      <circle cx="13" cy="14" r="2.5" fill="#8285EB"/>
-      <circle cx="19" cy="14" r="2.5" fill="#8285EB"/>
-      <ellipse cx="16" cy="19" rx="3" ry="2" fill="#8285EB"/>
-    </svg>
+    <div className="w-8 h-8 rounded-full bg-[#8285EB] flex items-center justify-center text-white font-bold text-xs">
+      R
+    </div>
   ),
   coinbase: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#0052FF"/>
-      <circle cx="16" cy="16" r="7" fill="white"/>
-    </svg>
+    <div className="w-8 h-8 rounded-full bg-[#0052FF] flex items-center justify-center text-white font-bold text-xs">
+      C
+    </div>
   ),
   trust: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16 2 L4 7 V15 C4 22.18 9.12 28.86 16 30 C22.88 28.86 28 22.18 28 15 V7 Z" fill="#3375BB"/>
-      <path d="M16 9 L9 12 V17 C9 21 11.5 24 16 25 C20.5 24 23 21 23 17 V12 Z" fill="white"/>
-    </svg>
+    <div className="w-8 h-8 rounded-full bg-[#3375BB] flex items-center justify-center text-white font-bold text-xs">
+      T
+    </div>
   ),
   okx: (
-    <svg viewBox="0 0 32 32" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="black"/>
-      <rect x="8" y="8" width="6" height="6" fill="white"/>
-      <rect x="18" y="8" width="6" height="6" fill="white"/>
-      <rect x="8" y="18" width="6" height="6" fill="white"/>
-      <rect x="18" y="18" width="6" height="6" fill="white"/>
-    </svg>
-  )
+    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white font-bold text-xs">
+      OKX
+    </div>
+  ),
+  phantom: (
+    <div className="w-8 h-8 rounded-full bg-[#AB9FF2] flex items-center justify-center text-white font-bold text-xs">
+      P
+    </div>
+  ),
+  ledger: (
+    <div className="w-8 h-8 rounded-full bg-[#0F0F0F] flex items-center justify-center text-white font-bold text-xs">
+      L
+    </div>
+  ),
+  walletconnect: (
+    <div className="w-8 h-8 rounded-full bg-[#3B99FC] flex items-center justify-center text-white font-bold text-xs">
+      WC
+    </div>
+  ),
 };
 
 const wallets: WalletOption[] = [
@@ -61,10 +62,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.metamask,
     check: () => {
       const w = window as any;
-      return (
-        w.ethereum?.isMetaMask ||
-        (w.ethereum && !w.ethereum.isRabby && !w.ethereum.isCoinbaseWallet && !w.ethereum.isTrust)
-      );
+      return w.ethereum?.isMetaMask && !w.ethereum?.isRabby;
     },
   },
   {
@@ -82,7 +80,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.coinbase,
     check: () => {
       const w = window as any;
-      return w.ethereum?.isCoinbaseWallet || w.coinbaseWalletExtension || w.coinbaseWallet;
+      return w.ethereum?.isCoinbaseWallet || w.coinbaseWalletExtension;
     },
   },
   {
@@ -91,7 +89,7 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.trust,
     check: () => {
       const w = window as any;
-      return w.ethereum?.isTrust || w.trustwallet || w.trust;
+      return w.ethereum?.isTrust || w.trustwallet;
     },
   },
   {
@@ -101,6 +99,32 @@ const wallets: WalletOption[] = [
     check: () => {
       const w = window as any;
       return w.okxwallet || w.okxchain;
+    },
+  },
+  {
+    id: "phantom",
+    name: "Phantom",
+    icon: WalletIcons.phantom,
+    check: () => {
+      const w = window as any;
+      return w.phantom?.ethereum || w.phantom;
+    },
+  },
+  {
+    id: "ledger",
+    name: "Ledger",
+    icon: WalletIcons.ledger,
+    check: () => {
+      const w = window as any;
+      return w.ethereum?.isLedger;
+    },
+  },
+  {
+    id: "walletconnect",
+    name: "WalletConnect",
+    icon: WalletIcons.walletconnect,
+    check: () => {
+      return true;
     },
   },
 ];
@@ -124,16 +148,29 @@ export default function WalletModal({ isOpen, onClose }: Props) {
       const w = window as any;
       let rawProvider: any;
 
-      if (wallet.id === "coinbase" && (w.coinbaseWalletExtension || w.coinbaseWallet)) {
-        rawProvider = w.coinbaseWalletExtension || w.coinbaseWallet;
-      } else if (wallet.id === "okx" && (w.okxwallet || w.okxchain)) {
-        rawProvider = w.okxwallet || w.okxchain;
-      } else if (wallet.id === "trust" && (w.trustwallet || w.trust)) {
-        rawProvider = w.trustwallet || w.trust;
-      } else if (wallet.id === "rabby" && w.rabby) {
-        rawProvider = w.rabby;
-      } else {
-        rawProvider = w.ethereum;
+      switch (wallet.id) {
+        case "coinbase":
+          rawProvider = w.coinbaseWalletExtension || w.coinbaseWallet;
+          break;
+        case "okx":
+          rawProvider = w.okxwallet || w.okxchain;
+          break;
+        case "trust":
+          rawProvider = w.trustwallet || w.trust;
+          break;
+        case "rabby":
+          rawProvider = w.rabby;
+          break;
+        case "phantom":
+          rawProvider = w.phantom?.ethereum || w.phantom;
+          break;
+        case "ledger":
+          rawProvider = w.ethereum;
+          break;
+        case "walletconnect":
+          throw new Error("WalletConnect integration required");
+        default:
+          rawProvider = w.ethereum;
       }
 
       if (!rawProvider) {
@@ -146,6 +183,7 @@ export default function WalletModal({ isOpen, onClose }: Props) {
       await connect(ethersProvider);
       onClose();
     } catch (e: any) {
+      console.error("Connection error:", e);
       setError(e.message || "Connection failed");
     } finally {
       setConnecting(null);
@@ -166,20 +204,20 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         <h3 className="text-xl font-bold text-white mb-1 relative z-10">Connect Wallet</h3>
         <p className="text-white/40 text-sm mb-5 relative z-10">Choose your wallet to continue</p>
 
-        <div className="space-y-2 relative z-10">
+        <div className="space-y-2 relative z-10 max-h-[400px] overflow-y-auto custom-scrollbar">
           {wallets.map((w) => {
             const detected = w.check();
             return (
               <button
                 key={w.id}
                 onClick={() => handleConnect(w)}
-                disabled={connecting === w.id}
+                disabled={connecting === w.id || !detected}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left
                   ${detected 
                     ? "bg-white/5 border-white/10 hover:bg-white/10 hover:border-amber-500/30" 
                     : "bg-white/[0.02] border-white/5 opacity-50 cursor-not-allowed"
                   }
-                  disabled:opacity-50
+                  disabled:opacity-50 disabled:cursor-not-allowed
                 `}
               >
                 <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
@@ -187,10 +225,20 @@ export default function WalletModal({ isOpen, onClose }: Props) {
                 </div>
                 <div className="flex-1">
                   <span className="text-white font-medium block">{w.name}</span>
-                  {!detected && <span className="text-white/30 text-xs">Not installed</span>}
+                  {!detected && w.id !== "walletconnect" && (
+                    <span className="text-white/30 text-xs">Not installed</span>
+                  )}
+                  {w.id === "walletconnect" && (
+                    <span className="text-white/30 text-xs">Connect via QR</span>
+                  )}
                 </div>
                 {connecting === w.id && (
-                  <span className="text-amber-400 text-xs font-medium">Connecting...</span>
+                  <span className="text-amber-400 text-xs font-medium animate-pulse">
+                    Connecting...
+                  </span>
+                )}
+                {detected && connecting !== w.id && (
+                  <span className="text-green-400 text-xs">✓</span>
                 )}
               </button>
             );
@@ -198,7 +246,7 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         </div>
 
         {error && (
-          <p className="mt-4 text-red-400 text-sm text-center relative z-10 bg-red-500/10 py-2 rounded-lg border border-red-500/20">
+          <p className="mt-4 text-red-400 text-sm text-center relative z-10 bg-red-500/10 py-2 rounded-lg border border-red-500/20 break-all">
             {error}
           </p>
         )}
