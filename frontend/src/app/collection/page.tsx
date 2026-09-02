@@ -17,7 +17,9 @@ const MARKETPLACE_ABI = [
 
 const NFT_ABI = [
   "function setApprovalForAll(address operator, bool approved)",
-  "function isApprovedForAll(address owner, address operator) view returns (bool)"
+  "function isApprovedForAll(address owner, address operator) view returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
 interface StoredScent {
@@ -25,6 +27,7 @@ interface StoredScent {
   name?: string;
   rarity?: number;
   timestamp: number;
+  isListed?: boolean;
   perfume?: {
     name: string;
     gender: number;
@@ -163,16 +166,29 @@ export default function CollectionPage() {
         let foundCount = 0;
         const maxId = 60;
 
+        // Create marketplace contract for checking listings
+        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network"));
+
         for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
           try {
             const perfume = await contract.getPerfume(tokenId);
             
             if (perfume.creator && perfume.creator.toLowerCase() === currentAddress.toLowerCase()) {
+              // Check if already listed
+              let isListed = false;
+              try {
+                const listing = await marketplace.listings(tokenId);
+                isListed = listing.active;
+              } catch (e) {
+                console.warn(`Could not check listing status for token ${tokenId}`, e);
+              }
+
               results.push({
                 tokenId,
                 name: perfume.name,
                 rarity: Number(perfume.rarity),
                 timestamp: Number(perfume.createdAt) * 1000,
+                isListed,
                 perfume: {
                   name: perfume.name,
                   gender: Number(perfume.gender),
@@ -189,7 +205,9 @@ export default function CollectionPage() {
               });
               foundCount++;
             }
-          } catch (e) {}
+          } catch (e) {
+            // Ignore "Not minted" errors
+          }
           
           await new Promise(r => setTimeout(r, 50));
         }
@@ -243,6 +261,7 @@ export default function CollectionPage() {
       setTimeout(() => {
         setListingModal({ open: false, tokenId: null, price: "" });
         setListingStatus("idle");
+        // Reload collection to update isListed status
         window.location.reload();
       }, 1500);
     } catch (error: any) {
@@ -417,12 +436,18 @@ export default function CollectionPage() {
                       </Link>
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} />
-                        <button
-                          onClick={() => handleListClick(s.tokenId)}
-                          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all"
-                        >
-                          List for Sale
-                        </button>
+                        {s.isListed ? (
+                          <span className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white/50 text-xs font-bold cursor-not-allowed">
+                            Listed
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleListClick(s.tokenId)}
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all"
+                          >
+                            List for Sale
+                          </button>
+                        )}
                       </div>
                     </div>
                   </>
