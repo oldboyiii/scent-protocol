@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 
@@ -58,13 +58,14 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.metamask,
     check: () => {
       const w = window as any;
-      const e = w.ethereum;
-      // Multiple checks for MetaMask detection
-      return (
-        (e && e.isMetaMask) ||
-        (e && !e.isRabby && !e.isCoinbaseWallet && !e.isTrust && w.ethereum?.providers?.some((p: any) => p.isMetaMask)) ||
-        (!!w.ethereum && !w.ethereum.isRabby && !w.ethereum.isCoinbaseWallet)
-      );
+      // Check various MetaMask indicators
+      const hasMetaMask = 
+        w.ethereum?.isMetaMask ||
+        w.ethereum?.providers?.some((p: any) => p.isMetaMask) ||
+        (w.ethereum && !w.ethereum.isRabby && !w.ethereum.isCoinbaseWallet && !w.ethereum.isTrust);
+      
+      if (hasMetaMask) console.log("✅ MetaMask detected");
+      return hasMetaMask;
     },
   },
   {
@@ -73,13 +74,14 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.rabby,
     check: () => {
       const w = window as any;
-      const e = w.ethereum;
-      // Check for Rabby-specific properties
-      return (
-        (e && e.isRabby) ||
-        (e && e.providers && e.providers.some((p: any) => p.isRabby)) ||
-        !!w.rabby
-      );
+      const hasRabby = 
+        w.ethereum?.isRabby ||
+        w.ethereum?.providers?.some((p: any) => p.isRabby) ||
+        w.rabby ||
+        w.ethereum?.rabby;
+      
+      if (hasRabby) console.log("✅ Rabby detected");
+      return hasRabby;
     },
   },
   {
@@ -88,12 +90,14 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.coinbase,
     check: () => {
       const w = window as any;
-      const e = w.ethereum;
-      return (
-        (e && e.isCoinbaseWallet) ||
-        !!w.coinbaseWalletExtension ||
-        !!w.ethereum?.providers?.some((p: any) => p.isCoinbaseWallet)
-      );
+      const hasCoinbase = 
+        w.ethereum?.isCoinbaseWallet ||
+        w.ethereum?.providers?.some((p: any) => p.isCoinbaseWallet) ||
+        w.coinbaseWalletExtension ||
+        w.coinbaseWallet;
+      
+      if (hasCoinbase) console.log("✅ Coinbase detected");
+      return hasCoinbase;
     },
   },
   {
@@ -102,12 +106,14 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.trust,
     check: () => {
       const w = window as any;
-      const e = w.ethereum;
-      return (
-        (e && e.isTrust) ||
-        !!w.trustwallet ||
-        !!w.ethereum?.providers?.some((p: any) => p.isTrust)
-      );
+      const hasTrust = 
+        w.ethereum?.isTrust ||
+        w.ethereum?.providers?.some((p: any) => p.isTrust) ||
+        w.trustwallet ||
+        w.trust;
+      
+      if (hasTrust) console.log("✅ Trust detected");
+      return hasTrust;
     },
   },
   {
@@ -116,11 +122,14 @@ const wallets: WalletOption[] = [
     icon: WalletIcons.okx,
     check: () => {
       const w = window as any;
-      return (
-        !!w.okxwallet ||
-        !!w.okxchain ||
-        !!w.ethereum?.providers?.some((p: any) => p.isOKXWallet || p.isOkxWallet)
-      );
+      const hasOKX = 
+        w.okxwallet ||
+        w.okxchain ||
+        w.ethereum?.providers?.some((p: any) => p.isOKXWallet || p.isOkxWallet) ||
+        w.ethereum?.okxwallet;
+      
+      if (hasOKX) console.log("✅ OKX detected");
+      return hasOKX;
     },
   },
 ];
@@ -134,6 +143,31 @@ export default function WalletModal({ isOpen, onClose }: Props) {
   const { connect } = useWallet();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detectedWallets, setDetectedWallets] = useState<string[]>([]);
+
+  // Debug: Log all wallet-related window properties
+  useEffect(() => {
+    if (isOpen) {
+      const w = window as any;
+      console.log("=== Wallet Detection Debug ===");
+      console.log("window.ethereum:", w.ethereum);
+      console.log("window.ethereum?.isMetaMask:", w.ethereum?.isMetaMask);
+      console.log("window.ethereum?.isRabby:", w.ethereum?.isRabby);
+      console.log("window.ethereum?.isCoinbaseWallet:", w.ethereum?.isCoinbaseWallet);
+      console.log("window.ethereum?.isTrust:", w.ethereum?.isTrust);
+      console.log("window.ethereum?.providers:", w.ethereum?.providers);
+      console.log("window.okxwallet:", w.okxwallet);
+      console.log("window.rabby:", w.rabby);
+      console.log("window.coinbaseWallet:", w.coinbaseWallet);
+      console.log("window.trustwallet:", w.trustwallet);
+      
+      // Check which wallets are detected
+      const detected = wallets.filter(w => w.check()).map(w => w.name);
+      setDetectedWallets(detected);
+      console.log("Detected wallets:", detected);
+      console.log("=============================");
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -144,29 +178,26 @@ export default function WalletModal({ isOpen, onClose }: Props) {
       const w = window as any;
       let rawProvider: any;
 
-      if (wallet.id === "coinbase" && w.coinbaseWalletExtension) {
-        rawProvider = w.coinbaseWalletExtension;
+      if (wallet.id === "coinbase" && (w.coinbaseWalletExtension || w.coinbaseWallet)) {
+        rawProvider = w.coinbaseWalletExtension || w.coinbaseWallet;
       } else if (wallet.id === "okx" && (w.okxwallet || w.okxchain)) {
         rawProvider = w.okxwallet || w.okxchain;
-      } else if (wallet.id === "trust" && w.trustwallet) {
-        rawProvider = w.trustwallet;
+      } else if (wallet.id === "trust" && (w.trustwallet || w.trust)) {
+        rawProvider = w.trustwallet || w.trust;
       } else if (wallet.id === "rabby" && w.rabby) {
         rawProvider = w.rabby;
+      } else if (w.ethereum?.providers) {
+        // Try to find specific provider
+        const provider = w.ethereum.providers.find((p: any) => {
+          if (wallet.id === "metamask") return p.isMetaMask;
+          if (wallet.id === "rabby") return p.isRabby;
+          if (wallet.id === "coinbase") return p.isCoinbaseWallet;
+          if (wallet.id === "trust") return p.isTrust;
+          return false;
+        });
+        rawProvider = provider || w.ethereum;
       } else {
-        // For MetaMask or default ethereum provider
-        if (w.ethereum?.providers) {
-          // If multiple providers, try to find the right one
-          const provider = w.ethereum.providers.find((p: any) => {
-            if (wallet.id === "metamask") return p.isMetaMask;
-            if (wallet.id === "rabby") return p.isRabby;
-            if (wallet.id === "coinbase") return p.isCoinbaseWallet;
-            if (wallet.id === "trust") return p.isTrust;
-            return false;
-          });
-          rawProvider = provider || w.ethereum;
-        } else {
-          rawProvider = w.ethereum;
-        }
+        rawProvider = w.ethereum;
       }
 
       if (!rawProvider) {
@@ -174,11 +205,14 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         return;
       }
 
+      console.log(`Connecting to ${wallet.name}...`, rawProvider);
+      
       const ethersProvider = new ethers.BrowserProvider(rawProvider);
       await ethersProvider.send("eth_requestAccounts", []);
       await connect(ethersProvider);
       onClose();
     } catch (e: any) {
+      console.error("Connection error:", e);
       setError(e.message || "Connection failed");
     } finally {
       setConnecting(null);
@@ -235,6 +269,12 @@ export default function WalletModal({ isOpen, onClose }: Props) {
         {error && (
           <p className="mt-4 text-red-400 text-sm text-center relative z-10 bg-red-500/10 py-2 rounded-lg border border-red-500/20">
             {error}
+          </p>
+        )}
+
+        {detectedWallets.length === 0 && (
+          <p className="mt-3 text-amber-400/60 text-xs text-center relative z-10">
+            No wallets detected. Please check your browser extensions.
           </p>
         )}
 
