@@ -51,6 +51,7 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [showSort, setShowSort] = useState(false);
 
   useEffect(() => {
     async function fetchGallery() {
@@ -106,6 +107,18 @@ export default function GalleryPage() {
     fetchGallery();
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.sort-dropdown-container')) {
+        setShowSort(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const sortedItems = [...items].sort((a, b) => {
     switch (sortBy) {
       case "newest":
@@ -125,6 +138,13 @@ export default function GalleryPage() {
   const genderIcon = ["", "♂", "♀"];
   const typeLabel = ["Parfum", "EDP", "EDT", "EDC"];
 
+  const sortOptions = [
+    { value: "newest", label: "Newest First" },
+    { value: "oldest", label: "Oldest First" },
+    { value: "name", label: "Name (A-Z)" },
+    { value: "rarity", label: "Rarity (High to Low)" },
+  ];
+
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
       <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent leading-[1.3] pb-3">
@@ -133,18 +153,45 @@ export default function GalleryPage() {
       <p className="text-white/50 mb-8">All fragrances minted on ScentProtocol.</p>
 
       {/* Sort Controls */}
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3 relative sort-dropdown-container">
         <span className="text-white/50 text-sm">Sort by:</span>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortOption)}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500/50"
-        >
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="name">Name (A-Z)</option>
-          <option value="rarity">Rarity (High to Low)</option>
-        </select>
+        
+        <div className="relative">
+          <button
+            onClick={() => setShowSort(!showSort)}
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
+          >
+            <span>
+              {sortBy === "newest" && "Newest First"}
+              {sortBy === "oldest" && "Oldest First"}
+              {sortBy === "name" && "Name (A-Z)"}
+              {sortBy === "rarity" && "Rarity (High to Low)"}
+            </span>
+            <svg className={`w-4 h-4 transition-transform ${showSort ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showSort && (
+            <div className="absolute top-full mt-1 left-0 w-full bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl">
+              {sortOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setSortBy(option.value as SortOption);
+                    setShowSort(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                    sortBy === option.value ? "text-amber-400 bg-white/5" : "text-white/70"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
         <span className="text-white/30 text-sm ml-auto">
           {items.length} items
         </span>
