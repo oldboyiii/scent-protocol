@@ -16,7 +16,9 @@ const MARKETPLACE_ABI = [
   "function listings(uint256) view returns (address seller, uint256 price, bool active)"
 ];
 
+// Added ownerOf function to check the actual owner of the token
 const NFT_ABI = [
+  "function ownerOf(uint256 tokenId) view returns (address)",
   "function setApprovalForAll(address operator, bool approved)",
   "function isApprovedForAll(address owner, address operator) view returns (bool)",
   "function balanceOf(address owner) view returns (uint256)",
@@ -187,9 +189,13 @@ export default function CollectionPage() {
 
         for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
           try {
-            const perfume = await contract.getPerfume(tokenId);
+            // 1. Check the actual owner of the token
+            const owner = await contract.ownerOf(tokenId);
             
-            if (perfume.creator && perfume.creator.toLowerCase() === currentAddress.toLowerCase()) {
+            // 2. If the owner matches the current address, load the data
+            if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+              const perfume = await contract.getPerfume(tokenId);
+              
               let isListed = false;
               try {
                 const listing = await marketplace.listings(tokenId);
@@ -220,7 +226,9 @@ export default function CollectionPage() {
               });
               foundCount++;
             }
-          } catch (e) {}
+          } catch (e) {
+            // Ignore errors for tokens that are not minted yet
+          }
           
           await new Promise(r => setTimeout(r, 50));
         }
