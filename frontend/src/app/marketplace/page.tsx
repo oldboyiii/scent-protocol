@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 import { getContract } from "@/utils/contract";
@@ -321,48 +322,53 @@ export default function MarketplacePage() {
             const isBuying = buyingId === listing.tokenId;
 
             return (
-              <div
-                key={listing.tokenId}
-                className={`group relative rounded-2xl p-5 backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} transition-all duration-300 hover:-translate-y-1 overflow-hidden`}
-              >
-                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Link key={listing.tokenId} href={`/nft/${listing.tokenId}`} className="block">
+                <div
+                  className={`group relative rounded-2xl p-5 backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer`}
+                >
+                  <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-mono text-white/40">#{listing.tokenId}</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${style.badge}`}>
-                    {RARITY_LABELS[listing.rarity]}
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-bold text-white truncate mb-2 group-hover:text-amber-300 transition-colors">
-                  {listing.name}
-                </h3>
-
-                <p className="text-xs text-white/40 mb-4 truncate">
-                  Seller: {listing.seller.slice(0, 6)}...{listing.seller.slice(-4)}
-                </p>
-
-                <div className="flex items-center gap-3 text-xs text-white/50 border-t border-white/5 pt-3 mb-4">
-                  <span>{GENDER_ICONS[listing.gender]}</span>
-                  <span>{TYPE_LABELS[listing.pType]}</span>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-white/40 uppercase">Price</span>
-                    <span className="text-lg font-bold text-emerald-400">
-                      {formatPrice(listing.price)} USDC
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-mono text-white/40">#{listing.tokenId}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border backdrop-blur-sm ${style.badge}`}>
+                      {RARITY_LABELS[listing.rarity]}
                     </span>
                   </div>
-                  <button
-                    onClick={() => handleBuy(listing)}
-                    disabled={isBuying}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  >
-                    {isBuying ? "Buying..." : "Buy"}
-                  </button>
+
+                  <h3 className="text-lg font-bold text-white truncate mb-2 group-hover:text-amber-300 transition-colors">
+                    {listing.name}
+                  </h3>
+
+                  <p className="text-xs text-white/40 mb-4 truncate">
+                    Seller: {listing.seller.slice(0, 6)}...{listing.seller.slice(-4)}
+                  </p>
+
+                  <div className="flex items-center gap-3 text-xs text-white/50 border-t border-white/5 pt-3 mb-4">
+                    <span>{GENDER_ICONS[listing.gender]}</span>
+                    <span>{TYPE_LABELS[listing.pType]}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-white/40 uppercase">Price</span>
+                      <span className="text-lg font-bold text-emerald-400">
+                        {formatPrice(listing.price)} USDC
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleBuy(listing);
+                      }}
+                      disabled={isBuying}
+                      className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                      {isBuying ? "Buying..." : "Buy"}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
