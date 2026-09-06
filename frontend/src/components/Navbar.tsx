@@ -46,6 +46,9 @@ export default function Navbar() {
             <Link href="/gallery" className="text-sm font-medium text-white/70 hover:text-amber-400 transition-colors">
               Gallery
             </Link>
+            <Link href="/events" className="text-sm font-medium text-white/70 hover:text-amber-400 transition-colors">
+              Events
+            </Link>
             <Link href="/about" className="text-sm font-medium text-white/70 hover:text-amber-400 transition-colors">
               About
             </Link>
