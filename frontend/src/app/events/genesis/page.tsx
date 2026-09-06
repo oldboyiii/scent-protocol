@@ -1,69 +1,56 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ethers } from "ethers";
-import { useWallet } from "@/context/WalletContext";
-
-const GENESIS_CONTRACT_ADDRESS = "0x..."; // заменим после деплоя
-
-const GENESIS_ABI = [
-  "function mint() external payable",
-  "function totalMinted() view returns (uint256)",
-  "function maxSupply() view returns (uint256)",
-  "function mintedPerWallet(address) view returns (uint256)",
-  "function maxPerWallet() view returns (uint256)",
-];
+import { useState, useEffect } from "react";
 
 export default function GenesisEventPage() {
-  const { address } = useWallet();
-  const [minting, setMinting] = useState(false);
-  const [totalMinted, setTotalMinted] = useState(0);
-  const [userMinted, setUserMinted] = useState(0);
-  const [maxPerWallet] = useState(3);
-  const maxSupply = 1000;
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
+  // Обратный отсчёт до 16 сентября 2025
   useEffect(() => {
-    // Здесь будет загрузка данных из контракта
-    // const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-    // const total = await contract.totalMinted();
-    // const user = await contract.mintedPerWallet(address);
-    // setTotalMinted(Number(total));
-    // setUserMinted(Number(user));
-  }, [address]);
+    const targetDate = new Date("2025-09-16T00:00:00Z").getTime();
 
-  const handleMint = async () => {
-    if (!address) {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const diff = targetDate - now;
+
+      if (diff > 0) {
+        setTimeLeft({
+          days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+          minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((diff % (1000 * 60)) / 1000),
+        });
+      } else {
+        setTimeLeft(null);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Проверка подключения кошелька
+  useEffect(() => {
+    const checkWallet = async () => {
+      const w = window as any;
+      if (w.ethereum) {
+        try {
+          const accounts = await w.ethereum.request({ method: 'eth_accounts' });
+          setIsConnected(accounts && accounts.length > 0);
+        } catch {}
+      }
+    };
+    checkWallet();
+  }, []);
+
+  const handleMint = () => {
+    if (!isConnected) {
       alert("Please connect your wallet first");
       return;
     }
-
-    setMinting(true);
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
-
-      const tx = await contract.mint({ value: 0 }); // Free mint
-      await tx.wait();
-
-      alert("Mint successful! Check your Collection.");
-      setTotalMinted((prev) => prev + 1);
-      setUserMinted((prev) => prev + 1);
-    } catch (error: any) {
-      console.error("Mint failed:", error);
-      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
-        alert("Transaction rejected by user.");
-      } else {
-        alert(error.message || "Mint failed");
-      }
-    } finally {
-      setMinting(false);
-    }
+    alert("Minting will be available on September 16, 2025 when Arc Mainnet launches!");
   };
-
-  const progress = (totalMinted / maxSupply) * 100;
 
   return (
     <div className="max-w-4xl mx-auto py-16 px-4 relative z-10">
@@ -80,8 +67,8 @@ export default function GenesisEventPage() {
 
       {/* Hero */}
       <div className="text-center mb-12">
-        <span className="inline-block px-4 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold uppercase tracking-wider border border-amber-500/30 mb-4">
-          Live Now
+        <span className="inline-block px-4 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold uppercase tracking-wider border border-blue-500/30 mb-4">
+          Coming Soon
         </span>
         <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent leading-[1.2] pb-4">
           Genesis Collection
@@ -110,24 +97,45 @@ export default function GenesisEventPage() {
         </div>
       </div>
 
+      {/* Countdown */}
+      {timeLeft && (
+        <div className="mb-12">
+          <p className="text-center text-xs text-white/40 uppercase tracking-wider mb-4">
+            Launches in
+          </p>
+          <div className="flex justify-center gap-4 max-w-2xl mx-auto">
+            {[
+              { label: "Days", value: timeLeft.days },
+              { label: "Hours", value: timeLeft.hours },
+              { label: "Minutes", value: timeLeft.minutes },
+              { label: "Seconds", value: timeLeft.seconds },
+            ].map((item) => (
+              <div key={item.label} className="flex-1 bg-black/30 rounded-2xl p-6 border border-amber-500/20">
+                <div className="text-4xl md:text-5xl font-bold text-amber-400 text-center">
+                  {String(item.value).padStart(2, "0")}
+                </div>
+                <div className="text-xs text-white/40 text-center mt-2 uppercase">
+                  {item.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Mint Card */}
       <div className="bg-gradient-to-br from-slate-900/90 via-purple-900/50 to-slate-900/90 backdrop-blur-xl rounded-3xl p-8 border border-amber-500/30 mb-12">
         {/* Progress */}
         <div className="mb-8">
           <div className="flex justify-between text-sm mb-3">
             <span className="text-white/60">Minted</span>
-            <span className="text-white/60">
-              {totalMinted} / {maxSupply}
-            </span>
+            <span className="text-white/60">0 / 1000</span>
           </div>
           <div className="h-4 bg-black/30 rounded-full overflow-hidden border border-white/10">
-            <div
-              className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 w-0" />
           </div>
           <p className="text-xs text-white/40 mt-2 text-center">
-            {progress.toFixed(1)}% minted • {maxSupply - totalMinted} remaining
+            0% minted • 1000 remaining
           </p>
         </div>
 
@@ -135,20 +143,16 @@ export default function GenesisEventPage() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-black/20 rounded-2xl border border-white/10">
           <div className="text-center md:text-left">
             <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Price</p>
-            <p className="text-4xl font-bold text-emerald-400">
-              Free Mint
-            </p>
-            <p className="text-xs text-white/40 mt-2">
-              Max {maxPerWallet} per wallet • You minted: {userMinted}/{maxPerWallet}
-            </p>
+            <p className="text-4xl font-bold text-emerald-400">Free Mint</p>
+            <p className="text-xs text-white/40 mt-2">Max 3 per wallet</p>
           </div>
 
           <button
             onClick={handleMint}
-            disabled={minting || userMinted >= maxPerWallet}
+            disabled={!timeLeft}
             className="px-10 py-5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-xl shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
-            {minting ? "Minting..." : userMinted >= maxPerWallet ? "Max Reached" : "Mint Now"}
+            {timeLeft ? "Notify Me" : "Mint Now"}
           </button>
         </div>
 
