@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
@@ -73,7 +73,8 @@ export default function GenesisEventPage() {
             Live Now
           </span>
           
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          {/* ЗОЛОТОЙ ЗАГОЛОВОК */}
+          <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-orange-500 mb-4">
             Genesis Collection
           </h1>
           
@@ -144,40 +145,41 @@ export default function GenesisEventPage() {
           </div>
 
           <div className="pt-6 border-t border-white/5">
-            <p className="text-sm text-white/50 mb-3">
+            <p className="text-sm text-white/50 mb-4">
               You minted: <span className="text-amber-400 font-medium">{userMinted}</span>/{maxPerWallet}
             </p>
             
+            {/* УВЕЛИЧЕННЫЕ ФИЧИ */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
-                <p className="text-xs font-semibold text-amber-400 mb-1">15% Legendary</p>
-                <p className="text-xs text-white/40">Enhanced rate</p>
+              <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
+                <p className="text-sm font-bold text-amber-400 mb-1">15% Legendary</p>
+                <p className="text-sm text-white/60">Enhanced rate</p>
               </div>
-              <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
-                <p className="text-xs font-semibold text-amber-400 mb-1">Genesis Badge</p>
-                <p className="text-xs text-white/40">Exclusive marker</p>
+              <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
+                <p className="text-sm font-bold text-amber-400 mb-1">Genesis Badge</p>
+                <p className="text-sm text-white/60">Exclusive marker</p>
               </div>
-              <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
-                <p className="text-xs font-semibold text-amber-400 mb-1">Priority Access</p>
-                <p className="text-xs text-white/40">Future drops</p>
+              <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
+                <p className="text-sm font-bold text-amber-400 mb-1">Priority Access</p>
+                <p className="text-sm text-white/60">Future drops</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Info */}
+        {/* УВЕЛИЧЕННЫЕ ИНФО-БЛОКИ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-6 rounded-xl bg-white/[0.02] border border-white/5">
-            <h3 className="text-sm font-semibold text-white mb-2">What is Genesis?</h3>
-            <p className="text-xs text-white/50 leading-relaxed">
+            <h3 className="text-base font-semibold text-white mb-3">What is Genesis?</h3>
+            <p className="text-sm text-white/60 leading-relaxed">
               The official launch collection of ScentProtocol on Arc Mainnet. 
               Holders receive lifetime priority access to future events.
             </p>
           </div>
 
           <div className="p-6 rounded-xl bg-white/[0.02] border border-white/5">
-            <h3 className="text-sm font-semibold text-white mb-2">Where to view?</h3>
-            <p className="text-xs text-white/50 leading-relaxed">
+            <h3 className="text-base font-semibold text-white mb-3">Where to view?</h3>
+            <p className="text-sm text-white/60 leading-relaxed">
               All NFTs appear in your{" "}
               <Link href="/collection" className="text-amber-400 hover:underline">Collection</Link>{" "}
               and can be traded on the{" "}
