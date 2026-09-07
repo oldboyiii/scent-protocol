@@ -21,8 +21,8 @@ export default function GenesisEventPage() {
   const [totalMinted, setTotalMinted] = useState(0);
   const [userMinted, setUserMinted] = useState(0);
   
-  const maxSupply = 1000;
-  const maxPerWallet = 3;
+  const maxSupply = 100;
+  const maxPerWallet = 1;
 
   const handleMint = async () => {
     if (!address) {
