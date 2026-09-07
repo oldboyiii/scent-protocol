@@ -22,10 +22,10 @@ const EVENTS: EventItem[] = [
   {
     id: "genesis",
     name: "Genesis Collection",
-    description: "The first 1000 AI-generated fragrances on Arc Mainnet.",
+    description: "The first 100 AI-generated fragrances on Arc Mainnet.",
     longDescription:
       "A historic moment — the very first collection minted on Arc Mainnet. Genesis marks the official launch of ScentProtocol as a fully on-chain digital perfume house. Every holder becomes a founding member of the ecosystem with lifetime benefits.",
-    totalSupply: 1000,
+    totalSupply: 100,
     minted: 0,
     price: "0",
     startDate: "2025-09-16",
@@ -33,10 +33,10 @@ const EVENTS: EventItem[] = [
     partner: "ScentProtocol × Arc Network",
     isLaunch: true,
     keyFacts: [
-      { label: "Supply", value: "1,000 NFTs" },
+      { label: "Supply", value: "100 NFTs" },
       { label: "Price", value: "Free Mint" },
       { label: "Legendary Rate", value: "15% (vs 5%)" },
-      { label: "Per Wallet", value: "Max 3" },
+      { label: "Per Wallet", value: "Max 1" },
     ],
   },
 ];
