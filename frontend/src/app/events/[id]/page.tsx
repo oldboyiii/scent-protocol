@@ -19,14 +19,14 @@ export default function EventDetailPage() {
     id: "genesis",
     name: "Genesis Collection",
     contractAddress: "0x...", // после деплоя
-    maxSupply: 1000,
-    price: "1",
-    endTime: Math.floor(new Date("2025-09-18T00:00:00Z").getTime() / 1000),
+    maxSupply: 100,
+    price: "0",
+    endTime: Math.floor(new Date("2025-09-18T00:00:00Z").getTime() / 100),
   };
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = Math.floor(Date.now() / 1000);
+      const now = Math.floor(Date.now() / 100);
       if (now < event.endTime) {
         const diff = event.endTime - now;
         setTimeLeft({
@@ -36,7 +36,7 @@ export default function EventDetailPage() {
           seconds: diff % 60,
         });
       }
-    }, 1000);
+    }, 100);
 
     return () => clearInterval(timer);
   }, []);
