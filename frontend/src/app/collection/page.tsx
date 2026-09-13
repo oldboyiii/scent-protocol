@@ -26,12 +26,24 @@ const NFT_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
-// Genesis ABI (может отличаться)
 const GENESIS_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function balanceOf(address owner) view returns (uint256)",
   "function getPerfume(uint256 tokenId) view returns (uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis)"
 ];
+
+interface PerfumeInfo {
+  name: string;
+  gender: number;
+  pType: number;
+  topNotes: string[];
+  heartNotes: string[];
+  baseNotes: string[];
+  concentration: number;
+  rarity: number;
+  createdAt: number;
+  creator: string;
+}
 
 interface StoredScent {
   tokenId: number;
@@ -41,18 +53,7 @@ interface StoredScent {
   rarity?: number;
   timestamp: number;
   isListed?: boolean;
-  perfume?: {
-    name: string;
-    gender: number;
-    pType: number;
-    topNotes: string[];
-    heartNotes: string[];
-    baseNotes: string[];
-    concentration: number;
-    rarity: number;
-    createdAt: number;
-    creator: string;
-  };
+  perfume?: PerfumeInfo;
   description?: string;
 }
 
@@ -212,38 +213,27 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   console.log(`Found token ${tokenId} in ${collectionInfo.name}`);
                   
-                  let perfume;
+                  let perfume: PerfumeInfo | undefined;
                   try {
                     const perfumeData = await collectionContract.getPerfume(tokenId);
                     
-                    // Genesis возвращает tokenId первым параметром
-                    if (collectionInfo.name === "Genesis") {
-                      perfume = {
-                        name: perfumeData.name,
-                        gender: Number(perfumeData.gender),
-                        pType: Number(perfumeData.pType),
-                        topNotes: Array.from(perfumeData.topNotes || []),
-                        heartNotes: Array.from(perfumeData.heartNotes || []),
-                        baseNotes: Array.from(perfumeData.baseNotes || []),
-                        concentration: Number(perfumeData.concentration),
-                        rarity: Number(perfumeData.rarity),
-                        createdAt: Number(perfumeData.createdAt),
-                        creator: perfumeData.creator,
-                      };
-                    } else {
-                      perfume = {
-                        name: perfumeData.name,
-                        gender: Number(perfumeData.gender),
-                        pType: Number(perfumeData.pType),
-                        topNotes: Array.from(perfumeData.topNotes || []),
-                        heartNotes: Array.from(perfumeData.heartNotes || []),
-                        baseNotes: Array.from(perfumeData.baseNotes || []),
-                        concentration: Number(perfumeData.concentration),
-                        rarity: Number(perfumeData.rarity),
-                        createdAt: Number(perfumeData.createdAt),
-                        creator: perfumeData.creator,
-                      };
-                    }
+                    // Explicit type casting for string arrays to fix TypeScript errors
+                    const topNotes = Array.from(perfumeData.topNotes || []) as string[];
+                    const heartNotes = Array.from(perfumeData.heartNotes || []) as string[];
+                    const baseNotes = Array.from(perfumeData.baseNotes || []) as string[];
+                    
+                    perfume = {
+                      name: perfumeData.name,
+                      gender: Number(perfumeData.gender),
+                      pType: Number(perfumeData.pType),
+                      topNotes: topNotes,
+                      heartNotes: heartNotes,
+                      baseNotes: baseNotes,
+                      concentration: Number(perfumeData.concentration),
+                      rarity: Number(perfumeData.rarity),
+                      createdAt: Number(perfumeData.createdAt),
+                      creator: perfumeData.creator,
+                    };
                   } catch (e) {
                     console.warn(`Could not fetch perfume data for token ${tokenId}`, e);
                   }
