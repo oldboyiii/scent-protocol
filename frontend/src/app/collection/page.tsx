@@ -7,14 +7,19 @@ import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
 
-const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
+// Updated to V7 marketplace
+const MARKETPLACE_ADDRESS = "0xBC7669036F8af720A85569448FD3DB198C52468C";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
+// Updated ABI for V7 - list now takes nft contract address
 const MARKETPLACE_ABI = [
-  "function list(uint256 tokenId, uint256 price)",
+  "function list(address nft, uint256 tokenId, uint256 price)",
   "function cancel(uint256 tokenId)",
-  "function listings(uint256) view returns (address seller, uint256 price, bool active)"
+  "function listings(uint256) view returns (address seller, uint256 price, bool active)",
+  "function getActiveListings() view returns (uint256[])",
+  "function getActiveCount() view returns (uint256)",
+  "function buy(uint256 tokenId)"
 ];
 
 const NFT_ABI = [
@@ -331,7 +336,6 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      // Use the correct contract address (ScentProtocol or Genesis)
       const nftContract = new ethers.Contract(listingModal.contractAddress, NFT_ABI, signer);
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
@@ -345,8 +349,14 @@ export default function CollectionPage() {
 
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-      console.log("Listing NFT...");
-      const listTx = await marketplaceContract.list(listingModal.tokenId, priceInUSDC);
+      console.log(`Listing NFT ${listingModal.tokenId} from ${listingModal.contractAddress}...`);
+      
+      // V7 requires nft contract address as first parameter
+      const listTx = await marketplaceContract.list(
+        listingModal.contractAddress,
+        listingModal.tokenId,
+        priceInUSDC
+      );
       await listTx.wait();
 
       setListingStatus("success");
@@ -423,7 +433,6 @@ export default function CollectionPage() {
       <p className="text-center text-white/50">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
 
       <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
-        {/* Filter Dropdown */}
         <div className="relative">
           <button onClick={() => { setShowFilter(!showFilter); setShowSort(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
             <span>{filterBy === "all" && "All Collections"}{filterBy === "scents" && "ScentProtocol"}{filterBy === "genesis" && "Genesis"}</span>
@@ -438,7 +447,6 @@ export default function CollectionPage() {
           )}
         </div>
 
-        {/* Sort Dropdown */}
         <div className="relative">
           <button onClick={() => { setShowSort(!showSort); setShowFilter(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
             <span>{sortBy === "newest" && "Newest First"}{sortBy === "oldest" && "Oldest First"}{sortBy === "name" && "Name (A-Z)"}{sortBy === "rarity" && "Rarity (High to Low)"}</span>
