@@ -34,7 +34,7 @@ const GENESIS_ABI = [
 
 interface StoredScent {
   tokenId: number;
-  contractAddress: string;
+  contractAddress: string; // Added to track which collection it belongs to
   name?: string;
   rarity?: number;
   timestamp: number;
@@ -55,7 +55,6 @@ interface StoredScent {
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
-type FilterOption = "all" | string;
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -108,9 +107,7 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [walletReady, setWalletReady] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
-  const [filterBy, setFilterBy] = useState<FilterOption>("all");
   const [showSort, setShowSort] = useState(false);
-  const [showFilter, setShowFilter] = useState(false);
   const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; price: string }>({
     open: false,
     tokenId: null,
@@ -143,9 +140,8 @@ export default function CollectionPage() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.dropdown-container')) {
+      if (!target.closest('.sort-dropdown-container')) {
         setShowSort(false);
-        setShowFilter(false);
       }
     };
     document.addEventListener('click', handleClickOutside);
@@ -177,103 +173,77 @@ export default function CollectionPage() {
         const provider = w.ethereum 
           ? new ethers.BrowserProvider(w.ethereum)
           : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-        
+
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-        // Проверяем оба контракта
-        const collections = [
+        // Check both contracts
+        const contractsToCheck = [
           { address: NFT_CONTRACT_ADDRESS, abi: NFT_ABI, name: "ScentProtocol" },
           { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI, name: "Genesis" }
         ];
 
         const results: StoredScent[] = [];
 
-        for (const collection of collections) {
-          console.log(`Checking ${collection.name}...`);
-          
-          try {
-            const contract = new ethers.Contract(collection.address, collection.abi, provider);
-            const balance = await contract.balanceOf(currentAddress);
-            const balanceNum = Number(balance);
-            
-            console.log(`${collection.name} balance:`, balanceNum);
+        for (const targetContract of contractsToCheck) {
+          const contract = new ethers.Contract(targetContract.address, targetContract.abi, provider);
+          const balance = await contract.balanceOf(currentAddress);
+          const balanceNum = Number(balance);
 
-            if (balanceNum === 0) continue;
+          if (balanceNum === 0) continue;
 
-            let foundCount = 0;
-            const maxId = 100;
+          let foundCount = 0;
+          const maxId = 100; // Increased to 100 to safely cover both collections
 
-            for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
-              try {
-                const owner = await contract.ownerOf(tokenId);
-                
-                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                  console.log(`Found token ${tokenId} in ${collection.name}`);
-                  
-                  let perfumeData;
-                  try {
-                    perfumeData = await contract.getPerfume(tokenId);
-                    
-                   // Нормализуем данные для Genesis (у него первый параметр tokenId)
-const perfume = collection.name === "Genesis" ? {
-  name: perfumeData.name,
-  gender: Number(perfumeData.gender),
-  pType: Number(perfumeData.pType),
-  topNotes: Array.from(perfumeData.topNotes || []) as string[],
-  heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
-  baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
-  concentration: Number(perfumeData.concentration),
-  rarity: Number(perfumeData.rarity),
-  createdAt: Number(perfumeData.createdAt),
-  creator: perfumeData.creator,
-} : {
-  name: perfumeData.name,
-  gender: Number(perfumeData.gender),
-  pType: Number(perfumeData.pType),
-  topNotes: Array.from(perfumeData.topNotes || []) as string[],
-  heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
-  baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
-  concentration: Number(perfumeData.concentration),
-  rarity: Number(perfumeData.rarity),
-  createdAt: Number(perfumeData.createdAt),
-  creator: perfumeData.creator,
-};
-
-                    let isListed = false;
-                    try {
-                      const listing = await marketplace.listings(tokenId);
-                      isListed = listing.active;
-                    } catch (e) {
-                      console.warn(`Could not check listing for token ${tokenId}`, e);
-                    }
-
-                    results.push({
-                      tokenId,
-                      contractAddress: collection.address,
-                      name: perfume.name,
-                      rarity: perfume.rarity,
-                      timestamp: perfume.createdAt * 1000,
-                      isListed,
-                      perfume,
-                      description: undefined,
-                    });
-                    foundCount++;
-                  } catch (e) {
-                    console.warn(`Could not fetch perfume data for token ${tokenId}`, e);
-                  }
-                }
-              } catch (e) {
-                // Token not minted yet
-              }
+          for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
+            try {
+              const owner = await contract.ownerOf(tokenId);
               
-              await new Promise(r => setTimeout(r, 50));
+              if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                const perfumeData = await contract.getPerfume(tokenId);
+                
+                // Normalize data so the UI doesn't care which contract it came from
+                // Genesis returns tokenId as the first parameter, so we skip it in mapping
+                const perfume = {
+                  name: perfumeData.name,
+                  gender: Number(perfumeData.gender),
+                  pType: Number(perfumeData.pType),
+                  topNotes: Array.from(perfumeData.topNotes || []) as string[],
+                  heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
+                  baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
+                  concentration: Number(perfumeData.concentration),
+                  rarity: Number(perfumeData.rarity),
+                  createdAt: Number(perfumeData.createdAt),
+                  creator: perfumeData.creator,
+                };
+
+                let isListed = false;
+                try {
+                  const listing = await marketplace.listings(tokenId);
+                  isListed = listing.active;
+                } catch (e) {
+                  console.warn(`Could not check listing status for token ${tokenId}`, e);
+                }
+
+                results.push({
+                  tokenId,
+                  contractAddress: targetContract.address,
+                  name: perfume.name,
+                  rarity: perfume.rarity,
+                  timestamp: perfume.createdAt * 1000,
+                  isListed,
+                  perfume,
+                  description: undefined,
+                });
+                foundCount++;
+              }
+            } catch (e) {
+              // Ignore errors for tokens that are not minted yet
             }
-          } catch (e) {
-            console.error(`Error fetching from ${collection.name}:`, e);
+            
+            await new Promise(r => setTimeout(r, 50));
           }
         }
 
-        console.log("Total NFTs found:", results.length);
         setScents(results);
       } catch (e) {
         console.error("Collection fetch error:", e);
@@ -285,12 +255,7 @@ const perfume = collection.name === "Genesis" ? {
     fetchCollection();
   }, [walletReady, address]);
 
-  const filteredScents = scents.filter(s => {
-    if (filterBy === "all") return true;
-    return s.contractAddress.toLowerCase() === filterBy.toLowerCase();
-  });
-
-  const sortedScents = [...filteredScents].sort((a, b) => {
+  const sortedScents = [...scents].sort((a, b) => {
     switch (sortBy) {
       case "newest":
         return b.tokenId - a.tokenId;
@@ -391,12 +356,12 @@ const perfume = collection.name === "Genesis" ? {
 
   if (!walletReady || loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
+      <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
         <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">
           My Collection
         </h1>
-        <div className="grid gap-6 md:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid gap-6 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
           ))}
         </div>
@@ -414,78 +379,21 @@ const perfume = collection.name === "Genesis" ? {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
+    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
       <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">
         My Collection
       </h1>
       <p className="text-center text-white/50">
-        {scents.length} NFT{scents.length !== 1 ? "s" : ""} collected
+        {scents.length} scent{scents.length !== 1 ? "s" : ""} collected
       </p>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
+      {/* Sort Controls */}
+      <div className="mb-6 flex items-center gap-3 relative sort-dropdown-container">
+        <span className="text-white/50 text-sm">Sort by:</span>
+        
         <div className="relative">
           <button
-            onClick={() => {
-              setShowFilter(!showFilter);
-              setShowSort(false);
-            }}
-            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[180px] justify-between"
-          >
-            <span>
-              {filterBy === "all" 
-                ? "All Collections" 
-                : (getCollectionByAddress(filterBy)?.badgeIcon || "") + " " + (getCollectionByAddress(filterBy)?.name || "Unknown")}
-            </span>
-            <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          
-          {showFilter && (
-            <div className="absolute top-full mt-1 left-0 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl min-w-[200px]">
-              <button
-                onClick={() => {
-                  setFilterBy("all");
-                  setShowFilter(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                  filterBy === "all" ? "text-amber-400 bg-white/5" : "text-white/70"
-                }`}
-              >
-                All Collections
-              </button>
-              <button
-                onClick={() => {
-                  setFilterBy(NFT_CONTRACT_ADDRESS);
-                  setShowFilter(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                  filterBy === NFT_CONTRACT_ADDRESS ? "text-amber-400 bg-white/5" : "text-white/70"
-                }`}
-              >
-                ScentProtocol
-              </button>
-              <button
-                onClick={() => {
-                  setFilterBy(GENESIS_CONTRACT_ADDRESS);
-                  setShowFilter(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                  filterBy === GENESIS_CONTRACT_ADDRESS ? "text-amber-400 bg-white/5" : "text-white/70"
-                }`}
-              >
-                 Genesis
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button
-            onClick={() => {
-              setShowSort(!showSort);
-              setShowFilter(false);
-            }}
+            onClick={() => setShowSort(!showSort)}
             className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
           >
             <span>
@@ -520,21 +428,22 @@ const perfume = collection.name === "Genesis" ? {
         </div>
         
         <span className="text-white/30 text-sm ml-auto">
-          {filteredScents.length} item{filteredScents.length !== 1 ? "s" : ""}
+          {scents.length} items
         </span>
       </div>
 
-      {filteredScents.length === 0 ? (
+      {scents.length === 0 ? (
         <div className="text-center text-white/40 py-20">
-          <p className="text-lg mb-4">
-            {scents.length === 0 ? "No NFTs in your collection yet." : "No NFTs in this collection."}
-          </p>
-          <Link href="/" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
+          <p className="text-lg mb-4">No scents in your collection yet.</p>
+          <Link
+            href="/"
+            className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+          >
             Mint Your First Scent →
           </Link>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2">
           {sortedScents.map((s) => {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
@@ -545,17 +454,10 @@ const perfume = collection.name === "Genesis" ? {
             return (
               <div
                 key={`${s.contractAddress}-${s.tokenId}`}
-                className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${collection?.borderColor || style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}
+                className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}
               >
-                {collection && (
-                  <div className="absolute top-4 right-4">
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
-                      {collection.badgeIcon} {collection.name}
-                    </span>
-                  </div>
-                )}
-
-                <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                <div 
+                  className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                   style={{
                     background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
                     backgroundSize: "200% 100%",
@@ -567,17 +469,37 @@ const perfume = collection.name === "Genesis" ? {
                   }}
                 />
 
-                <div className="relative">
-                  <p className="text-xs text-white/40 uppercase tracking-wider">
-                    {collection?.name || "Scent"} #{s.tokenId}
-                  </p>
-                  <h3 className="text-xl font-bold text-white mt-1 pr-24">
-                    {perfume?.name || s.name || `Scent #${s.tokenId}`}
-                  </h3>
-                </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+                <div 
+                  className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
+                  style={{
+                    background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2.5s infinite",
+                  }}
+                />
 
                 <div className="relative flex items-start justify-between">
-                  <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-white/40 uppercase tracking-wider">
+                        Scent #{s.tokenId}
+                      </p>
+                      {collection && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
+                          {collection.badgeIcon} {collection.name}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-bold text-white mt-1">
+                      {perfume?.name || s.name || `Scent #${s.tokenId}`}
+                    </h3>
+                  </div>
+                  <span
+                    className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}
+                  >
                     {RARITY[rarity]}
                   </span>
                 </div>
@@ -607,6 +529,37 @@ const perfume = collection.name === "Genesis" ? {
                           ))}
                         </div>
                       </div>
+                      <div>
+                        <span className="text-white/40 text-xs uppercase tracking-wider">Heart Notes</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {perfume!.heartNotes.map((n) => (
+                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-rose-200 text-xs border border-rose-500/30">
+                              {n}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-white/40 text-xs uppercase tracking-wider">Base Notes</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {perfume!.baseNotes.map((n) => (
+                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-emerald-200 text-xs border border-emerald-500/30">
+                              {n}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {s.description && (
+                      <div className="relative bg-black/30 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
+                        {s.description}
+                      </div>
+                    )}
+
+                    <div className="relative text-xs text-white/30 space-y-0.5">
+                      <p>Creator: {perfume!.creator}</p>
+                      <p>Minted: {new Date(perfume!.createdAt * 1000).toLocaleString()}</p>
                     </div>
 
                     <div className="relative flex items-center justify-between pt-2 gap-2">
@@ -628,7 +581,7 @@ const perfume = collection.name === "Genesis" ? {
                             onClick={() => handleListClick(s.tokenId)}
                             className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all"
                           >
-                            List
+                            List for Sale
                           </button>
                         )}
                       </div>
@@ -637,9 +590,12 @@ const perfume = collection.name === "Genesis" ? {
                 ) : (
                   <div className="relative text-sm text-white/40">
                     <p>Legacy entry — full details not available.</p>
-                    <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors inline-block mt-2">
-                      View Details →
-                    </Link>
+                    <p className="text-xs mt-1">Minted: {new Date(s.timestamp).toLocaleString()}</p>
+                    <div className="flex items-center justify-between pt-4">
+                      <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">
+                        View Details →
+                      </Link>
+                    </div>
                   </div>
                 )}
               </div>
@@ -648,6 +604,7 @@ const perfume = collection.name === "Genesis" ? {
         </div>
       )}
 
+      {/* Listing Modal - Styled by Rarity */}
       {listingModal.open && (() => {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
@@ -659,27 +616,61 @@ const perfume = collection.name === "Genesis" ? {
               className={`w-full max-w-sm mx-4 p-6 relative rounded-2xl backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} overflow-hidden`}
               onClick={(e) => e.stopPropagation()}
             >
+              <div 
+                className="absolute inset-0 rounded-2xl pointer-events-none"
+                style={{
+                  background: `linear-gradient(90deg, transparent, ${style.hex}40, transparent)`,
+                  backgroundSize: "200% 100%",
+                  animation: "shimmer 2s linear infinite",
+                  padding: "2px",
+                  WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                  WebkitMaskComposite: "xor",
+                  maskComposite: "exclude",
+                }}
+              />
+
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+
               <div className="relative">
-                <h3 className="text-xl font-bold text-white mb-4">
-                  List Scent #{listingModal.tokenId}
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-white">
+                    List Scent #{listingModal.tokenId}
+                  </h3>
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                    {RARITY[rarity]}
+                  </span>
+                </div>
+                
                 <p className="text-white/60 text-sm mb-5">Set your price in USDC</p>
 
                 <div className="space-y-4">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="e.g. 10.00"
-                    value={listingModal.price}
-                    onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })}
-                    className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-white/50 transition-colors placeholder:text-white/30"
-                  />
+                  <div>
+                    <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Price (USDC)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="e.g. 10.00"
+                      value={listingModal.price}
+                      onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })}
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-white/50 transition-colors placeholder:text-white/30"
+                    />
+                  </div>
+
+                  {listingStatus === "approving" && (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-2"></div>
+                      <p className="text-sm text-white/80 font-medium">Approving marketplace...</p>
+                      <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
+                    </div>
+                  )}
 
                   {listingStatus === "listing" && (
                     <div className="text-center py-4">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-2"></div>
-                      <p className="text-sm text-white/80">Creating listing...</p>
+                      <p className="text-sm text-white/80 font-medium">Creating listing...</p>
+                      <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
                     </div>
                   )}
 
@@ -687,6 +678,7 @@ const perfume = collection.name === "Genesis" ? {
                     <div className="text-center py-4">
                       <div className="text-4xl mb-2">✓</div>
                       <p className="text-emerald-400 font-bold">Successfully listed!</p>
+                      <p className="text-xs text-white/40 mt-1">Redirecting...</p>
                     </div>
                   )}
 
@@ -694,14 +686,14 @@ const perfume = collection.name === "Genesis" ? {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}
-                        className="flex-1 py-3 bg-black/30 border border-white/10 text-white/70 rounded-lg hover:bg-black/40 transition-colors"
+                        className="flex-1 py-3 bg-black/30 border border-white/10 text-white/70 rounded-lg hover:bg-black/40 transition-colors font-medium"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleListConfirm}
                         disabled={!listingModal.price || parseFloat(listingModal.price) <= 0}
-                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50"
+                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
                       >
                         List NFT
                       </button>
