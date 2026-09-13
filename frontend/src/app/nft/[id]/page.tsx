@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
 import ShareCard from "@/components/ShareCard";
@@ -145,9 +146,9 @@ export default function NFTDetailPage() {
                 name: data.name,
                 gender: Number(data.gender),
                 pType: Number(data.pType),
-                topNotes: Array.from(data.topNotes || []),
-                heartNotes: Array.from(data.heartNotes || []),
-                baseNotes: Array.from(data.baseNotes || []),
+                topNotes: Array.from(data.topNotes || []) as string[],
+                heartNotes: Array.from(data.heartNotes || []) as string[],
+                baseNotes: Array.from(data.baseNotes || []) as string[],
                 concentration: Number(data.concentration),
                 rarity: Number(data.rarity),
                 createdAt: Number(data.createdAt),
