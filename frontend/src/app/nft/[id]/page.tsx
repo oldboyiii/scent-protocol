@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
 import ShareCard from "@/components/ShareCard";
-import { getCollectionByAddress } from "@/config/collections";
 
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
@@ -112,7 +111,7 @@ export default function NFTDetailPage() {
   const id = Number(params.id);
 
   const [perfume, setPerfume] = useState<any>(null);
-  const [contractAddress, setContractAddress] = useState<string | null>(null);
+  const [isGenesis, setIsGenesis] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -127,49 +126,58 @@ export default function NFTDetailPage() {
           provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
         }
 
-        // Try both contracts until we find the token
-        const contractsToTry = [
-          { address: NFT_CONTRACT_ADDRESS, abi: SCENT_ABI },
-          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI }
-        ];
-
-        for (const contractInfo of contractsToTry) {
-          try {
-            const contract = new ethers.Contract(contractInfo.address, contractInfo.abi, provider);
-            
-            // This will throw an error if the token doesn't exist in this specific contract
-            await contract.ownerOf(id); 
-            
-            // If it doesn't throw, we found it. Fetch the data.
-            const data = await contract.getPerfume(id);
-            
-            // Normalize data so the UI works exactly as before
-            const normalizedData = {
-              name: data.name,
-              gender: Number(data.gender),
-              pType: Number(data.pType),
-              topNotes: Array.from(data.topNotes || []) as string[],
-              heartNotes: Array.from(data.heartNotes || []) as string[],
-              baseNotes: Array.from(data.baseNotes || []) as string[],
-              concentration: Number(data.concentration),
-              rarity: Number(data.rarity),
-              createdAt: Number(data.createdAt),
-              creator: data.creator,
-            };
-            
-            setPerfume(normalizedData);
-            setContractAddress(contractInfo.address);
-            return; // Stop searching, we found it
-          } catch (e) {
-            // Token not in this contract, continue to the next one
-            continue;
-          }
+        // Try ScentProtocol first
+        try {
+          const contract = new ethers.Contract(NFT_CONTRACT_ADDRESS, SCENT_ABI, provider);
+          const data = await contract.getPerfume(id);
+          
+          setPerfume({
+            name: data.name,
+            gender: Number(data.gender),
+            pType: Number(data.pType),
+            topNotes: Array.from(data.topNotes || []) as string[],
+            heartNotes: Array.from(data.heartNotes || []) as string[],
+            baseNotes: Array.from(data.baseNotes || []) as string[],
+            concentration: Number(data.concentration),
+            rarity: Number(data.rarity),
+            createdAt: Number(data.createdAt),
+            creator: data.creator,
+          });
+          setIsGenesis(false);
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.log(`Token ${id} not in ScentProtocol, trying Genesis...`);
         }
-        
-        // If loop finishes without returning, token wasn't found in either
+
+        // Try Genesis
+        try {
+          const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+          const data = await genesisContract.getPerfume(id);
+          
+          setPerfume({
+            name: data.name,
+            gender: Number(data.gender),
+            pType: Number(data.pType),
+            topNotes: Array.from(data.topNotes || []) as string[],
+            heartNotes: Array.from(data.heartNotes || []) as string[],
+            baseNotes: Array.from(data.baseNotes || []) as string[],
+            concentration: Number(data.concentration),
+            rarity: Number(data.rarity),
+            createdAt: Number(data.createdAt),
+            creator: data.creator,
+          });
+          setIsGenesis(true);
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.log(`Token ${id} not in Genesis either`);
+        }
+
+        // If we get here, token not found in either contract
         setPerfume(null);
       } catch (e) {
-        console.error(e);
+        console.error("Fetch error:", e);
       } finally {
         setLoading(false);
       }
@@ -201,7 +209,6 @@ export default function NFTDetailPage() {
 
   const description = generateDescription(perfume);
   const style = RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0];
-  const collection = contractAddress ? getCollectionByAddress(contractAddress) : null;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8 relative z-10">
@@ -210,7 +217,6 @@ export default function NFTDetailPage() {
       </Link>
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
-        {/* Animated shimmer border on hover */}
         <div 
           className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
           style={{
@@ -224,13 +230,9 @@ export default function NFTDetailPage() {
           }}
         />
 
-        {/* Glass shine */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-
-        {/* Top glow line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {/* Hover shimmer */}
         <div 
           className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
           style={{
@@ -243,10 +245,12 @@ export default function NFTDetailPage() {
         <div className="relative flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{id}</p>
-              {collection && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
-                  {collection.badgeIcon} {collection.name}
+              <p className="text-xs text-white/40 uppercase tracking-wider">
+                {isGenesis ? "Genesis" : "Scent"} #{id}
+              </p>
+              {isGenesis && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/30 text-amber-100 border-amber-400/50">
+                  🏆 Genesis
                 </span>
               )}
             </div>
