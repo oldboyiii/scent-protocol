@@ -9,7 +9,6 @@ import ShareCard from "@/components/ShareCard";
 
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
-// Exact JSON ABI for Genesis getPerfume to ensure perfect tuple parsing
 const GENESIS_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -49,7 +48,6 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
-// Enhanced style for Genesis
 const GENESIS_STYLE = {
   bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90",
   border: "border-amber-400/70",
@@ -106,19 +104,22 @@ export default function NFTDetailPage() {
 
         let found = false;
 
-        // 1. Try ScentProtocol FIRST using the EXACT working getContract from your utils
+        // 1. Try ScentProtocol FIRST
         try {
           const contract = getContract(provider);
           const data = await contract.getPerfume(id);
           
-          if (data && data.name) {
+          // VALIDATE: Check if we got REAL data (not empty/zero values)
+          if (data && data.name && data.name.length > 0 && data.topNotes && data.topNotes.length > 0) {
             setPerfume(data);
             setIsGenesis(false);
             found = true;
-            console.log("✅ Found in ScentProtocol");
+            console.log("✅ Found in ScentProtocol:", data.name);
+          } else {
+            console.log("ScentProtocol returned empty data, trying Genesis...");
           }
         } catch (e) {
-          console.log("Not in ScentProtocol, trying Genesis...");
+          console.log("Not in ScentProtocol (error), trying Genesis...");
         }
 
         // 2. Try Genesis ONLY if not found in ScentProtocol
@@ -127,7 +128,7 @@ export default function NFTDetailPage() {
             const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
             const data = await genesisContract.getPerfume(id);
             
-            if (data && data.name) {
+            if (data && data.name && data.name.length > 0) {
               setPerfume({
                 name: data.name,
                 gender: Number(data.gender),
@@ -142,7 +143,7 @@ export default function NFTDetailPage() {
               });
               setIsGenesis(true);
               found = true;
-              console.log("✅ Found in Genesis");
+              console.log("✅ Found in Genesis:", data.name);
             }
           } catch (e) {
             console.log("Not in Genesis either.");
@@ -196,7 +197,7 @@ export default function NFTDetailPage() {
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
-        {/* 1. CONSTANT SHIMMER: ONLY for Genesis (Always visible, premium feel) */}
+        {/* CONSTANT SHIMMER: ONLY for Genesis (Always visible) */}
         {isGenesis && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
             background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
@@ -205,7 +206,7 @@ export default function NFTDetailPage() {
           }} />
         )}
 
-        {/* 2. HOVER SHIMMER: For regular NFTs (EXACTLY like your original working code) */}
+        {/* HOVER SHIMMER #1: For regular NFTs (EXACT from your old code) */}
         {!isGenesis && (
           <div 
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -217,6 +218,24 @@ export default function NFTDetailPage() {
               WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
               WebkitMaskComposite: "xor",
               maskComposite: "exclude",
+            }}
+          />
+        )}
+
+        {/* Glass shine */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+
+        {/* Top glow line */}
+        <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+        {/* HOVER SHIMMER #2: For regular NFTs (EXACT from your old code) */}
+        {!isGenesis && (
+          <div 
+            className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
+            style={{
+              background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
+              backgroundSize: "200% 100%",
+              animation: "shimmer 2.5s infinite",
             }}
           />
         )}
