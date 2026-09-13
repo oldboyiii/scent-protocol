@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
-import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 
 const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
@@ -11,33 +10,15 @@ const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
 const MARKETPLACE_ABI = [
-  "function list(uint256 tokenId, uint256 price)",
-  "function cancel(uint256 tokenId)",
   "function listings(uint256) view returns (address seller, uint256 price, bool active)",
   "function buy(uint256 tokenId)"
 ];
 
 const NFT_ABI = [
-  "function ownerOf(uint256 tokenId) view returns (address)",
-  "function balanceOf(address owner) view returns (uint256)",
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
 const GENESIS_ABI = [
-  {
-    "inputs": [{"internalType": "address", "name": "owner", "type": "address"}],
-    "name": "balanceOf",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "ownerOf",
-    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
     "name": "getPerfume",
@@ -101,34 +82,12 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
 export default function MarketplacePage() {
   const [listings, setListings] = useState<ListedNFT[]>([]);
   const [loading, setLoading] = useState(true);
-  const [walletReady, setWalletReady] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [filterBy, setFilterBy] = useState<CollectionFilter>("all");
   const [showSort, setShowSort] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [buyingToken, setBuyingToken] = useState<number | null>(null);
   const { address } = useWallet();
-
-  useEffect(() => {
-    if (address) {
-      setWalletReady(true);
-    } else {
-      const checkDirectly = async () => {
-        const w = window as any;
-        if (w.ethereum) {
-          try {
-            const accounts = await w.ethereum.request({ method: 'eth_accounts' });
-            if (accounts && accounts.length > 0) {
-              setWalletReady(true);
-            }
-          } catch {}
-        }
-      };
-      checkDirectly();
-      const timer = setTimeout(() => setWalletReady(true), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [address]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -150,7 +109,6 @@ export default function MarketplacePage() {
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
         const results: ListedNFT[] = [];
 
-        // Fetch all active listings
         const maxTokenId = 100;
         
         for (let tokenId = 1; tokenId <= maxTokenId; tokenId++) {
@@ -158,7 +116,6 @@ export default function MarketplacePage() {
             const listing = await marketplace.listings(tokenId);
             
             if (listing.active && listing.seller !== "0x0000000000000000000000000000000000000000") {
-              // Try to get perfume data from both contracts
               let perfume = null;
               let contractAddress = "";
 
@@ -166,24 +123,7 @@ export default function MarketplacePage() {
               try {
                 const scentContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, provider);
                 const data = await scentContract.getPerfume(tokenId);
-                perfume = {
-                  name: data.name,
-                  gender: Number(data.gender),
-                  pType: Number(data.pType),
-                  topNotes: Array.from(data.topNotes || []) as string[],
-                  heartNotes: Array.from(data.heartNotes || []) as string[],
-                  baseNotes: Array.from(data.baseNotes || []) as string[],
-                  concentration: Number(data.concentration),
-                  rarity: Number(data.rarity),
-                  createdAt: Number(data.createdAt),
-                  creator: data.creator,
-                };
-                contractAddress = NFT_CONTRACT_ADDRESS;
-              } catch (e) {
-                // Try Genesis
-                try {
-                  const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-                  const data = await genesisContract.getPerfume(tokenId);
+                if (data && data.name) {
                   perfume = {
                     name: data.name,
                     gender: Number(data.gender),
@@ -196,7 +136,28 @@ export default function MarketplacePage() {
                     createdAt: Number(data.createdAt),
                     creator: data.creator,
                   };
-                  contractAddress = GENESIS_CONTRACT_ADDRESS;
+                  contractAddress = NFT_CONTRACT_ADDRESS;
+                }
+              } catch (e) {
+                // Try Genesis
+                try {
+                  const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+                  const data = await genesisContract.getPerfume(tokenId);
+                  if (data && data.name) {
+                    perfume = {
+                      name: data.name,
+                      gender: Number(data.gender),
+                      pType: Number(data.pType),
+                      topNotes: Array.from(data.topNotes || []) as string[],
+                      heartNotes: Array.from(data.heartNotes || []) as string[],
+                      baseNotes: Array.from(data.baseNotes || []) as string[],
+                      concentration: Number(data.concentration),
+                      rarity: Number(data.rarity),
+                      createdAt: Number(data.createdAt),
+                      creator: data.creator,
+                    };
+                    contractAddress = GENESIS_CONTRACT_ADDRESS;
+                  }
                 } catch (e2) {
                   // No perfume data found
                 }
@@ -259,15 +220,6 @@ export default function MarketplacePage() {
       
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       
-      // First approve USDC spending
-      const USDC_ABI = ["function approve(address spender, uint256 amount) returns (bool)"];
-      const USDC_ADDRESS = "0x..."; // Add your USDC address
-      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
-      const priceInWei = ethers.parseUnits(price, 6);
-      
-      await usdcContract.approve(MARKETPLACE_ADDRESS, priceInWei);
-      
-      // Then buy
       const buyTx = await marketplaceContract.buy(tokenId);
       await buyTx.wait();
 
@@ -304,7 +256,6 @@ export default function MarketplacePage() {
       <p className="text-center text-white/50">{listings.length} NFT{listings.length !== 1 ? "s" : ""} listed for sale</p>
 
       <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
-        {/* Filter Dropdown */}
         <div className="relative">
           <button onClick={() => { setShowFilter(!showFilter); setShowSort(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
             <span>{filterBy === "all" && "All Collections"}{filterBy === "scents" && "ScentProtocol"}{filterBy === "genesis" && "Genesis"}</span>
@@ -319,7 +270,6 @@ export default function MarketplacePage() {
           )}
         </div>
 
-        {/* Sort Dropdown */}
         <div className="relative">
           <button onClick={() => { setShowSort(!showSort); setShowFilter(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[180px] justify-between">
             <span>{sortBy === "newest" && "Newest First"}{sortBy === "oldest" && "Oldest First"}{sortBy === "priceLow" && "Price: Low to High"}{sortBy === "priceHigh" && "Price: High to Low"}{sortBy === "rarity" && "Rarity (High to Low)"}</span>
@@ -364,7 +314,6 @@ export default function MarketplacePage() {
             return (
               <div key={`${listing.contractAddress}-${listing.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
                 
-                {/* CONSTANT SHIMMER: ONLY for Genesis */}
                 {isGenesis && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
                     background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
@@ -373,7 +322,6 @@ export default function MarketplacePage() {
                   }} />
                 )}
 
-                {/* HOVER SHIMMER #1: For regular NFTs */}
                 {!isGenesis && (
                   <div 
                     className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -389,13 +337,9 @@ export default function MarketplacePage() {
                   />
                 )}
 
-                {/* Glass shine */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-                
-                {/* Top glow line */}
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                {/* HOVER SHIMMER #2: For regular NFTs */}
                 {!isGenesis && (
                   <div 
                     className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
@@ -429,7 +373,6 @@ export default function MarketplacePage() {
                   </span>
                 </div>
 
-                {/* Price Tag */}
                 <div className="relative bg-black/40 rounded-lg px-4 py-2 border border-white/10">
                   <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Price</p>
                   <p className="text-2xl font-bold text-emerald-400">{listing.price} <span className="text-sm text-white/60">USDC</span></p>
