@@ -29,7 +29,7 @@ const EVENTS: EventItem[] = [
     minted: 0,
     price: "0",
     startDate: "2025-09-16",
-    status: "upcoming",
+    status: "live",  // ✅ CHANGED TO "live"
     partner: "ScentProtocol × Arc Network",
     isLaunch: true,
     keyFacts: [
