@@ -214,30 +214,30 @@ export default function CollectionPage() {
                   try {
                     perfumeData = await contract.getPerfume(tokenId);
                     
-                    // Нормализуем данные для Genesis (у него первый параметр tokenId)
-                    const perfume = collection.name === "Genesis" ? {
-                      name: perfumeData.name,
-                      gender: Number(perfumeData.gender),
-                      pType: Number(perfumeData.pType),
-                      topNotes: Array.from(perfumeData.topNotes || []),
-                      heartNotes: Array.from(perfumeData.heartNotes || []),
-                      baseNotes: Array.from(perfumeData.baseNotes || []),
-                      concentration: Number(perfumeData.concentration),
-                      rarity: Number(perfumeData.rarity),
-                      createdAt: Number(perfumeData.createdAt),
-                      creator: perfumeData.creator,
-                    } : {
-                      name: perfumeData.name,
-                      gender: Number(perfumeData.gender),
-                      pType: Number(perfumeData.pType),
-                      topNotes: Array.from(perfumeData.topNotes || []),
-                      heartNotes: Array.from(perfumeData.heartNotes || []),
-                      baseNotes: Array.from(perfumeData.baseNotes || []),
-                      concentration: Number(perfumeData.concentration),
-                      rarity: Number(perfumeData.rarity),
-                      createdAt: Number(perfumeData.createdAt),
-                      creator: perfumeData.creator,
-                    };
+                   // Нормализуем данные для Genesis (у него первый параметр tokenId)
+const perfume = collection.name === "Genesis" ? {
+  name: perfumeData.name,
+  gender: Number(perfumeData.gender),
+  pType: Number(perfumeData.pType),
+  topNotes: Array.from(perfumeData.topNotes || []) as string[],
+  heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
+  baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
+  concentration: Number(perfumeData.concentration),
+  rarity: Number(perfumeData.rarity),
+  createdAt: Number(perfumeData.createdAt),
+  creator: perfumeData.creator,
+} : {
+  name: perfumeData.name,
+  gender: Number(perfumeData.gender),
+  pType: Number(perfumeData.pType),
+  topNotes: Array.from(perfumeData.topNotes || []) as string[],
+  heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
+  baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
+  concentration: Number(perfumeData.concentration),
+  rarity: Number(perfumeData.rarity),
+  createdAt: Number(perfumeData.createdAt),
+  creator: perfumeData.creator,
+};
 
                     let isListed = false;
                     try {
