@@ -6,7 +6,6 @@ import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
-import { getCollectionByAddress } from "@/config/collections";
 
 const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
@@ -34,7 +33,7 @@ const GENESIS_ABI = [
 
 interface StoredScent {
   tokenId: number;
-  contractAddress: string; // Added to track which collection it belongs to
+  contractAddress: string;
   name?: string;
   rarity?: number;
   timestamp: number;
@@ -176,72 +175,139 @@ export default function CollectionPage() {
 
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-        // Check both contracts
-        const contractsToCheck = [
-          { address: NFT_CONTRACT_ADDRESS, abi: NFT_ABI, name: "ScentProtocol" },
-          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI, name: "Genesis" }
-        ];
-
         const results: StoredScent[] = [];
 
-        for (const targetContract of contractsToCheck) {
-          const contract = new ethers.Contract(targetContract.address, targetContract.abi, provider);
+        // First, fetch from ScentProtocol using getContract (like before)
+        try {
+          let contract;
+          if (w.ethereum) {
+            const browserProvider = new ethers.BrowserProvider(w.ethereum);
+            contract = getContract(browserProvider);
+          } else {
+            const fallbackProvider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+            contract = getContract(fallbackProvider);
+          }
+
           const balance = await contract.balanceOf(currentAddress);
           const balanceNum = Number(balance);
 
-          if (balanceNum === 0) continue;
+          console.log("ScentProtocol balance:", balanceNum);
 
-          let foundCount = 0;
-          const maxId = 100; // Increased to 100 to safely cover both collections
+          if (balanceNum > 0) {
+            let foundCount = 0;
+            const maxId = 100;
 
-          for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
-            try {
-              const owner = await contract.ownerOf(tokenId);
-              
-              if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                const perfumeData = await contract.getPerfume(tokenId);
+            for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
+              try {
+                const owner = await contract.ownerOf(tokenId);
                 
-                // Normalize data so the UI doesn't care which contract it came from
-                // Genesis returns tokenId as the first parameter, so we skip it in mapping
-                const perfume = {
-                  name: perfumeData.name,
-                  gender: Number(perfumeData.gender),
-                  pType: Number(perfumeData.pType),
-                  topNotes: Array.from(perfumeData.topNotes || []) as string[],
-                  heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
-                  baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
-                  concentration: Number(perfumeData.concentration),
-                  rarity: Number(perfumeData.rarity),
-                  createdAt: Number(perfumeData.createdAt),
-                  creator: perfumeData.creator,
-                };
+                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                  const perfume = await contract.getPerfume(tokenId);
+                  
+                  let isListed = false;
+                  try {
+                    const listing = await marketplace.listings(tokenId);
+                    isListed = listing.active;
+                  } catch (e) {
+                    console.warn(`Could not check listing for token ${tokenId}`, e);
+                  }
 
-                let isListed = false;
-                try {
-                  const listing = await marketplace.listings(tokenId);
-                  isListed = listing.active;
-                } catch (e) {
-                  console.warn(`Could not check listing status for token ${tokenId}`, e);
+                  results.push({
+                    tokenId,
+                    contractAddress: NFT_CONTRACT_ADDRESS,
+                    name: perfume.name,
+                    rarity: Number(perfume.rarity),
+                    timestamp: Number(perfume.createdAt) * 1000,
+                    isListed,
+                    perfume: {
+                      name: perfume.name,
+                      gender: Number(perfume.gender),
+                      pType: Number(perfume.pType),
+                      topNotes: Array.from(perfume.topNotes || []) as string[],
+                      heartNotes: Array.from(perfume.heartNotes || []) as string[],
+                      baseNotes: Array.from(perfume.baseNotes || []) as string[],
+                      concentration: Number(perfume.concentration),
+                      rarity: Number(perfume.rarity),
+                      createdAt: Number(perfume.createdAt),
+                      creator: perfume.creator,
+                    },
+                    description: undefined,
+                  });
+                  foundCount++;
                 }
-
-                results.push({
-                  tokenId,
-                  contractAddress: targetContract.address,
-                  name: perfume.name,
-                  rarity: perfume.rarity,
-                  timestamp: perfume.createdAt * 1000,
-                  isListed,
-                  perfume,
-                  description: undefined,
-                });
-                foundCount++;
+              } catch (e) {
+                // Token not minted yet
               }
-            } catch (e) {
-              // Ignore errors for tokens that are not minted yet
+              
+              await new Promise(r => setTimeout(r, 50));
             }
-            
-            await new Promise(r => setTimeout(r, 50));
           }
+        } catch (e) {
+          console.error("Error fetching ScentProtocol:", e);
+        }
+
+        // Then, fetch from Genesis
+        try {
+          const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+          const genesisBalance = await genesisContract.balanceOf(currentAddress);
+          const genesisBalanceNum = Number(genesisBalance);
+
+          console.log("Genesis balance:", genesisBalanceNum);
+
+          if (genesisBalanceNum > 0) {
+            let foundCount = 0;
+            const maxId = 100;
+
+            for (let tokenId = 1; tokenId <= maxId && foundCount < genesisBalanceNum; tokenId++) {
+              try {
+                const owner = await genesisContract.ownerOf(tokenId);
+                
+                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                  const perfumeData = await genesisContract.getPerfume(tokenId);
+                  
+                  // Normalize Genesis data (skip first tokenId parameter)
+                  const perfume = {
+                    name: perfumeData.name,
+                    gender: Number(perfumeData.gender),
+                    pType: Number(perfumeData.pType),
+                    topNotes: Array.from(perfumeData.topNotes || []) as string[],
+                    heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
+                    baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
+                    concentration: Number(perfumeData.concentration),
+                    rarity: Number(perfumeData.rarity),
+                    createdAt: Number(perfumeData.createdAt),
+                    creator: perfumeData.creator,
+                  };
+
+                  let isListed = false;
+                  try {
+                    const listing = await marketplace.listings(tokenId);
+                    isListed = listing.active;
+                  } catch (e) {
+                    console.warn(`Could not check listing for Genesis token ${tokenId}`, e);
+                  }
+
+                  results.push({
+                    tokenId,
+                    contractAddress: GENESIS_CONTRACT_ADDRESS,
+                    name: perfume.name,
+                    rarity: perfume.rarity,
+                    timestamp: perfume.createdAt * 1000,
+                    isListed,
+                    perfume,
+                    description: undefined,
+                  });
+                  foundCount++;
+                }
+              } catch (e) {
+                // Token not minted yet
+              }
+              
+              await new Promise(r => setTimeout(r, 50));
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching Genesis:", e);
         }
 
         setScents(results);
@@ -387,7 +453,6 @@ export default function CollectionPage() {
         {scents.length} scent{scents.length !== 1 ? "s" : ""} collected
       </p>
 
-      {/* Sort Controls */}
       <div className="mb-6 flex items-center gap-3 relative sort-dropdown-container">
         <span className="text-white/50 text-sm">Sort by:</span>
         
@@ -449,7 +514,7 @@ export default function CollectionPage() {
             const perfume = hasFullData ? s.perfume! : null;
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
             const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
-            const collection = getCollectionByAddress(s.contractAddress);
+            const isGenesis = s.contractAddress === GENESIS_CONTRACT_ADDRESS;
 
             return (
               <div
@@ -485,11 +550,11 @@ export default function CollectionPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-xs text-white/40 uppercase tracking-wider">
-                        Scent #{s.tokenId}
+                        {isGenesis ? "Genesis" : "Scent"} #{s.tokenId}
                       </p>
-                      {collection && (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
-                          {collection.badgeIcon} {collection.name}
+                      {isGenesis && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/30 text-amber-100 border-amber-400/50">
+                          🏆 Genesis
                         </span>
                       )}
                     </div>
@@ -604,7 +669,6 @@ export default function CollectionPage() {
         </div>
       )}
 
-      {/* Listing Modal - Styled by Rarity */}
       {listingModal.open && (() => {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
