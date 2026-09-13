@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
@@ -87,6 +87,7 @@ function generateDescription(perfume: any): string {
 
 export default function NFTDetailPage() {
   const params = useParams();
+  const router = useRouter(); // Added router for dynamic back navigation
   const id = Number(params.id);
   const [perfume, setPerfume] = useState<any>(null);
   const [isGenesis, setIsGenesis] = useState(false);
@@ -211,9 +212,12 @@ export default function NFTDetailPage() {
         <h1 className="text-3xl font-bold text-white mb-4">Scent not found</h1>
         <p className="text-white/50 mb-8">Token #{id} does not exist or has not been minted yet.</p>
         {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
-        <Link href="/collection" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
-          ← Back to Collection
-        </Link>
+        <button 
+          onClick={() => router.back()} 
+          className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+        >
+          ← Back
+        </button>
       </div>
     );
   }
@@ -223,9 +227,12 @@ export default function NFTDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8 relative z-10">
-      <Link href="/collection" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
-        ← Back to Collection
-      </Link>
+      <button 
+        onClick={() => router.back()} 
+        className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer"
+      >
+        ← Back
+      </button>
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
@@ -341,16 +348,16 @@ export default function NFTDetailPage() {
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
           {isGenesis && (
-  <p className="text-amber-300 font-bold mt-2 flex items-center gap-2">
-    <img 
-      src="/arc-logo.png" 
-      alt="Arc" 
-      className="w-5 h-5 inline-block"
-      style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }}
-    />
-    Arc Mainnet Genesis Collection
-  </p>
-)}
+            <p className="text-amber-300 font-bold mt-2 flex items-center gap-2">
+              <img 
+                src="/arc-logo.png" 
+                alt="Arc" 
+                className="w-5 h-5 inline-block"
+                style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }}
+              />
+              Arc Mainnet Genesis Collection
+            </p>
+          )}
         </div>
 
         <div className="relative mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
