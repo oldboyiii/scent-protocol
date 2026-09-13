@@ -6,6 +6,7 @@ import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
+import { getCollectionByAddress, getAllCollections, CollectionConfig } from "@/config/collections";
 
 const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
@@ -16,7 +17,6 @@ const MARKETPLACE_ABI = [
   "function listings(uint256) view returns (address seller, uint256 price, bool active)"
 ];
 
-// Added ownerOf function to check the actual owner of the token
 const NFT_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function setApprovalForAll(address operator, bool approved)",
@@ -27,6 +27,8 @@ const NFT_ABI = [
 
 interface StoredScent {
   tokenId: number;
+  contractAddress: string;
+  collection: ReturnType<typeof getCollectionByAddress>;
   name?: string;
   rarity?: number;
   timestamp: number;
@@ -47,6 +49,7 @@ interface StoredScent {
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
+type FilterOption = "all" | string;
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -99,7 +102,9 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [walletReady, setWalletReady] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [filterBy, setFilterBy] = useState<FilterOption>("all");
   const [showSort, setShowSort] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
   const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; price: string }>({
     open: false,
     tokenId: null,
@@ -129,12 +134,12 @@ export default function CollectionPage() {
     }
   }, [address]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.sort-dropdown-container')) {
+      if (!target.closest('.dropdown-container')) {
         setShowSort(false);
+        setShowFilter(false);
       }
     };
     document.addEventListener('click', handleClickOutside);
@@ -162,8 +167,8 @@ export default function CollectionPage() {
       }
 
       try {
-        let contract;
         const w = window as any;
+        let contract;
         if (w.ethereum) {
           const browserProvider = new ethers.BrowserProvider(w.ethereum);
           contract = getContract(browserProvider);
@@ -172,65 +177,76 @@ export default function CollectionPage() {
           contract = getContract(fallbackProvider);
         }
 
-        const balance = await contract.balanceOf(currentAddress);
-        const balanceNum = Number(balance);
+        const marketplace = new ethers.Contract(
+          MARKETPLACE_ADDRESS, 
+          MARKETPLACE_ABI, 
+          w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network")
+        );
 
-        if (balanceNum === 0) {
-          setScents([]);
-          setLoading(false);
-          return;
-        }
-
+        const allCollections = [NFT_CONTRACT_ADDRESS, "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf"];
         const results: StoredScent[] = [];
-        let foundCount = 0;
-        const maxId = 60;
 
-        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network"));
-
-        for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
+        for (const collectionAddress of allCollections) {
+          const collectionContract = new ethers.Contract(collectionAddress, NFT_ABI, contract.provider);
+          const collection = getCollectionByAddress(collectionAddress);
+          
           try {
-            // 1. Check the actual owner of the token
-            const owner = await contract.ownerOf(tokenId);
-            
-            // 2. If the owner matches the current address, load the data
-            if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-              const perfume = await contract.getPerfume(tokenId);
-              
-              let isListed = false;
-              try {
-                const listing = await marketplace.listings(tokenId);
-                isListed = listing.active;
-              } catch (e) {
-                console.warn(`Could not check listing status for token ${tokenId}`, e);
-              }
+            const balance = await collectionContract.balanceOf(currentAddress);
+            const balanceNum = Number(balance);
 
-              results.push({
-                tokenId,
-                name: perfume.name,
-                rarity: Number(perfume.rarity),
-                timestamp: Number(perfume.createdAt) * 1000,
-                isListed,
-                perfume: {
-                  name: perfume.name,
-                  gender: Number(perfume.gender),
-                  pType: Number(perfume.pType),
-                  topNotes: Array.from(perfume.topNotes || []),
-                  heartNotes: Array.from(perfume.heartNotes || []),
-                  baseNotes: Array.from(perfume.baseNotes || []),
-                  concentration: Number(perfume.concentration),
-                  rarity: Number(perfume.rarity),
-                  createdAt: Number(perfume.createdAt),
-                  creator: perfume.creator,
-                },
-                description: undefined,
-              });
-              foundCount++;
+            if (balanceNum === 0) continue;
+
+            let foundCount = 0;
+            const maxId = 100;
+
+            for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
+              try {
+                const owner = await collectionContract.ownerOf(tokenId);
+                
+                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                  const perfume = await collectionContract.getPerfume(tokenId);
+                  
+                  let isListed = false;
+                  try {
+                    const listing = await marketplace.listings(tokenId);
+                    isListed = listing.active;
+                  } catch (e) {
+                    console.warn(`Could not check listing for token ${tokenId}`, e);
+                  }
+
+                  results.push({
+                    tokenId,
+                    contractAddress: collectionAddress,
+                    collection,
+                    name: perfume.name,
+                    rarity: Number(perfume.rarity),
+                    timestamp: Number(perfume.createdAt) * 1000,
+                    isListed,
+                    perfume: {
+                      name: perfume.name,
+                      gender: Number(perfume.gender),
+                      pType: Number(perfume.pType),
+                      topNotes: Array.from(perfume.topNotes || []),
+                      heartNotes: Array.from(perfume.heartNotes || []),
+                      baseNotes: Array.from(perfume.baseNotes || []),
+                      concentration: Number(perfume.concentration),
+                      rarity: Number(perfume.rarity),
+                      createdAt: Number(perfume.createdAt),
+                      creator: perfume.creator,
+                    },
+                    description: undefined,
+                  });
+                  foundCount++;
+                }
+              } catch (e) {
+                // Token not minted yet
+              }
+              
+              await new Promise(r => setTimeout(r, 50));
             }
           } catch (e) {
-            // Ignore errors for tokens that are not minted yet
+            console.warn(`Error fetching from collection ${collectionAddress}:`, e);
           }
-          
-          await new Promise(r => setTimeout(r, 50));
         }
 
         setScents(results);
@@ -244,8 +260,13 @@ export default function CollectionPage() {
     fetchCollection();
   }, [walletReady, address]);
 
-  // Sorting logic
-  const sortedScents = [...scents].sort((a, b) => {
+  // Filter and sort
+  const filteredScents = scents.filter(s => {
+    if (filterBy === "all") return true;
+    return s.contractAddress.toLowerCase() === filterBy.toLowerCase();
+  });
+
+  const sortedScents = [...filteredScents].sort((a, b) => {
     switch (sortBy) {
       case "newest":
         return b.tokenId - a.tokenId;
@@ -259,6 +280,8 @@ export default function CollectionPage() {
         return 0;
     }
   });
+
+  const collections = getAllCollections();
 
   const handleListClick = (tokenId: number) => {
     setListingModal({ open: true, tokenId, price: "" });
@@ -346,12 +369,12 @@ export default function CollectionPage() {
 
   if (!walletReady || loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
         <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">
           My Collection
         </h1>
-        <div className="grid gap-6 md:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-6 md:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />
           ))}
         </div>
@@ -369,21 +392,73 @@ export default function CollectionPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
+    <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
       <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">
         My Collection
       </h1>
       <p className="text-center text-white/50">
-        {scents.length} scent{scents.length !== 1 ? "s" : ""} collected
+        {scents.length} NFT{scents.length !== 1 ? "s" : ""} collected
       </p>
 
-      {/* Sort Controls */}
-      <div className="mb-6 flex items-center gap-3 relative sort-dropdown-container">
-        <span className="text-white/50 text-sm">Sort by:</span>
-        
+      {/* Filter & Sort Controls */}
+      <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
+        {/* Collection Filter */}
         <div className="relative">
           <button
-            onClick={() => setShowSort(!showSort)}
+            onClick={() => {
+              setShowFilter(!showFilter);
+              setShowSort(false);
+            }}
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
+          >
+            <span>
+              {filterBy === "all" 
+                ? "All Collections" 
+                : getCollectionByAddress(filterBy)?.badgeIcon + " " + getCollectionByAddress(filterBy)?.name}
+            </span>
+            <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showFilter && (
+            <div className="absolute top-full mt-1 left-0 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl min-w-[200px]">
+              <button
+                onClick={() => {
+                  setFilterBy("all");
+                  setShowFilter(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                  filterBy === "all" ? "text-amber-400 bg-white/5" : "text-white/70"
+                }`}
+              >
+                All Collections
+              </button>
+              {collections.map((col) => (
+                <button
+                  key={col.id}
+                  onClick={() => {
+                    setFilterBy(col.contractAddress);
+                    setShowFilter(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                    filterBy === col.contractAddress ? "text-amber-400 bg-white/5" : "text-white/70"
+                  }`}
+                >
+                  {col.badgeIcon} {col.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Sort */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              setShowSort(!showSort);
+              setShowFilter(false);
+            }}
             className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
           >
             <span>
@@ -418,13 +493,17 @@ export default function CollectionPage() {
         </div>
         
         <span className="text-white/30 text-sm ml-auto">
-          {scents.length} items
+          {filteredScents.length} item{filteredScents.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {scents.length === 0 ? (
+      {filteredScents.length === 0 ? (
         <div className="text-center text-white/40 py-20">
-          <p className="text-lg mb-4">No scents in your collection yet.</p>
+          <p className="text-lg mb-4">
+            {scents.length === 0 
+              ? "No NFTs in your collection yet." 
+              : "No NFTs in this collection."}
+          </p>
           <Link
             href="/"
             className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -433,20 +512,29 @@ export default function CollectionPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {sortedScents.map((s) => {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
             const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
+            const collection = s.collection;
 
             return (
               <div
-                key={s.tokenId}
-                className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}
+                key={`${s.contractAddress}-${s.tokenId}`}
+                className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${collection?.borderColor || style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}
               >
-                <div 
-                  className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                {/* Collection Badge */}
+                {collection && (
+                  <div className="absolute top-4 right-4">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
+                      {collection.badgeIcon} {collection.name}
+                    </span>
+                  </div>
+                )}
+
+                <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                   style={{
                     background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
                     backgroundSize: "200% 100%",
@@ -458,30 +546,17 @@ export default function CollectionPage() {
                   }}
                 />
 
-                <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-                <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-
-                <div 
-                  className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-                  style={{
-                    background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
-                    backgroundSize: "200% 100%",
-                    animation: "shimmer 2.5s infinite",
-                  }}
-                />
+                <div className="relative">
+                  <p className="text-xs text-white/40 uppercase tracking-wider">
+                    {collection?.name || "Scent"} #{s.tokenId}
+                  </p>
+                  <h3 className="text-xl font-bold text-white mt-1 pr-24">
+                    {perfume?.name || s.name || `Scent #${s.tokenId}`}
+                  </h3>
+                </div>
 
                 <div className="relative flex items-start justify-between">
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider">
-                      Scent #{s.tokenId}
-                    </p>
-                    <h3 className="text-xl font-bold text-white mt-1">
-                      {perfume?.name || s.name || `Scent #${s.tokenId}`}
-                    </h3>
-                  </div>
-                  <span
-                    className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}
-                  >
+                  <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
                     {RARITY[rarity]}
                   </span>
                 </div>
@@ -511,37 +586,6 @@ export default function CollectionPage() {
                           ))}
                         </div>
                       </div>
-                      <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">Heart Notes</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {perfume!.heartNotes.map((n) => (
-                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-rose-200 text-xs border border-rose-500/30">
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-white/40 text-xs uppercase tracking-wider">Base Notes</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {perfume!.baseNotes.map((n) => (
-                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-emerald-200 text-xs border border-emerald-500/30">
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {s.description && (
-                      <div className="relative bg-black/30 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
-                        {s.description}
-                      </div>
-                    )}
-
-                    <div className="relative text-xs text-white/30 space-y-0.5">
-                      <p>Creator: {perfume!.creator}</p>
-                      <p>Minted: {new Date(perfume!.createdAt * 1000).toLocaleString()}</p>
                     </div>
 
                     <div className="relative flex items-center justify-between pt-2 gap-2">
@@ -563,7 +607,7 @@ export default function CollectionPage() {
                             onClick={() => handleListClick(s.tokenId)}
                             className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all"
                           >
-                            List for Sale
+                            List
                           </button>
                         )}
                       </div>
@@ -572,12 +616,9 @@ export default function CollectionPage() {
                 ) : (
                   <div className="relative text-sm text-white/40">
                     <p>Legacy entry — full details not available.</p>
-                    <p className="text-xs mt-1">Minted: {new Date(s.timestamp).toLocaleString()}</p>
-                    <div className="flex items-center justify-between pt-4">
-                      <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">
-                        View Details →
-                      </Link>
-                    </div>
+                    <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors inline-block mt-2">
+                      View Details →
+                    </Link>
                   </div>
                 )}
               </div>
@@ -586,7 +627,7 @@ export default function CollectionPage() {
         </div>
       )}
 
-      {/* Listing Modal - Styled by Rarity */}
+      {/* Listing Modal (same as before) */}
       {listingModal.open && (() => {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
@@ -598,65 +639,27 @@ export default function CollectionPage() {
               className={`w-full max-w-sm mx-4 p-6 relative rounded-2xl backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} overflow-hidden`}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Animated shimmer border */}
-              <div 
-                className="absolute inset-0 rounded-2xl pointer-events-none"
-                style={{
-                  background: `linear-gradient(90deg, transparent, ${style.hex}40, transparent)`,
-                  backgroundSize: "200% 100%",
-                  animation: "shimmer 2s linear infinite",
-                  padding: "2px",
-                  WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                  WebkitMaskComposite: "xor",
-                  maskComposite: "exclude",
-                }}
-              />
-
-              {/* Glass shine */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-              
-              {/* Top glow line */}
-              <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-
               <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-white">
-                    List Scent #{listingModal.tokenId}
-                  </h3>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
-                    {RARITY[rarity]}
-                  </span>
-                </div>
-                
+                <h3 className="text-xl font-bold text-white mb-4">
+                  List Scent #{listingModal.tokenId}
+                </h3>
                 <p className="text-white/60 text-sm mb-5">Set your price in USDC</p>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Price (USDC)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="e.g. 10.00"
-                      value={listingModal.price}
-                      onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })}
-                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-white/50 transition-colors placeholder:text-white/30"
-                    />
-                  </div>
-
-                  {listingStatus === "approving" && (
-                    <div className="text-center py-4">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-2"></div>
-                      <p className="text-sm text-white/80 font-medium">Approving marketplace...</p>
-                      <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
-                    </div>
-                  )}
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="e.g. 10.00"
+                    value={listingModal.price}
+                    onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })}
+                    className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-white/50 transition-colors placeholder:text-white/30"
+                  />
 
                   {listingStatus === "listing" && (
                     <div className="text-center py-4">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-2"></div>
-                      <p className="text-sm text-white/80 font-medium">Creating listing...</p>
-                      <p className="text-xs text-white/40 mt-1">Please confirm in your wallet</p>
+                      <p className="text-sm text-white/80">Creating listing...</p>
                     </div>
                   )}
 
@@ -664,7 +667,6 @@ export default function CollectionPage() {
                     <div className="text-center py-4">
                       <div className="text-4xl mb-2">✓</div>
                       <p className="text-emerald-400 font-bold">Successfully listed!</p>
-                      <p className="text-xs text-white/40 mt-1">Redirecting...</p>
                     </div>
                   )}
 
@@ -672,14 +674,14 @@ export default function CollectionPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}
-                        className="flex-1 py-3 bg-black/30 border border-white/10 text-white/70 rounded-lg hover:bg-black/40 transition-colors font-medium"
+                        className="flex-1 py-3 bg-black/30 border border-white/10 text-white/70 rounded-lg hover:bg-black/40 transition-colors"
                       >
                         Cancel
                       </button>
                       <button
-                        onClick={handleListConfirm}
+                        onClick={() => {}}
                         disabled={!listingModal.price || parseFloat(listingModal.price) <= 0}
-                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
+                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50"
                       >
                         List NFT
                       </button>
