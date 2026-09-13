@@ -143,175 +143,166 @@ export default function CollectionPage() {
     }
   }, [address]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.dropdown-container')) {
-        setShowSort(false);
-        setShowFilter(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+useEffect(() => {
+  async function fetchCollection() {
+    if (!walletReady) return;
 
-  useEffect(() => {
-    async function fetchCollection() {
-      if (!walletReady) return;
-
-      let currentAddress = address;
-      if (!currentAddress) {
-        const w = window as any;
-        if (w.ethereum) {
-          try {
-            const accounts = await w.ethereum.request({ method: 'eth_accounts' });
-            currentAddress = accounts?.[0];
-          } catch {}
-        }
-      }
-
-      if (!currentAddress) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const w = window as any;
-        const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-        
-        // Get all active listings from V7 marketplace
-        let activeListingIds: number[] = [];
+    let currentAddress = address;
+    if (!currentAddress) {
+      const w = window as any;
+      if (w.ethereum) {
         try {
-          const activeIds = await marketplace.getActiveListings();
-          activeListingIds = activeIds.map((id: bigint) => Number(id));
-          console.log("Active listing IDs from V7:", activeListingIds);
-        } catch (e) {
-          console.error("Failed to get active listings:", e);
-        }
-
-        const results: StoredScent[] = [];
-
-        // PART 1: Fetch ScentProtocol NFTs
-        try {
-          let contract;
-          if (w.ethereum) {
-            contract = getContract(new ethers.BrowserProvider(w.ethereum));
-          } else {
-            contract = getContract(new ethers.JsonRpcProvider("https://rpc.testnet.arc.network"));
-          }
-
-          const balance = await contract.balanceOf(currentAddress);
-          const balanceNum = Number(balance);
-          console.log("ScentProtocol balance:", balanceNum);
-
-          if (balanceNum > 0) {
-            let foundCount = 0;
-            const maxId = 100;
-
-            for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
-              try {
-                const owner = await contract.ownerOf(tokenId);
-                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                  const perfume = await contract.getPerfume(tokenId);
-                  
-                  // Check if this token is listed using activeListingIds
-                  const isListed = activeListingIds.includes(tokenId);
-                  console.log(`ScentProtocol token ${tokenId} isListed:`, isListed);
-
-                  results.push({
-                    tokenId,
-                    contractAddress: NFT_CONTRACT_ADDRESS,
-                    name: perfume.name,
-                    rarity: Number(perfume.rarity),
-                    timestamp: Number(perfume.createdAt) * 1000,
-                    isListed,
-                    perfume: {
-                      name: perfume.name,
-                      gender: Number(perfume.gender),
-                      pType: Number(perfume.pType),
-                      topNotes: Array.from(perfume.topNotes || []) as string[],
-                      heartNotes: Array.from(perfume.heartNotes || []) as string[],
-                      baseNotes: Array.from(perfume.baseNotes || []) as string[],
-                      concentration: Number(perfume.concentration),
-                      rarity: Number(perfume.rarity),
-                      createdAt: Number(perfume.createdAt),
-                      creator: perfume.creator,
-                    },
-                    description: undefined,
-                  });
-                  foundCount++;
-                }
-              } catch (e) {}
-              await new Promise(r => setTimeout(r, 50));
-            }
-          }
-        } catch (e) {
-          console.error("ScentProtocol fetch error:", e);
-        }
-
-        // PART 2: Fetch Genesis NFTs
-        try {
-          const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-          const genesisBalance = await genesisContract.balanceOf(currentAddress);
-          const genesisBalanceNum = Number(genesisBalance);
-          console.log("Genesis balance:", genesisBalanceNum);
-
-          if (genesisBalanceNum > 0) {
-            let foundCount = 0;
-            const maxId = 100;
-
-            for (let tokenId = 1; tokenId <= maxId && foundCount < genesisBalanceNum; tokenId++) {
-              try {
-                const owner = await genesisContract.ownerOf(tokenId);
-                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                  const data = await genesisContract.getPerfume(tokenId);
-                  
-                  // Check if this token is listed using activeListingIds
-                  const isListed = activeListingIds.includes(tokenId);
-                  console.log(`Genesis token ${tokenId} isListed:`, isListed);
-
-                  results.push({
-                    tokenId,
-                    contractAddress: GENESIS_CONTRACT_ADDRESS,
-                    name: data.name,
-                    rarity: Number(data.rarity),
-                    timestamp: Number(data.createdAt) * 1000,
-                    isListed,
-                    perfume: {
-                      name: data.name,
-                      gender: Number(data.gender),
-                      pType: Number(data.pType),
-                      topNotes: Array.from(data.topNotes || []) as string[],
-                      heartNotes: Array.from(data.heartNotes || []) as string[],
-                      baseNotes: Array.from(data.baseNotes || []) as string[],
-                      concentration: Number(data.concentration),
-                      rarity: Number(data.rarity),
-                      createdAt: Number(data.createdAt),
-                      creator: data.creator,
-                    },
-                    description: undefined,
-                  });
-                  foundCount++;
-                }
-              } catch (e) {}
-              await new Promise(r => setTimeout(r, 50));
-            }
-          }
-        } catch (e) {
-          console.error("Genesis fetch error:", e);
-        }
-
-        console.log("Total results:", results.length);
-        setScents(results);
-      } catch (e) {
-        console.error("Collection fetch error:", e);
-      } finally {
-        setLoading(false);
+          const accounts = await w.ethereum.request({ method: 'eth_accounts' });
+          currentAddress = accounts?.[0];
+        } catch {}
       }
     }
-    fetchCollection();
-  }, [walletReady, address]);
+
+    if (!currentAddress) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const w = window as any;
+      const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+      const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+      
+      // Get all active listing IDs by iterating through possible token IDs
+      const activeListingIds = new Set<number>();
+      const maxTokenId = 100;
+      
+      console.log("Checking marketplace listings...");
+      for (let tokenId = 1; tokenId <= maxTokenId; tokenId++) {
+        try {
+          const listing = await marketplace.listings(tokenId);
+          if (listing && listing.active && listing.seller !== "0x0000000000000000000000000000000000000000") {
+            activeListingIds.add(tokenId);
+            console.log(`Token ${tokenId} is listed by ${listing.seller}`);
+          }
+        } catch (e) {
+          // Token not listed
+        }
+      }
+      
+      console.log("Active listing IDs:", Array.from(activeListingIds));
+
+      const results: StoredScent[] = [];
+
+      // PART 1: Fetch ScentProtocol NFTs
+      try {
+        let contract;
+        if (w.ethereum) {
+          contract = getContract(new ethers.BrowserProvider(w.ethereum));
+        } else {
+          contract = getContract(new ethers.JsonRpcProvider("https://rpc.testnet.arc.network"));
+        }
+
+        const balance = await contract.balanceOf(currentAddress);
+        const balanceNum = Number(balance);
+        console.log("ScentProtocol balance:", balanceNum);
+
+        if (balanceNum > 0) {
+          let foundCount = 0;
+
+          for (let tokenId = 1; tokenId <= maxTokenId && foundCount < balanceNum; tokenId++) {
+            try {
+              const owner = await contract.ownerOf(tokenId);
+              if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                const perfume = await contract.getPerfume(tokenId);
+                const isListed = activeListingIds.has(tokenId);
+                console.log(`ScentProtocol token ${tokenId} isListed:`, isListed);
+
+                results.push({
+                  tokenId,
+                  contractAddress: NFT_CONTRACT_ADDRESS,
+                  name: perfume.name,
+                  rarity: Number(perfume.rarity),
+                  timestamp: Number(perfume.createdAt) * 1000,
+                  isListed,
+                  perfume: {
+                    name: perfume.name,
+                    gender: Number(perfume.gender),
+                    pType: Number(perfume.pType),
+                    topNotes: Array.from(perfume.topNotes || []) as string[],
+                    heartNotes: Array.from(perfume.heartNotes || []) as string[],
+                    baseNotes: Array.from(perfume.baseNotes || []) as string[],
+                    concentration: Number(perfume.concentration),
+                    rarity: Number(perfume.rarity),
+                    createdAt: Number(perfume.createdAt),
+                    creator: perfume.creator,
+                  },
+                  description: undefined,
+                });
+                foundCount++;
+              }
+            } catch (e) {}
+            await new Promise(r => setTimeout(r, 50));
+          }
+        }
+      } catch (e) {
+        console.error("ScentProtocol fetch error:", e);
+      }
+
+      // PART 2: Fetch Genesis NFTs
+      try {
+        const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+        const genesisBalance = await genesisContract.balanceOf(currentAddress);
+        const genesisBalanceNum = Number(genesisBalance);
+        console.log("Genesis balance:", genesisBalanceNum);
+
+        if (genesisBalanceNum > 0) {
+          let foundCount = 0;
+
+          for (let tokenId = 1; tokenId <= maxTokenId && foundCount < genesisBalanceNum; tokenId++) {
+            try {
+              const owner = await genesisContract.ownerOf(tokenId);
+              if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                const data = await genesisContract.getPerfume(tokenId);
+                const isListed = activeListingIds.has(tokenId);
+                console.log(`Genesis token ${tokenId} isListed:`, isListed);
+
+                results.push({
+                  tokenId,
+                  contractAddress: GENESIS_CONTRACT_ADDRESS,
+                  name: data.name,
+                  rarity: Number(data.rarity),
+                  timestamp: Number(data.createdAt) * 1000,
+                  isListed,
+                  perfume: {
+                    name: data.name,
+                    gender: Number(data.gender),
+                    pType: Number(data.pType),
+                    topNotes: Array.from(data.topNotes || []) as string[],
+                    heartNotes: Array.from(data.heartNotes || []) as string[],
+                    baseNotes: Array.from(data.baseNotes || []) as string[],
+                    concentration: Number(data.concentration),
+                    rarity: Number(data.rarity),
+                    createdAt: Number(data.createdAt),
+                    creator: data.creator,
+                  },
+                  description: undefined,
+                });
+                foundCount++;
+              }
+            } catch (e) {}
+            await new Promise(r => setTimeout(r, 50));
+          }
+        }
+      } catch (e) {
+        console.error("Genesis fetch error:", e);
+      }
+
+      console.log("Total results:", results.length);
+      setScents(results);
+    } catch (e) {
+      console.error("Collection fetch error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+  fetchCollection();
+}, [walletReady, address]);
 
   const filteredScents = scents.filter(s => {
     if (filterBy === "all") return true;
