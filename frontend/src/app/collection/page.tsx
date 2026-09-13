@@ -328,55 +328,43 @@ export default function CollectionPage() {
         setLoading(false);
       }
     }
-    fetchCollection();
-  }, [walletReady, address]);
+    // Get all active listings by checking events
+const listedFilter = marketplace.filters.Listed();
+const cancelledFilter = marketplace.filters.Cancelled();
 
-  const filteredScents = scents.filter(s => {
-    if (filterBy === "all") return true;
-    if (filterBy === "genesis") return s.contractAddress === GENESIS_CONTRACT_ADDRESS;
-    if (filterBy === "scents") return s.contractAddress === NFT_CONTRACT_ADDRESS;
-    return true;
-  });
+const [listedEvents, cancelledEvents] = await Promise.all([
+  marketplace.queryFilter(listedFilter, 0, 'latest'),
+  marketplace.queryFilter(cancelledFilter, 0, 'latest')
+]);
 
-  const sortedScents = [...filteredScents].sort((a, b) => {
-    switch (sortBy) {
-      case "newest": return b.tokenId - a.tokenId;
-      case "oldest": return a.tokenId - b.tokenId;
-      case "name": return (a.perfume?.name || a.name || "").localeCompare(b.perfume?.name || b.name || "");
-      case "rarity": return (b.perfume?.rarity ?? b.rarity ?? 0) - (a.perfume?.rarity ?? a.rarity ?? 0);
-      default: return 0;
+console.log("Listed events:", listedEvents.length);
+console.log("Cancelled events:", cancelledEvents.length);
+
+// Build set of active listings
+const activeListingIds = new Set<number>();
+const cancelledIds = new Set<number>();
+
+// Process cancelled events with proper typing
+cancelledEvents.forEach((event: any) => {
+  if (event.args) {
+    const tokenId = Number(event.args.tokenId);
+    if (!isNaN(tokenId)) {
+      cancelledIds.add(tokenId);
     }
-  });
+  }
+});
 
-  const handleListClick = (tokenId: number, contractAddress: string) => {
-    setListingModal({ open: true, tokenId, contractAddress, price: "" });
-    setListingStatus("idle");
-  };
+// Process listed events with proper typing
+listedEvents.forEach((event: any) => {
+  if (event.args) {
+    const tokenId = Number(event.args.tokenId);
+    if (!isNaN(tokenId) && !cancelledIds.has(tokenId)) {
+      activeListingIds.add(tokenId);
+    }
+  }
+});
 
-  const handleListConfirm = async () => {
-    if (!listingModal.tokenId || !listingModal.price || !listingModal.contractAddress) return;
-    
-    try {
-      setListingStatus("approving");
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const userAddress = await signer.getAddress();
-
-      const nftContract = new ethers.Contract(listingModal.contractAddress, NFT_ABI, signer);
-      const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
-
-      const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
-      
-      if (!isApproved) {
-        console.log(`Approving marketplace for contract: ${listingModal.contractAddress}...`);
-        const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
-        await approveTx.wait();
-      }
-
-      setListingStatus("listing");
-      const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-      console.log(`Listing NFT ${listingModal.tokenId} from ${listingModal.contractAddress}...`);
+console.log("Active listing IDs from events:", Array.from(activeListingIds));
       
       const listTx = await marketplaceContract.list(
         listingModal.contractAddress,
