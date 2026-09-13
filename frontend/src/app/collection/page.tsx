@@ -111,9 +111,10 @@ export default function CollectionPage() {
   const [filterBy, setFilterBy] = useState<CollectionFilter>("all");
   const [showSort, setShowSort] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
-  const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; price: string }>({
+  const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; contractAddress: string | null; price: string }>({
     open: false,
     tokenId: null,
+    contractAddress: null,
     price: ""
   });
   const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
@@ -315,13 +316,14 @@ export default function CollectionPage() {
     }
   });
 
-  const handleListClick = (tokenId: number) => {
-    setListingModal({ open: true, tokenId, price: "" });
+  const handleListClick = (tokenId: number, contractAddress: string) => {
+    setListingModal({ open: true, tokenId, contractAddress, price: "" });
     setListingStatus("idle");
   };
 
   const handleListConfirm = async () => {
-    if (!listingModal.tokenId || !listingModal.price) return;
+    if (!listingModal.tokenId || !listingModal.price || !listingModal.contractAddress) return;
+    
     try {
       setListingStatus("approving");
       const w = window as any;
@@ -329,23 +331,27 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, signer);
+      // Use the correct contract address (ScentProtocol or Genesis)
+      const nftContract = new ethers.Contract(listingModal.contractAddress, NFT_ABI, signer);
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
+      
       if (!isApproved) {
+        console.log(`Approving marketplace for contract: ${listingModal.contractAddress}...`);
         const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
         await approveTx.wait();
       }
 
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
+      console.log("Listing NFT...");
       const listTx = await marketplaceContract.list(listingModal.tokenId, priceInUSDC);
       await listTx.wait();
 
       setListingStatus("success");
       setTimeout(() => {
-        setListingModal({ open: false, tokenId: null, price: "" });
+        setListingModal({ open: false, tokenId: null, contractAddress: null, price: "" });
         setListingStatus("idle");
         window.location.reload();
       }, 1500);
@@ -477,7 +483,6 @@ export default function CollectionPage() {
             return (
               <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
                 
-                {/* CONSTANT SHIMMER: ONLY for Genesis */}
                 {isGenesis && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
                     background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
@@ -486,7 +491,6 @@ export default function CollectionPage() {
                   }} />
                 )}
 
-                {/* HOVER SHIMMER #1: EXACT from details page for regular NFTs */}
                 {!isGenesis && (
                   <div 
                     className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -502,13 +506,9 @@ export default function CollectionPage() {
                   />
                 )}
 
-                {/* Glass shine */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-                
-                {/* Top glow line */}
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                {/* HOVER SHIMMER #2: EXACT from details page for regular NFTs */}
                 {!isGenesis && (
                   <div 
                     className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
@@ -527,16 +527,11 @@ export default function CollectionPage() {
                         {isGenesis ? "Genesis" : "Scent"} #{s.tokenId}
                       </p>
                       {isGenesis && (
-  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
-    <img 
-      src="/arc-logo.png" 
-      alt="Arc" 
-      className="w-3 h-3 inline-block"
-      style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }}
-    />
-    Genesis
-  </span>
-)}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
+                          <img src="/arc-logo.png" alt="Arc" className="w-3 h-3 inline-block" style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }} />
+                          Genesis
+                        </span>
+                      )}
                     </div>
                     <h3 className="text-xl font-bold text-white mt-1">
                       {perfume?.name || s.name || `Scent #${s.tokenId}`}
@@ -582,7 +577,7 @@ export default function CollectionPage() {
                     </div>
 
                     <div className="relative flex items-center justify-between pt-2 gap-2">
-                      <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">View Details →</Link>
+                      <Link href={`/nft/${s.tokenId}?from=collection`} className="text-sm text-white/50 hover:text-white transition-colors">View Details →</Link>
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                         {s.isListed ? (
@@ -590,7 +585,7 @@ export default function CollectionPage() {
                             {listingStatus === "listing" ? "Removing..." : "Remove"}
                           </button>
                         ) : (
-                          <button onClick={() => handleListClick(s.tokenId)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all">
+                          <button onClick={() => handleListClick(s.tokenId, s.contractAddress)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all">
                             List for Sale
                           </button>
                         )}
@@ -602,7 +597,7 @@ export default function CollectionPage() {
                     <p>Legacy entry — full details not available.</p>
                     <p className="text-xs mt-1">Minted: {new Date(s.timestamp).toLocaleString()}</p>
                     <div className="flex items-center justify-between pt-4">
-                      <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">View Details →</Link>
+                      <Link href={`/nft/${s.tokenId}?from=collection`} className="text-sm text-white/50 hover:text-white transition-colors">View Details →</Link>
                     </div>
                   </div>
                 )}
@@ -615,16 +610,28 @@ export default function CollectionPage() {
       {listingModal.open && (() => {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
-        const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
+        const isGenesisModal = currentScent?.contractAddress === GENESIS_CONTRACT_ADDRESS;
+        const style = isGenesisModal
+          ? { 
+              bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
+              border: "border-amber-400/70", 
+              badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
+              text: "text-amber-100", 
+              glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", 
+              hex: "#fbbf24" 
+            }
+          : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
         return (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setListingModal({ open: false, tokenId: null, price: "" })}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setListingModal({ open: false, tokenId: null, contractAddress: null, price: "" })}>
             <div className={`w-full max-w-sm mx-4 p-6 relative rounded-2xl backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} overflow-hidden`} onClick={(e) => e.stopPropagation()}>
               <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, ${style.hex}40, transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2s linear infinite", padding: "2px", WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }} />
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
               <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
               <div className="relative">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-white">List Scent #{listingModal.tokenId}</h3>
+                  <h3 className="text-xl font-bold text-white">
+                    {isGenesisModal ? "List Genesis" : "List Scent"} #{listingModal.tokenId}
+                  </h3>
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>{RARITY[rarity]}</span>
                 </div>
                 <p className="text-white/60 text-sm mb-5">Set your price in USDC</p>
@@ -638,7 +645,7 @@ export default function CollectionPage() {
                   {listingStatus === "success" && (<div className="text-center py-4"><div className="text-4xl mb-2">✓</div><p className="text-emerald-400 font-bold">Successfully listed!</p></div>)}
                   {listingStatus === "idle" && (
                     <div className="flex gap-2">
-                      <button onClick={() => setListingModal({ open: false, tokenId: null, price: "" })} className="flex-1 py-3 bg-black/30 border border-white/10 text-white/70 rounded-lg hover:bg-black/40 transition-colors font-medium">Cancel</button>
+                      <button onClick={() => setListingModal({ open: false, tokenId: null, contractAddress: null, price: "" })} className="flex-1 py-3 bg-black/30 border border-white/10 text-white/70 rounded-lg hover:bg-black/40 transition-colors font-medium">Cancel</button>
                       <button onClick={handleListConfirm} disabled={!listingModal.price || parseFloat(listingModal.price) <= 0} className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20">List NFT</button>
                     </div>
                   )}
