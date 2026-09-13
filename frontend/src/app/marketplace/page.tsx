@@ -6,14 +6,16 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 import { getContract } from "@/utils/contract";
 
-const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
+const MARKETPLACE_ADDRESS = "0xBC7669036F8af720A85569448FD3DB198C52468C";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
 const MARKETPLACE_ABI = [
   "function getActiveListings() view returns (uint256[])",
   "function listings(uint256) view returns (address seller, uint256 price, bool active)",
+  "function list(address nft, uint256 tokenId, uint256 price)",
   "function buy(uint256 tokenId)",
+  "function cancel(uint256 tokenId)",
   "function usdc() view returns (address)",
   "function getActiveCount() view returns (uint256)"
 ];
@@ -74,7 +76,7 @@ interface ListingData {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "♂", "♀", "⚥"];
+const GENDER_ICONS = ["", "♂", "♀", ""];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
@@ -351,7 +353,7 @@ export default function MarketplacePage() {
             const isBuying = buyingId === listing.tokenId;
 
             return (
-              <Link key={`${listing.contractAddress}-${listing.tokenId}`} href={`/nft/${listing.tokenId}`} className="block">
+              <Link key={`${listing.contractAddress}-${listing.tokenId}`} href={`/nft/${listing.tokenId}?from=marketplace`} className="block">
                 <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
                   
                   {isGenesis && (
