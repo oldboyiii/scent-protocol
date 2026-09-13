@@ -91,44 +91,29 @@ export default function NFTDetailPage() {
   const [perfume, setPerfume] = useState<any>(null);
   const [isGenesis, setIsGenesis] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || isNaN(id)) return;
 
     async function fetch() {
       setLoading(true);
+      setError(null);
+      
       try {
         const provider = (typeof window !== "undefined" && (window as any).ethereum)
           ? new ethers.BrowserProvider((window as any).ethereum)
           : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
 
-        let found = false;
-
-        // 1. Try ScentProtocol FIRST
-        try {
-          const contract = getContract(provider);
-          const data = await contract.getPerfume(id);
-          
-          // VALIDATE: Check if we got REAL data (not empty/zero values)
-          if (data && data.name && data.name.length > 0 && data.topNotes && data.topNotes.length > 0) {
-            setPerfume(data);
-            setIsGenesis(false);
-            found = true;
-            console.log("✅ Found in ScentProtocol:", data.name);
-          } else {
-            console.log("ScentProtocol returned empty data, trying Genesis...");
-          }
-        } catch (e) {
-          console.log("Not in ScentProtocol (error), trying Genesis...");
-        }
-
-        // 2. Try Genesis ONLY if not found in ScentProtocol
-        if (!found) {
+        // Try Genesis FIRST for token ID #1
+        if (id === 1) {
           try {
+            console.log("🎯 Trying Genesis FIRST for token #1...");
             const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
             const data = await genesisContract.getPerfume(id);
             
-            if (data && data.name && data.name.length > 0) {
+            if (data && data.name) {
+              console.log("✅ Genesis found:", data.name);
               setPerfume({
                 name: data.name,
                 gender: Number(data.gender),
@@ -142,19 +127,65 @@ export default function NFTDetailPage() {
                 creator: data.creator,
               });
               setIsGenesis(true);
-              found = true;
-              console.log("✅ Found in Genesis:", data.name);
+              setLoading(false);
+              return;
             }
           } catch (e) {
-            console.log("Not in Genesis either.");
+            console.log("Genesis not found, trying ScentProtocol...");
           }
         }
 
-        if (!found) {
-          setPerfume(null);
+        // Try ScentProtocol
+        try {
+          console.log("Trying ScentProtocol for token", id);
+          const contract = getContract(provider);
+          const data = await contract.getPerfume(id);
+          
+          if (data && data.name) {
+            console.log("✅ ScentProtocol found:", data.name);
+            setPerfume(data);
+            setIsGenesis(false);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.log("ScentProtocol error, trying Genesis...");
         }
+
+        // Try Genesis for other IDs
+        if (id !== 1) {
+          try {
+            const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+            const data = await genesisContract.getPerfume(id);
+            
+            if (data && data.name) {
+              console.log("✅ Genesis found:", data.name);
+              setPerfume({
+                name: data.name,
+                gender: Number(data.gender),
+                pType: Number(data.pType),
+                topNotes: Array.from(data.topNotes || []) as string[],
+                heartNotes: Array.from(data.heartNotes || []) as string[],
+                baseNotes: Array.from(data.baseNotes || []) as string[],
+                concentration: Number(data.concentration),
+                rarity: Number(data.rarity),
+                createdAt: Number(data.createdAt),
+                creator: data.creator,
+              });
+              setIsGenesis(true);
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.log("Genesis not found either");
+          }
+        }
+
+        setError("Token not found in any contract");
+        setPerfume(null);
       } catch (e) {
         console.error("Global fetch error:", e);
+        setError("Failed to fetch data");
         setPerfume(null);
       } finally {
         setLoading(false);
@@ -174,11 +205,12 @@ export default function NFTDetailPage() {
     );
   }
 
-  if (!perfume || !perfume.name) {
+  if (error || !perfume || !perfume.name) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <h1 className="text-3xl font-bold text-white mb-4">Scent not found</h1>
         <p className="text-white/50 mb-8">Token #{id} does not exist or has not been minted yet.</p>
+        {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
         <Link href="/collection" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
           ← Back to Collection
         </Link>
@@ -197,7 +229,7 @@ export default function NFTDetailPage() {
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
-        {/* CONSTANT SHIMMER: ONLY for Genesis (Always visible) */}
+        {/* CONSTANT SHIMMER: ONLY for Genesis */}
         {isGenesis && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
             background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
@@ -206,7 +238,7 @@ export default function NFTDetailPage() {
           }} />
         )}
 
-        {/* HOVER SHIMMER #1: For regular NFTs (EXACT from your old code) */}
+        {/* HOVER SHIMMER #1: EXACT from your old working code for regular NFTs */}
         {!isGenesis && (
           <div 
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -228,7 +260,7 @@ export default function NFTDetailPage() {
         {/* Top glow line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {/* HOVER SHIMMER #2: For regular NFTs (EXACT from your old code) */}
+        {/* HOVER SHIMMER #2: EXACT from your old working code for regular NFTs */}
         {!isGenesis && (
           <div 
             className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
