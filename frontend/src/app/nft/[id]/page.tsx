@@ -4,15 +4,12 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
+import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
 
-const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
-const SCENT_ABI = [
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
-];
-
+// Exact JSON ABI for Genesis getPerfume to ensure perfect tuple parsing
 const GENESIS_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -52,13 +49,13 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
-// Усиленный стиль для Genesis
+// Enhanced style for Genesis
 const GENESIS_STYLE = {
   bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90",
   border: "border-amber-400/70",
   badge: "bg-amber-500/50 text-amber-50 border-amber-400/80",
   text: "text-amber-100",
-  glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", // Двойное мощное свечение
+  glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
   hex: "#fbbf24",
 };
 
@@ -71,9 +68,21 @@ function generateDescription(perfume: any): string {
   const base = perfume.baseNotes.join(", ");
   const seed = perfume.name.length + perfume.topNotes.length + perfume.heartNotes.length;
   
-  const openings = [`A ${rarityLabel.toLowerCase()} ${genderLabel.toLowerCase()} ${typeLabel.toLowerCase()} that opens with the vibrant sparkle of ${top}.`, `This ${rarityLabel.toLowerCase()} composition for ${genderLabel.toLowerCase()}s begins with an invigorating burst of ${top}.`];
-  const hearts = [`At its heart, ${heart} weave a sophisticated tapestry of emotion and depth.`, `The soul of this fragrance reveals itself through ${heart}, offering warmth and intrigue.`];
-  const bases = [`Finally, the base settles into a rich embrace of ${base}, leaving a lasting signature.`, `The dry-down is anchored by ${base}, creating a memorable trail that lingers for hours.`];
+  const openings = [
+    `A ${rarityLabel.toLowerCase()} ${genderLabel.toLowerCase()} ${typeLabel.toLowerCase()} that opens with the vibrant sparkle of ${top}.`,
+    `This ${rarityLabel.toLowerCase()} composition for ${genderLabel.toLowerCase()}s begins with an invigorating burst of ${top}.`,
+    `An exquisite ${typeLabel.toLowerCase()} where ${top} create an unforgettable first impression.`,
+  ];
+  const hearts = [
+    `At its heart, ${heart} weave a sophisticated tapestry of emotion and depth.`,
+    `The soul of this fragrance reveals itself through ${heart}, offering warmth and intrigue.`,
+    `As it evolves, ${heart} emerge, lending an air of timeless elegance.`,
+  ];
+  const bases = [
+    `Finally, the base settles into a rich embrace of ${base}, leaving a lasting signature.`,
+    `The dry-down is anchored by ${base}, creating a memorable trail that lingers for hours.`,
+    `A foundation of ${base} ensures this scent endures, evolving beautifully on the skin.`,
+  ];
 
   return `${openings[seed % openings.length]} ${hearts[seed % hearts.length]} ${bases[seed % bases.length]} Crafted at ${perfume.concentration}% concentration, ${perfume.name} is a true masterpiece of digital perfumery.`;
 }
@@ -97,47 +106,52 @@ export default function NFTDetailPage() {
 
         let found = false;
 
-        // 1. Пробуем ScentProtocol
+        // 1. Try ScentProtocol FIRST using the EXACT working getContract from your utils
         try {
-          const scentContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, SCENT_ABI, provider);
-          const data = await scentContract.getPerfume(id);
+          const contract = getContract(provider);
+          const data = await contract.getPerfume(id);
+          
           if (data && data.name) {
-            setPerfume({
-              name: data.name, gender: Number(data.gender), pType: Number(data.pType),
-              topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[],
-              baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration),
-              rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator,
-            });
+            setPerfume(data);
             setIsGenesis(false);
             found = true;
-            console.log("Found in ScentProtocol");
+            console.log("✅ Found in ScentProtocol");
           }
         } catch (e) {
           console.log("Not in ScentProtocol, trying Genesis...");
         }
 
-        // 2. Пробуем Genesis (только если не нашли в первом)
+        // 2. Try Genesis ONLY if not found in ScentProtocol
         if (!found) {
           try {
             const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
             const data = await genesisContract.getPerfume(id);
+            
             if (data && data.name) {
               setPerfume({
-                name: data.name, gender: Number(data.gender), pType: Number(data.pType),
-                topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[],
-                baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration),
-                rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator,
+                name: data.name,
+                gender: Number(data.gender),
+                pType: Number(data.pType),
+                topNotes: Array.from(data.topNotes || []) as string[],
+                heartNotes: Array.from(data.heartNotes || []) as string[],
+                baseNotes: Array.from(data.baseNotes || []) as string[],
+                concentration: Number(data.concentration),
+                rarity: Number(data.rarity),
+                createdAt: Number(data.createdAt),
+                creator: data.creator,
               });
               setIsGenesis(true);
               found = true;
-              console.log("Found in Genesis");
+              console.log("✅ Found in Genesis");
             }
           } catch (e) {
             console.log("Not in Genesis either.");
           }
         }
 
-        if (!found) setPerfume(null);
+        if (!found) {
+          setPerfume(null);
+        }
       } catch (e) {
         console.error("Global fetch error:", e);
         setPerfume(null);
@@ -145,17 +159,28 @@ export default function NFTDetailPage() {
         setLoading(false);
       }
     }
+    
     fetch();
   }, [id]);
 
-  if (loading) return <div className="max-w-2xl mx-auto px-4 py-20 space-y-6 animate-pulse"><div className="h-10 bg-white/10 rounded-lg w-1/2" /><div className="h-64 bg-white/5 rounded-2xl" /><div className="h-4 bg-white/10 rounded w-3/4" /></div>;
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 space-y-6 animate-pulse">
+        <div className="h-10 bg-white/10 rounded-lg w-1/2" />
+        <div className="h-64 bg-white/5 rounded-2xl" />
+        <div className="h-4 bg-white/10 rounded w-3/4" />
+      </div>
+    );
+  }
 
   if (!perfume || !perfume.name) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <h1 className="text-3xl font-bold text-white mb-4">Scent not found</h1>
         <p className="text-white/50 mb-8">Token #{id} does not exist or has not been minted yet.</p>
-        <Link href="/collection" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">← Back to Collection</Link>
+        <Link href="/collection" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
+          ← Back to Collection
+        </Link>
       </div>
     );
   }
@@ -165,36 +190,43 @@ export default function NFTDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8 relative z-10">
-      <Link href="/collection" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">← Back to Collection</Link>
+      <Link href="/collection" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+        ← Back to Collection
+      </Link>
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
-        {/* ПОСТОЯННОЕ МЕРЦАНИЕ ДЛЯ GENESIS (Без group-hover) */}
+        {/* 1. CONSTANT SHIMMER: ONLY for Genesis (Always visible, premium feel) */}
         {isGenesis && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
-            background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.4), transparent)`,
+            background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
             backgroundSize: "200% 100%",
             animation: "shimmer 2.5s linear infinite",
           }} />
         )}
 
-        {/* МЕРЦАНИЕ ПРИ НАВЕДЕНИИ ДЛЯ ОБЫЧНЫХ NFT */}
+        {/* 2. HOVER SHIMMER: For regular NFTs (EXACTLY like your original working code) */}
         {!isGenesis && (
-          <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
-            background: `linear-gradient(90deg, transparent, ${style.hex}40, transparent)`,
-            backgroundSize: "200% 100%",
-            animation: "shimmer 2s linear infinite",
-            padding: "2px",
-            WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-            WebkitMaskComposite: "xor",
-            maskComposite: "exclude",
-          }} />
+          <div 
+            className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+              backgroundSize: "200% 100%",
+              animation: "shimmer 2s linear infinite",
+              padding: "2px",
+              WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
+            }}
+          />
         )}
 
         <div className="relative flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <p className="text-xs text-white/40 uppercase tracking-wider">{isGenesis ? "GENESIS" : "SCENT"} #{id}</p>
+              <p className="text-xs text-white/40 uppercase tracking-wider">
+                {isGenesis ? "GENESIS" : "SCENT"} #{id}
+              </p>
               {isGenesis && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
                   <svg viewBox="0 0 24 16" className="w-3 h-2"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
@@ -202,9 +234,13 @@ export default function NFTDetailPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-white mt-2 leading-normal pb-1">{perfume.name}</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-white mt-2 leading-normal pb-1">
+              {perfume.name}
+            </h1>
           </div>
-          <span className={`relative text-sm font-bold px-3 py-1.5 rounded-full border backdrop-blur-md ${style.badge}`}>{RARITY[perfume.rarity]}</span>
+          <span className={`relative text-sm font-bold px-3 py-1.5 rounded-full border backdrop-blur-md ${style.badge}`}>
+            {RARITY[perfume.rarity]}
+          </span>
         </div>
 
         <div className="relative flex flex-wrap gap-3 text-sm mb-6">
@@ -216,19 +252,39 @@ export default function NFTDetailPage() {
         <div className="relative space-y-4 mb-6">
           <div>
             <span className={`text-xs uppercase tracking-wider ${isGenesis ? 'text-amber-300/80' : 'text-white/40'}`}>Top Notes</span>
-            <div className="flex flex-wrap gap-2 mt-2">{perfume.topNotes.map((n: string) => (<span key={n} className="px-3 py-1 rounded-md bg-black/30 text-amber-200 text-sm border border-amber-500/30">{n}</span>))}</div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {perfume.topNotes.map((n: string) => (
+                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-amber-200 text-sm border border-amber-500/30">
+                  {n}
+                </span>
+              ))}
+            </div>
           </div>
           <div>
             <span className={`text-xs uppercase tracking-wider ${isGenesis ? 'text-amber-300/80' : 'text-white/40'}`}>Heart Notes</span>
-            <div className="flex flex-wrap gap-2 mt-2">{perfume.heartNotes.map((n: string) => (<span key={n} className="px-3 py-1 rounded-md bg-black/30 text-rose-200 text-sm border border-rose-500/30">{n}</span>))}</div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {perfume.heartNotes.map((n: string) => (
+                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-rose-200 text-sm border border-rose-500/30">
+                  {n}
+                </span>
+              ))}
+            </div>
           </div>
           <div>
             <span className={`text-xs uppercase tracking-wider ${isGenesis ? 'text-amber-300/80' : 'text-white/40'}`}>Base Notes</span>
-            <div className="flex flex-wrap gap-2 mt-2">{perfume.baseNotes.map((n: string) => (<span key={n} className="px-3 py-1 rounded-md bg-black/30 text-emerald-200 text-sm border border-emerald-500/30">{n}</span>))}</div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {perfume.baseNotes.map((n: string) => (
+                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-emerald-200 text-sm border border-emerald-500/30">
+                  {n}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-6 ${isGenesis ? 'bg-amber-950/40 border-amber-400/60' : 'bg-black/30 border-white/10'}`}>{description}</div>
+        <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-6 ${isGenesis ? 'bg-amber-950/40 border-amber-400/60' : 'bg-black/30 border-white/10'}`}>
+          {description}
+        </div>
 
         <div className="relative text-sm text-white/40 space-y-1">
           <p>Creator: {perfume.creator}</p>
@@ -237,13 +293,22 @@ export default function NFTDetailPage() {
         </div>
 
         <div className="relative mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
-          <Link href={`/nft/${id - 1}`} className={`text-sm text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>← Previous</Link>
+          <Link href={`/nft/${id - 1}`} className={`text-sm text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>
+            ← Previous
+          </Link>
           <ShareCard tokenId={id} perfume={perfume} />
-          <Link href={`/nft/${id + 1}`} className="text-sm text-white/50 hover:text-white transition-colors">Next →</Link>
+          <Link href={`/nft/${id + 1}`} className="text-sm text-white/50 hover:text-white transition-colors">
+            Next →
+          </Link>
         </div>
       </div>
 
-      <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
     </div>
   );
 }
