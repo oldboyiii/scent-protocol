@@ -7,6 +7,20 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
+import { getCollectionByAddress } from "@/config/collections";
+
+const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
+
+const SCENT_ABI = [
+  "function ownerOf(uint256) view returns (address)",
+  "function getPerfume(uint256) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
+];
+
+const GENESIS_ABI = [
+  "function ownerOf(uint256) view returns (address)",
+  "function getPerfume(uint256) view returns (uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis)"
+];
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -100,6 +114,7 @@ export default function NFTDetailPage() {
   const id = Number(params.id);
 
   const [perfume, setPerfume] = useState<any>(null);
+  const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -113,11 +128,49 @@ export default function NFTDetailPage() {
         } else {
           provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
         }
-        const contract = getContract(provider);
-        const data = await contract.getPerfume(id);
-        setPerfume(data);
+
+        const contractsToTry = [
+          { address: NFT_CONTRACT_ADDRESS, abi: SCENT_ABI, name: "ScentProtocol" },
+          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI, name: "Genesis" }
+        ];
+
+        for (const contractInfo of contractsToTry) {
+          try {
+            const contract = new ethers.Contract(contractInfo.address, contractInfo.abi, provider);
+            
+            // Check if token exists in this contract
+            const owner = await contract.ownerOf(id);
+            if (owner && owner !== "0x0000000000000000000000000000000000000000") {
+              const data = await contract.getPerfume(id);
+              
+              // Normalize data to ensure consistent shape regardless of contract
+              const normalizedData = {
+                name: data.name,
+                gender: Number(data.gender),
+                pType: Number(data.pType),
+                topNotes: Array.from(data.topNotes || []),
+                heartNotes: Array.from(data.heartNotes || []),
+                baseNotes: Array.from(data.baseNotes || []),
+                concentration: Number(data.concentration),
+                rarity: Number(data.rarity),
+                createdAt: Number(data.createdAt),
+                creator: data.creator,
+              };
+              
+              setPerfume(normalizedData);
+              setContractAddress(contractInfo.address);
+              return; // Found it, stop searching
+            }
+          } catch (e) {
+            // Token doesn't exist in this contract, try the next one
+            continue;
+          }
+        }
+        
+        // If we get here, it wasn't found in either contract
+        setPerfume(null);
       } catch (e) {
-        console.error(e);
+        console.error("Fetch error:", e);
       } finally {
         setLoading(false);
       }
@@ -140,8 +193,8 @@ export default function NFTDetailPage() {
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <h1 className="text-3xl font-bold text-white mb-4">Scent not found</h1>
         <p className="text-white/50 mb-8">Token #{id} does not exist or has not been minted yet.</p>
-        <Link href="/gallery" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
-          ← Back to Gallery
+        <Link href="/collection" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
+          ← Back to Collection
         </Link>
       </div>
     );
@@ -149,11 +202,12 @@ export default function NFTDetailPage() {
 
   const description = generateDescription(perfume);
   const style = RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0];
+  const collection = contractAddress ? getCollectionByAddress(contractAddress) : null;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8 relative z-10">
-      <Link href="/gallery" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
-        ← Back to Gallery
+      <Link href="/collection" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+        ← Back to Collection
       </Link>
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
@@ -189,7 +243,14 @@ export default function NFTDetailPage() {
 
         <div className="relative flex items-start justify-between mb-6">
           <div>
-            <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{id}</p>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{id}</p>
+              {collection && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
+                  {collection.badgeIcon} {collection.name}
+                </span>
+              )}
+            </div>
             <h1 className="text-3xl md:text-4xl font-bold text-white mt-2 leading-normal pb-1">
               {perfume.name}
             </h1>
