@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
-import { getCollectionByAddress, getAllCollections } from "@/config/collections";
+import { getCollectionByAddress } from "@/config/collections";
 
 const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
@@ -18,42 +18,46 @@ const MARKETPLACE_ABI = [
   "function listings(uint256) view returns (address seller, uint256 price, bool active)"
 ];
 
-// Минимальный ABI — только базовые функции
-const MINIMAL_NFT_ABI = [
+const NFT_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
-  "function balanceOf(address owner) view returns (uint256)"
+  "function setApprovalForAll(address operator, bool approved)",
+  "function isApprovedForAll(address owner, address operator) view returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
-interface PerfumeInfo {
-  name: string;
-  gender: number;
-  pType: number;
-  topNotes: string[];
-  heartNotes: string[];
-  baseNotes: string[];
-  concentration: number;
-  rarity: number;
-  createdAt: number;
-  creator: string;
-}
+const GENESIS_ABI = [
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function getPerfume(uint256 tokenId) view returns (uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis)"
+];
 
 interface StoredScent {
   tokenId: number;
   contractAddress: string;
-  collection: ReturnType<typeof getCollectionByAddress>;
   name?: string;
   rarity?: number;
   timestamp: number;
   isListed?: boolean;
-  perfume?: PerfumeInfo;
+  perfume?: {
+    name: string;
+    gender: number;
+    pType: number;
+    topNotes: string[];
+    heartNotes: string[];
+    baseNotes: string[];
+    concentration: number;
+    rarity: number;
+    createdAt: number;
+    creator: string;
+  };
   description?: string;
-  hasFullData: boolean;
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
 type FilterOption = "all" | string;
 
-const GENDER = ["Unisex", "Male", "Female"];
+const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
@@ -176,29 +180,23 @@ export default function CollectionPage() {
         
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-        const allCollections = [
-          { address: NFT_CONTRACT_ADDRESS, name: "ScentProtocol" },
-          { address: GENESIS_CONTRACT_ADDRESS, name: "Genesis" }
+        // Проверяем оба контракта
+        const collections = [
+          { address: NFT_CONTRACT_ADDRESS, abi: NFT_ABI, name: "ScentProtocol" },
+          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI, name: "Genesis" }
         ];
-        
+
         const results: StoredScent[] = [];
 
-        for (const collectionInfo of allCollections) {
-          const collection = getCollectionByAddress(collectionInfo.address);
-          
-          console.log(`Checking ${collectionInfo.name} at ${collectionInfo.address}...`);
+        for (const collection of collections) {
+          console.log(`Checking ${collection.name}...`);
           
           try {
-            // Используем минимальный ABI только для баланса и ownerOf
-            const collectionContract = new ethers.Contract(
-              collectionInfo.address, 
-              MINIMAL_NFT_ABI, 
-              provider
-            );
-            
-            const balance = await collectionContract.balanceOf(currentAddress);
+            const contract = new ethers.Contract(collection.address, collection.abi, provider);
+            const balance = await contract.balanceOf(currentAddress);
             const balanceNum = Number(balance);
-            console.log(`${collectionInfo.name} balance:`, balanceNum);
+            
+            console.log(`${collection.name} balance:`, balanceNum);
 
             if (balanceNum === 0) continue;
 
@@ -207,61 +205,62 @@ export default function CollectionPage() {
 
             for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
               try {
-                const owner = await collectionContract.ownerOf(tokenId);
+                const owner = await contract.ownerOf(tokenId);
                 
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                  console.log(`Found token ${tokenId} in ${collectionInfo.name}`);
+                  console.log(`Found token ${tokenId} in ${collection.name}`);
                   
-                  // Пытаемся получить полные данные, но не блокируем если не получится
-                  let perfume: PerfumeInfo | undefined;
-                  let hasFullData = false;
-                  
+                  let perfumeData;
                   try {
-                    // Пробуем вызвать getPerfume — если ABI не совпадает, просто пропускаем
-                    const perfumeData = await collectionContract.getPerfume(tokenId);
+                    perfumeData = await contract.getPerfume(tokenId);
                     
-                    const topNotes = Array.from(perfumeData.topNotes || []) as string[];
-                    const heartNotes = Array.from(perfumeData.heartNotes || []) as string[];
-                    const baseNotes = Array.from(perfumeData.baseNotes || []) as string[];
-                    
-                    perfume = {
+                    // Нормализуем данные для Genesis (у него первый параметр tokenId)
+                    const perfume = collection.name === "Genesis" ? {
                       name: perfumeData.name,
                       gender: Number(perfumeData.gender),
                       pType: Number(perfumeData.pType),
-                      topNotes: topNotes,
-                      heartNotes: heartNotes,
-                      baseNotes: baseNotes,
+                      topNotes: Array.from(perfumeData.topNotes || []),
+                      heartNotes: Array.from(perfumeData.heartNotes || []),
+                      baseNotes: Array.from(perfumeData.baseNotes || []),
+                      concentration: Number(perfumeData.concentration),
+                      rarity: Number(perfumeData.rarity),
+                      createdAt: Number(perfumeData.createdAt),
+                      creator: perfumeData.creator,
+                    } : {
+                      name: perfumeData.name,
+                      gender: Number(perfumeData.gender),
+                      pType: Number(perfumeData.pType),
+                      topNotes: Array.from(perfumeData.topNotes || []),
+                      heartNotes: Array.from(perfumeData.heartNotes || []),
+                      baseNotes: Array.from(perfumeData.baseNotes || []),
                       concentration: Number(perfumeData.concentration),
                       rarity: Number(perfumeData.rarity),
                       createdAt: Number(perfumeData.createdAt),
                       creator: perfumeData.creator,
                     };
-                    hasFullData = true;
-                  } catch (e) {
-                    console.log(`Could not fetch full data for token ${tokenId}, showing basic info`);
-                  }
-                  
-                  let isListed = false;
-                  try {
-                    const listing = await marketplace.listings(tokenId);
-                    isListed = listing.active;
-                  } catch (e) {
-                    console.warn(`Could not check listing for token ${tokenId}`, e);
-                  }
 
-                  results.push({
-                    tokenId,
-                    contractAddress: collectionInfo.address,
-                    collection,
-                    name: perfume?.name,
-                    rarity: perfume?.rarity ?? 0,
-                    timestamp: perfume?.createdAt ? Number(perfume.createdAt) * 1000 : Date.now(),
-                    isListed,
-                    perfume,
-                    description: undefined,
-                    hasFullData,
-                  });
-                  foundCount++;
+                    let isListed = false;
+                    try {
+                      const listing = await marketplace.listings(tokenId);
+                      isListed = listing.active;
+                    } catch (e) {
+                      console.warn(`Could not check listing for token ${tokenId}`, e);
+                    }
+
+                    results.push({
+                      tokenId,
+                      contractAddress: collection.address,
+                      name: perfume.name,
+                      rarity: perfume.rarity,
+                      timestamp: perfume.createdAt * 1000,
+                      isListed,
+                      perfume,
+                      description: undefined,
+                    });
+                    foundCount++;
+                  } catch (e) {
+                    console.warn(`Could not fetch perfume data for token ${tokenId}`, e);
+                  }
                 }
               } catch (e) {
                 // Token not minted yet
@@ -270,7 +269,7 @@ export default function CollectionPage() {
               await new Promise(r => setTimeout(r, 50));
             }
           } catch (e) {
-            console.error(`Error fetching from ${collectionInfo.name}:`, e);
+            console.error(`Error fetching from ${collection.name}:`, e);
           }
         }
 
@@ -306,8 +305,6 @@ export default function CollectionPage() {
     }
   });
 
-  const collections = getAllCollections();
-
   const handleListClick = (tokenId: number) => {
     setListingModal({ open: true, tokenId, price: "" });
     setListingStatus("idle");
@@ -323,18 +320,20 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, MINIMAL_NFT_ABI, signer);
+      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, signer);
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
       
       if (!isApproved) {
+        console.log("Approving marketplace...");
         const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
         await approveTx.wait();
       }
 
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
+      console.log("Listing NFT...");
       const listTx = await marketplaceContract.list(listingModal.tokenId, priceInUSDC);
       await listTx.wait();
 
@@ -365,6 +364,7 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
+      console.log("Canceling listing...");
       const cancelTx = await marketplaceContract.cancel(tokenId);
       await cancelTx.wait();
 
@@ -454,20 +454,28 @@ export default function CollectionPage() {
               >
                 All Collections
               </button>
-              {collections.map((col) => (
-                <button
-                  key={col.id}
-                  onClick={() => {
-                    setFilterBy(col.contractAddress);
-                    setShowFilter(false);
-                  }}
-                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                    filterBy === col.contractAddress ? "text-amber-400 bg-white/5" : "text-white/70"
-                  }`}
-                >
-                  {col.badgeIcon} {col.name}
-                </button>
-              ))}
+              <button
+                onClick={() => {
+                  setFilterBy(NFT_CONTRACT_ADDRESS);
+                  setShowFilter(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                  filterBy === NFT_CONTRACT_ADDRESS ? "text-amber-400 bg-white/5" : "text-white/70"
+                }`}
+              >
+                ScentProtocol
+              </button>
+              <button
+                onClick={() => {
+                  setFilterBy(GENESIS_CONTRACT_ADDRESS);
+                  setShowFilter(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
+                  filterBy === GENESIS_CONTRACT_ADDRESS ? "text-amber-400 bg-white/5" : "text-white/70"
+                }`}
+              >
+                 Genesis
+              </button>
             </div>
           )}
         </div>
@@ -528,9 +536,11 @@ export default function CollectionPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {sortedScents.map((s) => {
-            const rarity = s.rarity ?? 0;
+            const hasFullData = !!s.perfume && s.perfume.topNotes;
+            const perfume = hasFullData ? s.perfume! : null;
+            const rarity = perfume?.rarity ?? s.rarity ?? 0;
             const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
-            const collection = s.collection;
+            const collection = getCollectionByAddress(s.contractAddress);
 
             return (
               <div
@@ -562,7 +572,7 @@ export default function CollectionPage() {
                     {collection?.name || "Scent"} #{s.tokenId}
                   </p>
                   <h3 className="text-xl font-bold text-white mt-1 pr-24">
-                    {s.perfume?.name || s.name || `Scent #${s.tokenId}`}
+                    {perfume?.name || s.name || `Scent #${s.tokenId}`}
                   </h3>
                 </div>
 
@@ -572,17 +582,17 @@ export default function CollectionPage() {
                   </span>
                 </div>
 
-                {s.hasFullData && s.perfume ? (
+                {hasFullData ? (
                   <>
                     <div className="relative flex flex-wrap gap-2 text-xs">
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
-                        {GENDER[s.perfume.gender]}
+                        {GENDER[perfume!.gender]}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
-                        {TYPE[s.perfume.pType]}
+                        {TYPE[perfume!.pType]}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
-                        {s.perfume.concentration}%
+                        {perfume!.concentration}%
                       </span>
                     </div>
 
@@ -590,7 +600,7 @@ export default function CollectionPage() {
                       <div>
                         <span className="text-white/40 text-xs uppercase tracking-wider">Top Notes</span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
-                          {s.perfume.topNotes.map((n) => (
+                          {perfume!.topNotes.map((n) => (
                             <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">
                               {n}
                             </span>
@@ -604,7 +614,7 @@ export default function CollectionPage() {
                         View Details →
                       </Link>
                       <div className="flex gap-2">
-                        <ShareCard tokenId={s.tokenId} perfume={s.perfume} />
+                        <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                         {s.isListed ? (
                           <button
                             onClick={() => handleCancelListing(s.tokenId)}
@@ -626,7 +636,7 @@ export default function CollectionPage() {
                   </>
                 ) : (
                   <div className="relative text-sm text-white/40">
-                    <p>Full details not available.</p>
+                    <p>Legacy entry — full details not available.</p>
                     <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors inline-block mt-2">
                       View Details →
                     </Link>
@@ -640,7 +650,7 @@ export default function CollectionPage() {
 
       {listingModal.open && (() => {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
-        const rarity = currentScent?.rarity ?? 0;
+        const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
         const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
         
         return (
@@ -650,7 +660,9 @@ export default function CollectionPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="relative">
-                <h3 className="text-xl font-bold text-white mb-4">List Scent #{listingModal.tokenId}</h3>
+                <h3 className="text-xl font-bold text-white mb-4">
+                  List Scent #{listingModal.tokenId}
+                </h3>
                 <p className="text-white/60 text-sm mb-5">Set your price in USDC</p>
 
                 <div className="space-y-4">
