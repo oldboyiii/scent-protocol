@@ -1,11 +1,8 @@
 "use client";
 
-import MarketplaceActions from "@/components/MarketplaceActions";
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
-import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
 import { getCollectionByAddress } from "@/config/collections";
 
