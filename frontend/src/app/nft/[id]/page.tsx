@@ -127,48 +127,49 @@ export default function NFTDetailPage() {
           provider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
         }
 
+        // Try both contracts until we find the token
         const contractsToTry = [
-          { address: NFT_CONTRACT_ADDRESS, abi: SCENT_ABI, name: "ScentProtocol" },
-          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI, name: "Genesis" }
+          { address: NFT_CONTRACT_ADDRESS, abi: SCENT_ABI },
+          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI }
         ];
 
         for (const contractInfo of contractsToTry) {
           try {
             const contract = new ethers.Contract(contractInfo.address, contractInfo.abi, provider);
             
-            // Check if token exists in this contract
-            const owner = await contract.ownerOf(id);
-            if (owner && owner !== "0x0000000000000000000000000000000000000000") {
-              const data = await contract.getPerfume(id);
-              
-              // Normalize data to ensure consistent shape regardless of contract
-              const normalizedData = {
-                name: data.name,
-                gender: Number(data.gender),
-                pType: Number(data.pType),
-                topNotes: Array.from(data.topNotes || []) as string[],
-                heartNotes: Array.from(data.heartNotes || []) as string[],
-                baseNotes: Array.from(data.baseNotes || []) as string[],
-                concentration: Number(data.concentration),
-                rarity: Number(data.rarity),
-                createdAt: Number(data.createdAt),
-                creator: data.creator,
-              };
-              
-              setPerfume(normalizedData);
-              setContractAddress(contractInfo.address);
-              return; // Found it, stop searching
-            }
+            // This will throw an error if the token doesn't exist in this specific contract
+            await contract.ownerOf(id); 
+            
+            // If it doesn't throw, we found it. Fetch the data.
+            const data = await contract.getPerfume(id);
+            
+            // Normalize data so the UI works exactly as before
+            const normalizedData = {
+              name: data.name,
+              gender: Number(data.gender),
+              pType: Number(data.pType),
+              topNotes: Array.from(data.topNotes || []) as string[],
+              heartNotes: Array.from(data.heartNotes || []) as string[],
+              baseNotes: Array.from(data.baseNotes || []) as string[],
+              concentration: Number(data.concentration),
+              rarity: Number(data.rarity),
+              createdAt: Number(data.createdAt),
+              creator: data.creator,
+            };
+            
+            setPerfume(normalizedData);
+            setContractAddress(contractInfo.address);
+            return; // Stop searching, we found it
           } catch (e) {
-            // Token doesn't exist in this contract, try the next one
+            // Token not in this contract, continue to the next one
             continue;
           }
         }
         
-        // If we get here, it wasn't found in either contract
+        // If loop finishes without returning, token wasn't found in either
         setPerfume(null);
       } catch (e) {
-        console.error("Fetch error:", e);
+        console.error(e);
       } finally {
         setLoading(false);
       }
@@ -241,7 +242,7 @@ export default function NFTDetailPage() {
 
         <div className="relative flex items-start justify-between mb-6">
           <div>
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{id}</p>
               {collection && (
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
