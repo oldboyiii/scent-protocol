@@ -76,7 +76,7 @@ interface ListingData {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "♂", "♀", ""];
+const GENDER_ICONS = ["", "", "♀", ""];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
@@ -111,6 +111,7 @@ export default function MarketplacePage() {
 
       const usdcAddr = await marketplace.usdc();
       setUsdcAddress(usdcAddr);
+      console.log("USDC address:", usdcAddr);
 
       const activeCount = await marketplace.getActiveCount();
       console.log("Active listings count:", Number(activeCount));
@@ -122,15 +123,22 @@ export default function MarketplacePage() {
       }
 
       const activeIds: bigint[] = await marketplace.getActiveListings();
-      console.log("Active IDs:", activeIds.map(id => Number(id)));
+      console.log("Active IDs from V7:", activeIds.map(id => Number(id)));
       
       const results: ListingData[] = [];
+      
       for (const id of activeIds) {
         try {
           const tokenId = Number(id);
-          const listing = await marketplace.listings(tokenId);
+          console.log(`Processing listing ${tokenId}...`);
           
-          if (!listing.active) continue;
+          const listing = await marketplace.listings(tokenId);
+          console.log(`Listing ${tokenId}:`, listing);
+          
+          if (!listing.active) {
+            console.log(`Listing ${tokenId} is not active, skipping`);
+            continue;
+          }
 
           let perfume = null;
           let contractAddress = "";
@@ -148,8 +156,10 @@ export default function MarketplacePage() {
                 topNotes: Array.from(data.topNotes || []) as string[],
               };
               contractAddress = NFT_CONTRACT_ADDRESS;
+              console.log(`Found in ScentProtocol: ${data.name}`);
             }
           } catch (e) {
+            console.log(`Not in ScentProtocol, trying Genesis for token ${tokenId}`);
             // Try Genesis
             try {
               const data = await genesisContract.getPerfume(tokenId);
@@ -163,9 +173,10 @@ export default function MarketplacePage() {
                   topNotes: Array.from(data.topNotes || []) as string[],
                 };
                 contractAddress = GENESIS_CONTRACT_ADDRESS;
+                console.log(`Found in Genesis: ${data.name}`);
               }
             } catch (e2) {
-              // No perfume data
+              console.log(`Not found in Genesis either for token ${tokenId}`);
             }
           }
 
@@ -183,13 +194,15 @@ export default function MarketplacePage() {
               concentration: perfume.concentration,
               topNotes: perfume.topNotes,
             });
+          } else {
+            console.log(`No perfume data found for token ${tokenId}`);
           }
         } catch (e) {
-          console.warn(`Failed to load listing metadata for ID ${id}`, e);
+          console.warn(`Failed to load listing metadata for ID ${id}:`, e);
         }
       }
 
-      console.log("Final listings:", results);
+      console.log("Final listings:", results.length, results);
       setListings(results);
     } catch (error: any) {
       console.error("Failed to fetch listings:", error);
