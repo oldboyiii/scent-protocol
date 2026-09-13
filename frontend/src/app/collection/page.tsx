@@ -90,6 +90,7 @@ interface StoredScent {
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
+type CollectionFilter = "all" | "scents" | "genesis";
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -107,7 +108,9 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [walletReady, setWalletReady] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [filterBy, setFilterBy] = useState<CollectionFilter>("all");
   const [showSort, setShowSort] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
   const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; price: string }>({
     open: false,
     tokenId: null,
@@ -140,8 +143,9 @@ export default function CollectionPage() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.sort-dropdown-container')) {
+      if (!target.closest('.dropdown-container')) {
         setShowSort(false);
+        setShowFilter(false);
       }
     };
     document.addEventListener('click', handleClickOutside);
@@ -294,7 +298,14 @@ export default function CollectionPage() {
     fetchCollection();
   }, [walletReady, address]);
 
-  const sortedScents = [...scents].sort((a, b) => {
+  const filteredScents = scents.filter(s => {
+    if (filterBy === "all") return true;
+    if (filterBy === "genesis") return s.contractAddress === GENESIS_CONTRACT_ADDRESS;
+    if (filterBy === "scents") return s.contractAddress === NFT_CONTRACT_ADDRESS;
+    return true;
+  });
+
+  const sortedScents = [...filteredScents].sort((a, b) => {
     switch (sortBy) {
       case "newest": return b.tokenId - a.tokenId;
       case "oldest": return a.tokenId - b.tokenId;
@@ -384,9 +395,9 @@ export default function CollectionPage() {
 
   if (!walletReady || loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
         <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">My Collection</h1>
-        <div className="grid gap-6 md:grid-cols-2">{Array.from({ length: 4 }).map((_, i) => (<div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />))}</div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => (<div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />))}</div>
       </div>
     );
   }
@@ -401,14 +412,29 @@ export default function CollectionPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
+    <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
       <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">My Collection</h1>
       <p className="text-center text-white/50">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
 
-      <div className="mb-6 flex items-center gap-3 relative sort-dropdown-container">
-        <span className="text-white/50 text-sm">Sort by:</span>
+      <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
+        {/* Filter Dropdown */}
         <div className="relative">
-          <button onClick={() => setShowSort(!showSort)} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
+          <button onClick={() => { setShowFilter(!showFilter); setShowSort(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
+            <span>{filterBy === "all" && "All Collections"}{filterBy === "scents" && "ScentProtocol"}{filterBy === "genesis" && "Genesis"}</span>
+            <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          {showFilter && (
+            <div className="absolute top-full mt-1 left-0 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl min-w-[180px]">
+              <button onClick={() => { setFilterBy("all"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "all" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>All Collections</button>
+              <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
+              <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
+            </div>
+          )}
+        </div>
+
+        {/* Sort Dropdown */}
+        <div className="relative">
+          <button onClick={() => { setShowSort(!showSort); setShowFilter(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
             <span>{sortBy === "newest" && "Newest First"}{sortBy === "oldest" && "Oldest First"}{sortBy === "name" && "Name (A-Z)"}{sortBy === "rarity" && "Rarity (High to Low)"}</span>
             <svg className={`w-4 h-4 transition-transform ${showSort ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
@@ -420,16 +446,17 @@ export default function CollectionPage() {
             </div>
           )}
         </div>
-        <span className="text-white/30 text-sm ml-auto">{scents.length} items</span>
+
+        <span className="text-white/30 text-sm ml-auto">{sortedScents.length} item{sortedScents.length !== 1 ? "s" : ""}</span>
       </div>
 
-      {scents.length === 0 ? (
+      {sortedScents.length === 0 ? (
         <div className="text-center text-white/40 py-20">
-          <p className="text-lg mb-4">No scents in your collection yet.</p>
+          <p className="text-lg mb-4">No NFTs in your collection yet.</p>
           <Link href="/" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">Mint Your First Scent →</Link>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {sortedScents.map((s) => {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
@@ -450,6 +477,7 @@ export default function CollectionPage() {
             return (
               <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
                 
+                {/* CONSTANT SHIMMER: ONLY for Genesis */}
                 {isGenesis && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
                     background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
@@ -458,20 +486,39 @@ export default function CollectionPage() {
                   }} />
                 )}
 
+                {/* HOVER SHIMMER #1: EXACT from details page for regular NFTs */}
                 {!isGenesis && (
-                  <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
-                    background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
-                    backgroundSize: "200% 100%",
-                    animation: "shimmer 2s linear infinite",
-                    padding: "2px",
-                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                    WebkitMaskComposite: "xor",
-                    maskComposite: "exclude",
-                  }} />
+                  <div 
+                    className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                    style={{
+                      background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+                      backgroundSize: "200% 100%",
+                      animation: "shimmer 2s linear infinite",
+                      padding: "2px",
+                      WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                      WebkitMaskComposite: "xor",
+                      maskComposite: "exclude",
+                    }}
+                  />
                 )}
 
+                {/* Glass shine */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+                
+                {/* Top glow line */}
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+                {/* HOVER SHIMMER #2: EXACT from details page for regular NFTs */}
+                {!isGenesis && (
+                  <div 
+                    className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
+                    style={{
+                      background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
+                      backgroundSize: "200% 100%",
+                      animation: "shimmer 2.5s infinite",
+                    }}
+                  />
+                )}
 
                 <div className="relative flex items-start justify-between">
                   <div>
