@@ -60,11 +60,14 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
-// Genesis-specific styles
+// Genesis-specific styles (extends Legendary style with extra fields)
 const GENESIS_STYLE = {
   bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90",
   border: "border-amber-400/60",
+  badge: "bg-amber-500/40 text-amber-100 border-amber-400/60",
+  text: "text-amber-100",
   glow: "shadow-[0_0_60px_rgba(245,158,11,0.4)]",
+  hex: "#fbbf24",
   accent: "text-amber-300",
 };
 
