@@ -25,7 +25,6 @@ const NFT_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
-// ТОЧНЫЙ JSON ABI ИЗ ТВОЕГО КОНТРАКТА ДЛЯ НАДЕЖНОГО ПАРСИНГА
 const GENESIS_ABI = [
   {
     "inputs": [{"internalType": "address", "name": "owner", "type": "address"}],
@@ -96,9 +95,7 @@ const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
-const RARITY_STYLE: Record<number, { 
-  bg: string; border: string; badge: string; text: string; glow: string; hex: string;
-}> = {
+const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
   0: { bg: "from-slate-800/80 via-slate-700/60 to-slate-900/80", border: "border-slate-500/40", badge: "bg-slate-500/30 text-slate-200 border-slate-400/50", text: "text-slate-200", glow: "shadow-[0_0_30px_rgba(148,163,184,0.15)]", hex: "#94a3b8" },
   1: { bg: "from-blue-800/80 via-blue-600/60 to-indigo-900/80", border: "border-blue-400/50", badge: "bg-blue-500/30 text-blue-100 border-blue-400/50", text: "text-blue-100", glow: "shadow-[0_0_40px_rgba(96,165,250,0.25)]", hex: "#60a5fa" },
   2: { bg: "from-purple-800/80 via-fuchsia-600/60 to-purple-900/80", border: "border-purple-400/50", badge: "bg-purple-500/30 text-purple-100 border-purple-400/50", text: "text-purple-100", glow: "shadow-[0_0_40px_rgba(192,132,252,0.25)]", hex: "#c084fc" },
@@ -112,7 +109,9 @@ export default function CollectionPage() {
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [showSort, setShowSort] = useState(false);
   const [listingModal, setListingModal] = useState<{ open: boolean; tokenId: number | null; price: string }>({
-    open: false, tokenId: null, price: ""
+    open: false,
+    tokenId: null,
+    price: ""
   });
   const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
   const { address } = useWallet();
@@ -126,7 +125,9 @@ export default function CollectionPage() {
         if (w.ethereum) {
           try {
             const accounts = await w.ethereum.request({ method: 'eth_accounts' });
-            if (accounts && accounts.length > 0) setWalletReady(true);
+            if (accounts && accounts.length > 0) {
+              setWalletReady(true);
+            }
           } catch {}
         }
       };
@@ -139,7 +140,9 @@ export default function CollectionPage() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.sort-dropdown-container')) setShowSort(false);
+      if (!target.closest('.sort-dropdown-container')) {
+        setShowSort(false);
+      }
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
@@ -171,7 +174,7 @@ export default function CollectionPage() {
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
         const results: StoredScent[] = [];
 
-        // --- PART 1: ScentProtocol (Твой рабочий код) ---
+        // PART 1: Fetch ScentProtocol NFTs
         try {
           let contract;
           if (w.ethereum) {
@@ -229,13 +232,11 @@ export default function CollectionPage() {
           console.error("ScentProtocol fetch error:", e);
         }
 
-        // --- PART 2: Genesis (С точным JSON ABI для идеального парсинга) ---
+        // PART 2: Fetch Genesis NFTs
         try {
-          console.log("🔍 Checking Genesis contract...");
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const genesisBalance = await genesisContract.balanceOf(currentAddress);
           const genesisBalanceNum = Number(genesisBalance);
-          console.log("✅ Genesis balance for this wallet:", genesisBalanceNum);
 
           if (genesisBalanceNum > 0) {
             let foundCount = 0;
@@ -245,11 +246,7 @@ export default function CollectionPage() {
               try {
                 const owner = await genesisContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                  console.log("🎯 Found Genesis token ID:", tokenId);
-                  
-                  // Благодаря JSON ABI, Ethers v6 идеально распарсит tuple и мы сможем обращаться по именам
                   const data = await genesisContract.getPerfume(tokenId);
-                  
                   let isListed = false;
                   try {
                     const listing = await marketplace.listings(tokenId);
@@ -277,20 +274,16 @@ export default function CollectionPage() {
                     },
                     description: undefined,
                   });
-                  console.log("✨ Successfully parsed Genesis NFT:", data.name, "Rarity:", data.rarity);
                   foundCount++;
                 }
-              } catch (e) {
-                console.warn(`Error fetching Genesis token ${tokenId}:`, e);
-              }
+              } catch (e) {}
               await new Promise(r => setTimeout(r, 50));
             }
           }
         } catch (e) {
-          console.error("❌ Genesis fetch error:", e);
+          console.error("Genesis fetch error:", e);
         }
 
-        console.log("🚀 Total NFTs loaded:", results.length);
         setScents(results);
       } catch (e) {
         console.error("Collection fetch error:", e);
@@ -441,27 +434,64 @@ export default function CollectionPage() {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
-            const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
             const isGenesis = s.contractAddress === GENESIS_CONTRACT_ADDRESS;
+            
+            const style = isGenesis 
+              ? { 
+                  bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
+                  border: "border-amber-400/70", 
+                  badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
+                  text: "text-amber-100", 
+                  glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", 
+                  hex: "#fbbf24" 
+                }
+              : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
               <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
-                <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2s linear infinite", padding: "2px", WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }} />
+                
+                {isGenesis && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
+                    background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2.5s linear infinite",
+                  }} />
+                )}
+
+                {!isGenesis && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+                    background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2s linear infinite",
+                    padding: "2px",
+                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                    WebkitMaskComposite: "xor",
+                    maskComposite: "exclude",
+                  }} />
+                )}
+
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s infinite" }} />
 
                 <div className="relative flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-xs text-white/40 uppercase tracking-wider">{isGenesis ? "Genesis" : "Scent"} #{s.tokenId}</p>
+                      <p className="text-xs text-white/40 uppercase tracking-wider">
+                        {isGenesis ? "Genesis" : "Scent"} #{s.tokenId}
+                      </p>
                       {isGenesis && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/30 text-amber-100 border-amber-400/50">🏆 Genesis</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
+                          🏆 Genesis
+                        </span>
                       )}
                     </div>
-                    <h3 className="text-xl font-bold text-white mt-1">{perfume?.name || s.name || `Scent #${s.tokenId}`}</h3>
+                    <h3 className="text-xl font-bold text-white mt-1">
+                      {perfume?.name || s.name || `Scent #${s.tokenId}`}
+                    </h3>
                   </div>
-                  <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>{RARITY[rarity]}</span>
+                  <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                    {RARITY[rarity]}
+                  </span>
                 </div>
 
                 {hasFullData ? (
@@ -471,32 +501,45 @@ export default function CollectionPage() {
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">{TYPE[perfume!.pType]}</span>
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">{perfume!.concentration}%</span>
                     </div>
+
                     <div className="relative space-y-2 text-sm">
                       <div>
                         <span className="text-white/40 text-xs uppercase tracking-wider">Top Notes</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">{perfume!.topNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>))}</div>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {perfume!.topNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>))}
+                        </div>
                       </div>
                       <div>
                         <span className="text-white/40 text-xs uppercase tracking-wider">Heart Notes</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">{perfume!.heartNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-rose-200 text-xs border border-rose-500/30">{n}</span>))}</div>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {perfume!.heartNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-rose-200 text-xs border border-rose-500/30">{n}</span>))}
+                        </div>
                       </div>
                       <div>
                         <span className="text-white/40 text-xs uppercase tracking-wider">Base Notes</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">{perfume!.baseNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-emerald-200 text-xs border border-emerald-500/30">{n}</span>))}</div>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {perfume!.baseNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-emerald-200 text-xs border border-emerald-500/30">{n}</span>))}
+                        </div>
                       </div>
                     </div>
+
                     <div className="relative text-xs text-white/30 space-y-0.5">
                       <p>Creator: {perfume!.creator}</p>
                       <p>Minted: {new Date(perfume!.createdAt * 1000).toLocaleString()}</p>
                     </div>
+
                     <div className="relative flex items-center justify-between pt-2 gap-2">
                       <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors">View Details →</Link>
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                         {s.isListed ? (
-                          <button onClick={() => handleCancelListing(s.tokenId)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">{listingStatus === "listing" ? "Removing..." : "Remove"}</button>
+                          <button onClick={() => handleCancelListing(s.tokenId)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                            {listingStatus === "listing" ? "Removing..." : "Remove"}
+                          </button>
                         ) : (
-                          <button onClick={() => handleListClick(s.tokenId)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all">List for Sale</button>
+                          <button onClick={() => handleListClick(s.tokenId)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all">
+                            List for Sale
+                          </button>
                         )}
                       </div>
                     </div>
