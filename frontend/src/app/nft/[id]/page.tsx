@@ -340,7 +340,17 @@ export default function NFTDetailPage() {
         <div className="relative text-sm text-white/40 space-y-1">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
-          {isGenesis && <p className="text-amber-300 font-bold mt-2">✨ Arc Mainnet Genesis Collection</p>}
+          {isGenesis && (
+  <p className="text-amber-300 font-bold mt-2 flex items-center gap-2">
+    <img 
+      src="/arc-logo.png" 
+      alt="Arc" 
+      className="w-5 h-5 inline-block"
+      style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }}
+    />
+    Arc Mainnet Genesis Collection
+  </p>
+)}
         </div>
 
         <div className="relative mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
