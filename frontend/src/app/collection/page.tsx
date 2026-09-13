@@ -167,24 +167,27 @@ export default function CollectionPage() {
       }
 
       try {
-        const w = window as any;
-        let contract;
-        if (w.ethereum) {
-          const browserProvider = new ethers.BrowserProvider(w.ethereum);
-          contract = getContract(browserProvider);
-        } else {
-          const fallbackProvider = new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-          contract = getContract(fallbackProvider);
-        }
+  const w = window as any;
+  const provider = w.ethereum 
+    ? new ethers.BrowserProvider(w.ethereum)
+    : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+  
+  const marketplace = new ethers.Contract(
+    MARKETPLACE_ADDRESS, 
+    MARKETPLACE_ABI, 
+    provider
+  );
 
-        const marketplace = new ethers.Contract(
-          MARKETPLACE_ADDRESS, 
-          MARKETPLACE_ABI, 
-          w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network")
-        );
+  const allCollections = [NFT_CONTRACT_ADDRESS, "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf"];
+  const results: StoredScent[] = [];
 
-        const allCollections = [NFT_CONTRACT_ADDRESS, "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf"];
-        const results: StoredScent[] = [];
+  for (const collectionAddress of allCollections) {
+    const collectionContract = new ethers.Contract(collectionAddress, NFT_ABI, provider);
+    const collection = getCollectionByAddress(collectionAddress);
+    
+    try {
+      const balance = await collectionContract.balanceOf(currentAddress);
+      // ... остальной код
 
         for (const collectionAddress of allCollections) {
           const collectionContract = new ethers.Contract(collectionAddress, NFT_ABI, contract.provider);
