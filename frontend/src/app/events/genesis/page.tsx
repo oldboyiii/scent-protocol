@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
-// Correct ABI for the Genesis contract
 const GENESIS_ABI = [
   "function requestMint() external returns (uint256)",
   "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
@@ -28,6 +27,39 @@ export default function GenesisEventPage() {
   
   const maxSupply = 100;
   const maxPerWallet = 1;
+
+  // Fetch real-time data from the blockchain
+  const fetchContractData = async () => {
+    if (!address) return;
+    
+    try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+
+      // Fetch actual minted count
+      const remaining = await contract.getRemainingSupply();
+      const minted = await contract.getWalletMintedCount(address);
+      
+      const actualMinted = maxSupply - Number(remaining);
+      setTotalMinted(actualMinted);
+      setUserMinted(Number(minted));
+      
+      // If already minted, show success status
+      if (minted > 0n) {
+        setStep("revealed");
+      } else {
+        setStep("idle");
+      }
+    } catch (error) {
+      console.error("Failed to fetch contract data:", error);
+    }
+  };
+
+  // Fetch data on component mount and wallet change
+  useEffect(() => {
+    fetchContractData();
+  }, [address]);
 
   const handleMint = async () => {
     if (!address) {
@@ -50,7 +82,7 @@ export default function GenesisEventPage() {
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
 
-      // Extract tokenId from the event log
+      // Extract tokenId from event
       const mintEvent = receipt.logs
         .map((log: any) => {
           try {
@@ -64,7 +96,7 @@ export default function GenesisEventPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
       setTokenId(newTokenId);
       setStep("requested");
-      setCountdown(60); // Wait 60 seconds (approx. 5 blocks)
+      setCountdown(60);
 
       // Countdown timer
       const timer = setInterval(() => {
@@ -105,8 +137,9 @@ export default function GenesisEventPage() {
       await tx.wait();
 
       setStep("revealed");
-      setUserMinted(1);
-      setTotalMinted((prev) => prev + 1);
+      
+      // Refresh contract data after mint
+      await fetchContractData();
       
       alert("NFT successfully minted! Check your Collection.");
 
@@ -186,7 +219,7 @@ export default function GenesisEventPage() {
 
         {/* Mint Card */}
         <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl p-8 border border-white/10 mb-12">
-          {step === "idle" && (
+          {step === "idle" && userMinted < maxPerWallet && (
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Mint Price</p>
@@ -233,7 +266,22 @@ export default function GenesisEventPage() {
           {step === "revealed" && (
             <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-6 text-center">
               <p className="text-emerald-400 text-xl font-bold mb-2">🎉 NFT Minted!</p>
-              <p className="text-white/80">Token ID: {tokenId}</p>
+              <p className="text-white/80">Token ID: {tokenId || "Check your wallet"}</p>
+              <p className="text-white/50 text-sm mt-2">
+                You've reached the maximum of {maxPerWallet} NFT
+              </p>
+            </div>
+          )}
+
+          {userMinted >= maxPerWallet && step !== "revealed" && (
+            <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-6 text-center">
+              <p className="text-amber-400 font-semibold mb-2">⚠️ Max Limit Reached</p>
+              <p className="text-white/80">
+                You've already minted {userMinted}/{maxPerWallet} NFT(s)
+              </p>
+              <p className="text-white/50 text-sm mt-2">
+                Check your Collection to view your NFT
+              </p>
             </div>
           )}
 
