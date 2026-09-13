@@ -527,10 +527,16 @@ export default function CollectionPage() {
                         {isGenesis ? "Genesis" : "Scent"} #{s.tokenId}
                       </p>
                       {isGenesis && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
-                          🏆 Genesis
-                        </span>
-                      )}
+  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
+    <img 
+      src="/arc-logo.png" 
+      alt="Arc" 
+      className="w-3 h-3 inline-block"
+      style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }}
+    />
+    Genesis
+  </span>
+)}
                     </div>
                     <h3 className="text-xl font-bold text-white mt-1">
                       {perfume?.name || s.name || `Scent #${s.tokenId}`}
