@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 
 export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "";
 export const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS || "";
+export const GENESIS_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
 export const SCENT_PROTOCOL_ABI = [
   "function balanceOf(address account) external view returns (uint256)",
@@ -28,6 +29,17 @@ export const SCENT_PROTOCOL_ABI = [
   "event PerfumeRedeemed(uint256 indexed tokenId, address indexed owner)",
 ];
 
+export const GENESIS_ABI = [
+  "function requestMint() external returns (uint256)",
+  "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
+  "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis))",
+  "function getRemainingSupply() external view returns (uint256)",
+  "function getWalletMintedCount(address wallet) external view returns (uint256)",
+  "function getNextTokenId() external view returns (uint256)",
+  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
+  "event PerfumeCreated(uint256 indexed tokenId, address indexed creator, uint8 rarity)",
+];
+
 export const USDC_ABI = [
   "function approve(address spender, uint256 amount) external returns (bool)",
   "function allowance(address owner, address spender) external view returns (uint256)",
@@ -43,6 +55,10 @@ export function getProvider() {
 
 export function getContract(signerOrProvider: ethers.Signer | ethers.Provider) {
   return new ethers.Contract(CONTRACT_ADDRESS, SCENT_PROTOCOL_ABI, signerOrProvider);
+}
+
+export function getGenesisContract(signerOrProvider: ethers.Signer | ethers.Provider) {
+  return new ethers.Contract(GENESIS_ADDRESS, GENESIS_ABI, signerOrProvider);
 }
 
 export function getUSDCContract(signerOrProvider: ethers.Signer | ethers.Provider) {
