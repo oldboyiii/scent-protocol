@@ -25,10 +25,11 @@ const NFT_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
+// Genesis ABI с ИМЕНАМИ параметров — как в реальном контракте
 const GENESIS_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function balanceOf(address owner) view returns (uint256)",
-  "function getPerfume(uint256 tokenId) view returns (uint256, string, uint8, uint8, string[3], string[3], string[3], uint8, uint8, uint256, address, bool)"
+  "function getPerfume(uint256 tokenId) view returns (uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis)"
 ];
 
 interface StoredScent {
@@ -173,7 +174,7 @@ export default function CollectionPage() {
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
         const results: StoredScent[] = [];
 
-        // --- PART 1: Original ScentProtocol code ---
+        // --- PART 1: ScentProtocol (твой рабочий код) ---
         try {
           let contract;
           if (w.ethereum) {
@@ -233,7 +234,7 @@ export default function CollectionPage() {
           console.error("ScentProtocol fetch error:", e);
         }
 
-        // --- PART 2: Genesis Collection ---
+        // --- PART 2: Genesis (с именами полей, как в ScentProtocol) ---
         try {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const genesisBalance = await genesisContract.balanceOf(currentAddress);
@@ -248,6 +249,8 @@ export default function CollectionPage() {
                 const owner = await genesisContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
+                  
+                  // Обращаемся по ИМЕНАМ полей — так же как в ScentProtocol
                   let isListed = false;
                   try {
                     const listing = await marketplace.listings(tokenId);
@@ -257,21 +260,21 @@ export default function CollectionPage() {
                   results.push({
                     tokenId,
                     contractAddress: GENESIS_CONTRACT_ADDRESS,
-                    name: data[1],
-                    rarity: Number(data[8]),
-                    timestamp: Number(data[9]) * 1000,
+                    name: data.name,
+                    rarity: Number(data.rarity),
+                    timestamp: Number(data.createdAt) * 1000,
                     isListed,
                     perfume: {
-                      name: data[1],
-                      gender: Number(data[2]),
-                      pType: Number(data[3]),
-                      topNotes: Array.from(data[4] || []) as string[],
-                      heartNotes: Array.from(data[5] || []) as string[],
-                      baseNotes: Array.from(data[6] || []) as string[],
-                      concentration: Number(data[7]),
-                      rarity: Number(data[8]),
-                      createdAt: Number(data[9]),
-                      creator: data[10],
+                      name: data.name,
+                      gender: Number(data.gender),
+                      pType: Number(data.pType),
+                      topNotes: Array.from(data.topNotes || []) as string[],
+                      heartNotes: Array.from(data.heartNotes || []) as string[],
+                      baseNotes: Array.from(data.baseNotes || []) as string[],
+                      concentration: Number(data.concentration),
+                      rarity: Number(data.rarity),
+                      createdAt: Number(data.createdAt),
+                      creator: data.creator,
                     },
                     description: undefined,
                   });
@@ -331,14 +334,12 @@ export default function CollectionPage() {
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
       
       if (!isApproved) {
-        console.log("Approving marketplace...");
         const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
         await approveTx.wait();
       }
 
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-      console.log("Listing NFT...");
       const listTx = await marketplaceContract.list(listingModal.tokenId, priceInUSDC);
       await listTx.wait();
 
@@ -369,7 +370,6 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-      console.log("Canceling listing...");
       const cancelTx = await marketplaceContract.cancel(tokenId);
       await cancelTx.wait();
 
@@ -589,12 +589,6 @@ export default function CollectionPage() {
                         </div>
                       </div>
                     </div>
-
-                    {s.description && (
-                      <div className="relative bg-black/30 rounded-lg p-3 text-sm text-white/70 italic border-l-2 border-white/10">
-                        {s.description}
-                      </div>
-                    )}
 
                     <div className="relative text-xs text-white/30 space-y-0.5">
                       <p>Creator: {perfume!.creator}</p>
