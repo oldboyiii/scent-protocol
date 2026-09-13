@@ -7,19 +7,16 @@ import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
 
-// Updated to V7 marketplace
 const MARKETPLACE_ADDRESS = "0xBC7669036F8af720A85569448FD3DB198C52468C";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
-// Updated ABI for V7 - list now takes nft contract address
 const MARKETPLACE_ABI = [
   "function list(address nft, uint256 tokenId, uint256 price)",
   "function cancel(uint256 tokenId)",
   "function listings(uint256) view returns (address seller, uint256 price, bool active)",
   "function getActiveListings() view returns (uint256[])",
-  "function getActiveCount() view returns (uint256)",
-  "function buy(uint256 tokenId)"
+  "function getActiveCount() view returns (uint256)"
 ];
 
 const NFT_ABI = [
@@ -182,6 +179,17 @@ export default function CollectionPage() {
         const w = window as any;
         const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+        
+        // Get all active listings from V7 marketplace
+        let activeListingIds: number[] = [];
+        try {
+          const activeIds = await marketplace.getActiveListings();
+          activeListingIds = activeIds.map((id: bigint) => Number(id));
+          console.log("Active listing IDs from V7:", activeListingIds);
+        } catch (e) {
+          console.error("Failed to get active listings:", e);
+        }
+
         const results: StoredScent[] = [];
 
         // PART 1: Fetch ScentProtocol NFTs
@@ -195,6 +203,7 @@ export default function CollectionPage() {
 
           const balance = await contract.balanceOf(currentAddress);
           const balanceNum = Number(balance);
+          console.log("ScentProtocol balance:", balanceNum);
 
           if (balanceNum > 0) {
             let foundCount = 0;
@@ -205,11 +214,10 @@ export default function CollectionPage() {
                 const owner = await contract.ownerOf(tokenId);
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
-                  let isListed = false;
-                  try {
-                    const listing = await marketplace.listings(tokenId);
-                    isListed = listing.active;
-                  } catch (e) {}
+                  
+                  // Check if this token is listed using activeListingIds
+                  const isListed = activeListingIds.includes(tokenId);
+                  console.log(`ScentProtocol token ${tokenId} isListed:`, isListed);
 
                   results.push({
                     tokenId,
@@ -247,6 +255,7 @@ export default function CollectionPage() {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const genesisBalance = await genesisContract.balanceOf(currentAddress);
           const genesisBalanceNum = Number(genesisBalance);
+          console.log("Genesis balance:", genesisBalanceNum);
 
           if (genesisBalanceNum > 0) {
             let foundCount = 0;
@@ -257,11 +266,10 @@ export default function CollectionPage() {
                 const owner = await genesisContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
-                  let isListed = false;
-                  try {
-                    const listing = await marketplace.listings(tokenId);
-                    isListed = listing.active;
-                  } catch (e) {}
+                  
+                  // Check if this token is listed using activeListingIds
+                  const isListed = activeListingIds.includes(tokenId);
+                  console.log(`Genesis token ${tokenId} isListed:`, isListed);
 
                   results.push({
                     tokenId,
@@ -294,6 +302,7 @@ export default function CollectionPage() {
           console.error("Genesis fetch error:", e);
         }
 
+        console.log("Total results:", results.length);
         setScents(results);
       } catch (e) {
         console.error("Collection fetch error:", e);
@@ -351,7 +360,6 @@ export default function CollectionPage() {
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
       console.log(`Listing NFT ${listingModal.tokenId} from ${listingModal.contractAddress}...`);
       
-      // V7 requires nft contract address as first parameter
       const listTx = await marketplaceContract.list(
         listingModal.contractAddress,
         listingModal.tokenId,
@@ -359,12 +367,13 @@ export default function CollectionPage() {
       );
       await listTx.wait();
 
+      console.log("Listing successful!");
       setListingStatus("success");
+      
+      // Wait a bit for blockchain to update, then reload
       setTimeout(() => {
-        setListingModal({ open: false, tokenId: null, contractAddress: null, price: "" });
-        setListingStatus("idle");
         window.location.reload();
-      }, 1500);
+      }, 2000);
     } catch (error: any) {
       console.error("Listing failed:", error);
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
@@ -385,6 +394,7 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
+      console.log("Canceling listing for token:", tokenId);
       const cancelTx = await marketplaceContract.cancel(tokenId);
       await cancelTx.wait();
 
@@ -589,11 +599,18 @@ export default function CollectionPage() {
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                         {s.isListed ? (
-                          <button onClick={() => handleCancelListing(s.tokenId)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                          <button 
+                            onClick={() => handleCancelListing(s.tokenId)} 
+                            disabled={listingStatus === "listing"} 
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                          >
                             {listingStatus === "listing" ? "Removing..." : "Remove"}
                           </button>
                         ) : (
-                          <button onClick={() => handleListClick(s.tokenId, s.contractAddress)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all">
+                          <button 
+                            onClick={() => handleListClick(s.tokenId, s.contractAddress)} 
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all"
+                          >
                             List for Sale
                           </button>
                         )}
