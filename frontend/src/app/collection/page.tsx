@@ -28,7 +28,7 @@ const NFT_ABI = [
 const GENESIS_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function balanceOf(address owner) view returns (uint256)",
-  "function getPerfume(uint256 tokenId) view returns (uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis)"
+  "function getPerfume(uint256 tokenId) view returns (uint256, string, uint8, uint8, string[3], string[3], string[3], uint8, uint8, uint256, address, bool)"
 ];
 
 interface StoredScent {
@@ -169,15 +169,11 @@ export default function CollectionPage() {
 
       try {
         const w = window as any;
-        const provider = w.ethereum 
-          ? new ethers.BrowserProvider(w.ethereum)
-          : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-
+        const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-
         const results: StoredScent[] = [];
 
-        // First, fetch from ScentProtocol using getContract (like before)
+        // --- PART 1: Original ScentProtocol code ---
         try {
           let contract;
           if (w.ethereum) {
@@ -191,8 +187,6 @@ export default function CollectionPage() {
           const balance = await contract.balanceOf(currentAddress);
           const balanceNum = Number(balance);
 
-          console.log("ScentProtocol balance:", balanceNum);
-
           if (balanceNum > 0) {
             let foundCount = 0;
             const maxId = 100;
@@ -200,17 +194,13 @@ export default function CollectionPage() {
             for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
               try {
                 const owner = await contract.ownerOf(tokenId);
-                
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
-                  
                   let isListed = false;
                   try {
                     const listing = await marketplace.listings(tokenId);
                     isListed = listing.active;
-                  } catch (e) {
-                    console.warn(`Could not check listing for token ${tokenId}`, e);
-                  }
+                  } catch (e) {}
 
                   results.push({
                     tokenId,
@@ -235,24 +225,19 @@ export default function CollectionPage() {
                   });
                   foundCount++;
                 }
-              } catch (e) {
-                // Token not minted yet
-              }
-              
+              } catch (e) {}
               await new Promise(r => setTimeout(r, 50));
             }
           }
         } catch (e) {
-          console.error("Error fetching ScentProtocol:", e);
+          console.error("ScentProtocol fetch error:", e);
         }
 
-        // Then, fetch from Genesis
+        // --- PART 2: Genesis Collection ---
         try {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const genesisBalance = await genesisContract.balanceOf(currentAddress);
           const genesisBalanceNum = Number(genesisBalance);
-
-          console.log("Genesis balance:", genesisBalanceNum);
 
           if (genesisBalanceNum > 0) {
             let foundCount = 0;
@@ -261,53 +246,43 @@ export default function CollectionPage() {
             for (let tokenId = 1; tokenId <= maxId && foundCount < genesisBalanceNum; tokenId++) {
               try {
                 const owner = await genesisContract.ownerOf(tokenId);
-                
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                  const perfumeData = await genesisContract.getPerfume(tokenId);
-                  
-                  // Normalize Genesis data (skip first tokenId parameter)
-                  const perfume = {
-                    name: perfumeData.name,
-                    gender: Number(perfumeData.gender),
-                    pType: Number(perfumeData.pType),
-                    topNotes: Array.from(perfumeData.topNotes || []) as string[],
-                    heartNotes: Array.from(perfumeData.heartNotes || []) as string[],
-                    baseNotes: Array.from(perfumeData.baseNotes || []) as string[],
-                    concentration: Number(perfumeData.concentration),
-                    rarity: Number(perfumeData.rarity),
-                    createdAt: Number(perfumeData.createdAt),
-                    creator: perfumeData.creator,
-                  };
-
+                  const data = await genesisContract.getPerfume(tokenId);
                   let isListed = false;
                   try {
                     const listing = await marketplace.listings(tokenId);
                     isListed = listing.active;
-                  } catch (e) {
-                    console.warn(`Could not check listing for Genesis token ${tokenId}`, e);
-                  }
+                  } catch (e) {}
 
                   results.push({
                     tokenId,
                     contractAddress: GENESIS_CONTRACT_ADDRESS,
-                    name: perfume.name,
-                    rarity: perfume.rarity,
-                    timestamp: perfume.createdAt * 1000,
+                    name: data[1],
+                    rarity: Number(data[8]),
+                    timestamp: Number(data[9]) * 1000,
                     isListed,
-                    perfume,
+                    perfume: {
+                      name: data[1],
+                      gender: Number(data[2]),
+                      pType: Number(data[3]),
+                      topNotes: Array.from(data[4] || []) as string[],
+                      heartNotes: Array.from(data[5] || []) as string[],
+                      baseNotes: Array.from(data[6] || []) as string[],
+                      concentration: Number(data[7]),
+                      rarity: Number(data[8]),
+                      createdAt: Number(data[9]),
+                      creator: data[10],
+                    },
                     description: undefined,
                   });
                   foundCount++;
                 }
-              } catch (e) {
-                // Token not minted yet
-              }
-              
+              } catch (e) {}
               await new Promise(r => setTimeout(r, 50));
             }
           }
         } catch (e) {
-          console.error("Error fetching Genesis:", e);
+          console.error("Genesis fetch error:", e);
         }
 
         setScents(results);
@@ -317,7 +292,6 @@ export default function CollectionPage() {
         setLoading(false);
       }
     }
-
     fetchCollection();
   }, [walletReady, address]);
 
