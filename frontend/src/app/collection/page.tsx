@@ -18,18 +18,10 @@ const MARKETPLACE_ABI = [
   "function listings(uint256) view returns (address seller, uint256 price, bool active)"
 ];
 
-const NFT_ABI = [
+// Минимальный ABI — только базовые функции
+const MINIMAL_NFT_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
-  "function setApprovalForAll(address operator, bool approved)",
-  "function isApprovedForAll(address owner, address operator) view returns (bool)",
-  "function balanceOf(address owner) view returns (uint256)",
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
-];
-
-const GENESIS_ABI = [
-  "function ownerOf(uint256 tokenId) view returns (address)",
-  "function balanceOf(address owner) view returns (uint256)",
-  "function getPerfume(uint256 tokenId) view returns (uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis)"
+  "function balanceOf(address owner) view returns (uint256)"
 ];
 
 interface PerfumeInfo {
@@ -55,6 +47,7 @@ interface StoredScent {
   isListed?: boolean;
   perfume?: PerfumeInfo;
   description?: string;
+  hasFullData: boolean;
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
@@ -184,19 +177,25 @@ export default function CollectionPage() {
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
         const allCollections = [
-          { address: NFT_CONTRACT_ADDRESS, abi: NFT_ABI, name: "ScentProtocol" },
-          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI, name: "Genesis" }
+          { address: NFT_CONTRACT_ADDRESS, name: "ScentProtocol" },
+          { address: GENESIS_CONTRACT_ADDRESS, name: "Genesis" }
         ];
         
         const results: StoredScent[] = [];
 
         for (const collectionInfo of allCollections) {
-          const collectionContract = new ethers.Contract(collectionInfo.address, collectionInfo.abi, provider);
           const collection = getCollectionByAddress(collectionInfo.address);
           
           console.log(`Checking ${collectionInfo.name} at ${collectionInfo.address}...`);
           
           try {
+            // Используем минимальный ABI только для баланса и ownerOf
+            const collectionContract = new ethers.Contract(
+              collectionInfo.address, 
+              MINIMAL_NFT_ABI, 
+              provider
+            );
+            
             const balance = await collectionContract.balanceOf(currentAddress);
             const balanceNum = Number(balance);
             console.log(`${collectionInfo.name} balance:`, balanceNum);
@@ -213,11 +212,14 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   console.log(`Found token ${tokenId} in ${collectionInfo.name}`);
                   
+                  // Пытаемся получить полные данные, но не блокируем если не получится
                   let perfume: PerfumeInfo | undefined;
+                  let hasFullData = false;
+                  
                   try {
+                    // Пробуем вызвать getPerfume — если ABI не совпадает, просто пропускаем
                     const perfumeData = await collectionContract.getPerfume(tokenId);
                     
-                    // Explicit type casting for string arrays to fix TypeScript errors
                     const topNotes = Array.from(perfumeData.topNotes || []) as string[];
                     const heartNotes = Array.from(perfumeData.heartNotes || []) as string[];
                     const baseNotes = Array.from(perfumeData.baseNotes || []) as string[];
@@ -234,8 +236,9 @@ export default function CollectionPage() {
                       createdAt: Number(perfumeData.createdAt),
                       creator: perfumeData.creator,
                     };
+                    hasFullData = true;
                   } catch (e) {
-                    console.warn(`Could not fetch perfume data for token ${tokenId}`, e);
+                    console.log(`Could not fetch full data for token ${tokenId}, showing basic info`);
                   }
                   
                   let isListed = false;
@@ -251,11 +254,12 @@ export default function CollectionPage() {
                     contractAddress: collectionInfo.address,
                     collection,
                     name: perfume?.name,
-                    rarity: perfume?.rarity,
+                    rarity: perfume?.rarity ?? 0,
                     timestamp: perfume?.createdAt ? Number(perfume.createdAt) * 1000 : Date.now(),
                     isListed,
                     perfume,
                     description: undefined,
+                    hasFullData,
                   });
                   foundCount++;
                 }
@@ -319,7 +323,7 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, NFT_ABI, signer);
+      const nftContract = new ethers.Contract(NFT_CONTRACT_ADDRESS, MINIMAL_NFT_ABI, signer);
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
@@ -524,9 +528,7 @@ export default function CollectionPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {sortedScents.map((s) => {
-            const hasFullData = !!s.perfume && s.perfume.topNotes;
-            const perfume = hasFullData ? s.perfume! : null;
-            const rarity = perfume?.rarity ?? s.rarity ?? 0;
+            const rarity = s.rarity ?? 0;
             const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
             const collection = s.collection;
 
@@ -560,7 +562,7 @@ export default function CollectionPage() {
                     {collection?.name || "Scent"} #{s.tokenId}
                   </p>
                   <h3 className="text-xl font-bold text-white mt-1 pr-24">
-                    {perfume?.name || s.name || `Scent #${s.tokenId}`}
+                    {s.perfume?.name || s.name || `Scent #${s.tokenId}`}
                   </h3>
                 </div>
 
@@ -570,17 +572,17 @@ export default function CollectionPage() {
                   </span>
                 </div>
 
-                {hasFullData ? (
+                {s.hasFullData && s.perfume ? (
                   <>
                     <div className="relative flex flex-wrap gap-2 text-xs">
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
-                        {GENDER[perfume!.gender]}
+                        {GENDER[s.perfume.gender]}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
-                        {TYPE[perfume!.pType]}
+                        {TYPE[s.perfume.pType]}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
-                        {perfume!.concentration}%
+                        {s.perfume.concentration}%
                       </span>
                     </div>
 
@@ -588,7 +590,7 @@ export default function CollectionPage() {
                       <div>
                         <span className="text-white/40 text-xs uppercase tracking-wider">Top Notes</span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
-                          {perfume!.topNotes.map((n) => (
+                          {s.perfume.topNotes.map((n) => (
                             <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">
                               {n}
                             </span>
@@ -602,7 +604,7 @@ export default function CollectionPage() {
                         View Details →
                       </Link>
                       <div className="flex gap-2">
-                        <ShareCard tokenId={s.tokenId} perfume={perfume!} />
+                        <ShareCard tokenId={s.tokenId} perfume={s.perfume} />
                         {s.isListed ? (
                           <button
                             onClick={() => handleCancelListing(s.tokenId)}
@@ -624,7 +626,7 @@ export default function CollectionPage() {
                   </>
                 ) : (
                   <div className="relative text-sm text-white/40">
-                    <p>Legacy entry — full details not available.</p>
+                    <p>Full details not available.</p>
                     <Link href={`/nft/${s.tokenId}`} className="text-sm text-white/50 hover:text-white transition-colors inline-block mt-2">
                       View Details →
                     </Link>
@@ -638,7 +640,7 @@ export default function CollectionPage() {
 
       {listingModal.open && (() => {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
-        const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
+        const rarity = currentScent?.rarity ?? 0;
         const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
         
         return (
