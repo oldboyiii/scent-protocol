@@ -26,6 +26,13 @@ const NFT_ABI = [
   "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
 ];
 
+// Genesis ABI (может отличаться)
+const GENESIS_ABI = [
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function getPerfume(uint256 tokenId) view returns (uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis)"
+];
+
 interface StoredScent {
   tokenId: number;
   contractAddress: string;
@@ -52,7 +59,7 @@ interface StoredScent {
 type SortOption = "newest" | "oldest" | "name" | "rarity";
 type FilterOption = "all" | string;
 
-const GENDER = ["Male", "Female", "Unisex"];
+const GENDER = ["Unisex", "Male", "Female"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
@@ -175,16 +182,23 @@ export default function CollectionPage() {
         
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-        const allCollections = [NFT_CONTRACT_ADDRESS, GENESIS_CONTRACT_ADDRESS];
+        const allCollections = [
+          { address: NFT_CONTRACT_ADDRESS, abi: NFT_ABI, name: "ScentProtocol" },
+          { address: GENESIS_CONTRACT_ADDRESS, abi: GENESIS_ABI, name: "Genesis" }
+        ];
+        
         const results: StoredScent[] = [];
 
-        for (const collectionAddress of allCollections) {
-          const collectionContract = new ethers.Contract(collectionAddress, NFT_ABI, provider);
-          const collection = getCollectionByAddress(collectionAddress);
+        for (const collectionInfo of allCollections) {
+          const collectionContract = new ethers.Contract(collectionInfo.address, collectionInfo.abi, provider);
+          const collection = getCollectionByAddress(collectionInfo.address);
+          
+          console.log(`Checking ${collectionInfo.name} at ${collectionInfo.address}...`);
           
           try {
             const balance = await collectionContract.balanceOf(currentAddress);
             const balanceNum = Number(balance);
+            console.log(`${collectionInfo.name} balance:`, balanceNum);
 
             if (balanceNum === 0) continue;
 
@@ -196,7 +210,43 @@ export default function CollectionPage() {
                 const owner = await collectionContract.ownerOf(tokenId);
                 
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
-                  const perfume = await collectionContract.getPerfume(tokenId);
+                  console.log(`Found token ${tokenId} in ${collectionInfo.name}`);
+                  
+                  let perfume;
+                  try {
+                    const perfumeData = await collectionContract.getPerfume(tokenId);
+                    
+                    // Genesis возвращает tokenId первым параметром
+                    if (collectionInfo.name === "Genesis") {
+                      perfume = {
+                        name: perfumeData.name,
+                        gender: Number(perfumeData.gender),
+                        pType: Number(perfumeData.pType),
+                        topNotes: Array.from(perfumeData.topNotes || []),
+                        heartNotes: Array.from(perfumeData.heartNotes || []),
+                        baseNotes: Array.from(perfumeData.baseNotes || []),
+                        concentration: Number(perfumeData.concentration),
+                        rarity: Number(perfumeData.rarity),
+                        createdAt: Number(perfumeData.createdAt),
+                        creator: perfumeData.creator,
+                      };
+                    } else {
+                      perfume = {
+                        name: perfumeData.name,
+                        gender: Number(perfumeData.gender),
+                        pType: Number(perfumeData.pType),
+                        topNotes: Array.from(perfumeData.topNotes || []),
+                        heartNotes: Array.from(perfumeData.heartNotes || []),
+                        baseNotes: Array.from(perfumeData.baseNotes || []),
+                        concentration: Number(perfumeData.concentration),
+                        rarity: Number(perfumeData.rarity),
+                        createdAt: Number(perfumeData.createdAt),
+                        creator: perfumeData.creator,
+                      };
+                    }
+                  } catch (e) {
+                    console.warn(`Could not fetch perfume data for token ${tokenId}`, e);
+                  }
                   
                   let isListed = false;
                   try {
@@ -208,24 +258,13 @@ export default function CollectionPage() {
 
                   results.push({
                     tokenId,
-                    contractAddress: collectionAddress,
+                    contractAddress: collectionInfo.address,
                     collection,
-                    name: perfume.name,
-                    rarity: Number(perfume.rarity),
-                    timestamp: Number(perfume.createdAt) * 1000,
+                    name: perfume?.name,
+                    rarity: perfume?.rarity,
+                    timestamp: perfume?.createdAt ? Number(perfume.createdAt) * 1000 : Date.now(),
                     isListed,
-                    perfume: {
-                      name: perfume.name,
-                      gender: Number(perfume.gender),
-                      pType: Number(perfume.pType),
-                      topNotes: Array.from(perfume.topNotes || []),
-                      heartNotes: Array.from(perfume.heartNotes || []),
-                      baseNotes: Array.from(perfume.baseNotes || []),
-                      concentration: Number(perfume.concentration),
-                      rarity: Number(perfume.rarity),
-                      createdAt: Number(perfume.createdAt),
-                      creator: perfume.creator,
-                    },
+                    perfume,
                     description: undefined,
                   });
                   foundCount++;
@@ -237,10 +276,11 @@ export default function CollectionPage() {
               await new Promise(r => setTimeout(r, 50));
             }
           } catch (e) {
-            console.warn(`Error fetching from collection ${collectionAddress}:`, e);
+            console.error(`Error fetching from ${collectionInfo.name}:`, e);
           }
         }
 
+        console.log("Total NFTs found:", results.length);
         setScents(results);
       } catch (e) {
         console.error("Collection fetch error:", e);
