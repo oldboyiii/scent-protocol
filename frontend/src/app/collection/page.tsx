@@ -6,10 +6,11 @@ import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
-import { getCollectionByAddress, getAllCollections, CollectionConfig } from "@/config/collections";
+import { getCollectionByAddress, getAllCollections } from "@/config/collections";
 
 const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
+const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
 const MARKETPLACE_ABI = [
   "function list(uint256 tokenId, uint256 price)",
@@ -167,30 +168,18 @@ export default function CollectionPage() {
       }
 
       try {
-  const w = window as any;
-  const provider = w.ethereum 
-    ? new ethers.BrowserProvider(w.ethereum)
-    : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-  
-  const marketplace = new ethers.Contract(
-    MARKETPLACE_ADDRESS, 
-    MARKETPLACE_ABI, 
-    provider
-  );
+        const w = window as any;
+        const provider = w.ethereum 
+          ? new ethers.BrowserProvider(w.ethereum)
+          : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+        
+        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-  const allCollections = [NFT_CONTRACT_ADDRESS, "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf"];
-  const results: StoredScent[] = [];
-
-  for (const collectionAddress of allCollections) {
-    const collectionContract = new ethers.Contract(collectionAddress, NFT_ABI, provider);
-    const collection = getCollectionByAddress(collectionAddress);
-    
-    try {
-      const balance = await collectionContract.balanceOf(currentAddress);
-      // ... остальной код
+        const allCollections = [NFT_CONTRACT_ADDRESS, GENESIS_CONTRACT_ADDRESS];
+        const results: StoredScent[] = [];
 
         for (const collectionAddress of allCollections) {
-          const collectionContract = new ethers.Contract(collectionAddress, NFT_ABI, contract.provider);
+          const collectionContract = new ethers.Contract(collectionAddress, NFT_ABI, provider);
           const collection = getCollectionByAddress(collectionAddress);
           
           try {
@@ -263,7 +252,6 @@ export default function CollectionPage() {
     fetchCollection();
   }, [walletReady, address]);
 
-  // Filter and sort
   const filteredScents = scents.filter(s => {
     if (filterBy === "all") return true;
     return s.contractAddress.toLowerCase() === filterBy.toLowerCase();
@@ -307,14 +295,12 @@ export default function CollectionPage() {
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
       
       if (!isApproved) {
-        console.log("Approving marketplace...");
         const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
         await approveTx.wait();
       }
 
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-      console.log("Listing NFT...");
       const listTx = await marketplaceContract.list(listingModal.tokenId, priceInUSDC);
       await listTx.wait();
 
@@ -345,7 +331,6 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-      console.log("Canceling listing...");
       const cancelTx = await marketplaceContract.cancel(tokenId);
       await cancelTx.wait();
 
@@ -403,21 +388,19 @@ export default function CollectionPage() {
         {scents.length} NFT{scents.length !== 1 ? "s" : ""} collected
       </p>
 
-      {/* Filter & Sort Controls */}
       <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
-        {/* Collection Filter */}
         <div className="relative">
           <button
             onClick={() => {
               setShowFilter(!showFilter);
               setShowSort(false);
             }}
-            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[180px] justify-between"
           >
             <span>
               {filterBy === "all" 
                 ? "All Collections" 
-                : getCollectionByAddress(filterBy)?.badgeIcon + " " + getCollectionByAddress(filterBy)?.name}
+                : (getCollectionByAddress(filterBy)?.badgeIcon || "") + " " + (getCollectionByAddress(filterBy)?.name || "Unknown")}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -455,7 +438,6 @@ export default function CollectionPage() {
           )}
         </div>
 
-        {/* Sort */}
         <div className="relative">
           <button
             onClick={() => {
@@ -503,14 +485,9 @@ export default function CollectionPage() {
       {filteredScents.length === 0 ? (
         <div className="text-center text-white/40 py-20">
           <p className="text-lg mb-4">
-            {scents.length === 0 
-              ? "No NFTs in your collection yet." 
-              : "No NFTs in this collection."}
+            {scents.length === 0 ? "No NFTs in your collection yet." : "No NFTs in this collection."}
           </p>
-          <Link
-            href="/"
-            className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-          >
+          <Link href="/" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
             Mint Your First Scent →
           </Link>
         </div>
@@ -528,7 +505,6 @@ export default function CollectionPage() {
                 key={`${s.contractAddress}-${s.tokenId}`}
                 className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${collection?.borderColor || style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}
               >
-                {/* Collection Badge */}
                 {collection && (
                   <div className="absolute top-4 right-4">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${collection.badgeColor} ${collection.borderColor}`}>
@@ -630,7 +606,6 @@ export default function CollectionPage() {
         </div>
       )}
 
-      {/* Listing Modal (same as before) */}
       {listingModal.open && (() => {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
@@ -643,9 +618,7 @@ export default function CollectionPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="relative">
-                <h3 className="text-xl font-bold text-white mb-4">
-                  List Scent #{listingModal.tokenId}
-                </h3>
+                <h3 className="text-xl font-bold text-white mb-4">List Scent #{listingModal.tokenId}</h3>
                 <p className="text-white/60 text-sm mb-5">Set your price in USDC</p>
 
                 <div className="space-y-4">
@@ -682,7 +655,7 @@ export default function CollectionPage() {
                         Cancel
                       </button>
                       <button
-                        onClick={() => {}}
+                        onClick={handleListConfirm}
                         disabled={!listingModal.price || parseFloat(listingModal.price) <= 0}
                         className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg hover:from-emerald-400 hover:to-emerald-500 transition-all disabled:opacity-50"
                       >
