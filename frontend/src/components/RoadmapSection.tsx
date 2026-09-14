@@ -103,11 +103,11 @@ export default function RoadmapSection() {
                   <h3 className="text-lg font-semibold text-white mb-3">{p.title}</h3>
                   <ul className="space-y-1.5">
                     {p.items.map((item, j) => {
-                      // Support both plain strings and objects with { text, done, highlight }
+                      // Support both plain strings and objects with { text, done, highlight? }
                       const isObj = typeof item === 'object';
                       const isDone = isObj ? item.done : (p.status === "completed");
                       const itemText = isObj ? item.text : item;
-                      const isHighlight = isObj && item.highlight;
+                      const isHighlight = isObj && 'highlight' in item && item.highlight;
                       
                       return (
                         <li key={j} className={`text-sm flex items-start gap-2 ${isHighlight ? "text-amber-200 font-medium" : "text-white/60"}`}>
