@@ -248,7 +248,7 @@ export default function MarketplacePage() {
     }
   });
 
-        const handleBuy = async (listing: ListingData) => {
+          const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
@@ -295,10 +295,9 @@ export default function MarketplacePage() {
       console.log("Exact Allowance (BigInt):", currentAllowance.toString());
       console.log("Exact Price (BigInt):", listing.price.toString());
       
-      // Форсируем апрув, если он меньше цены + небольшой буфер (защита от рассинхрона ноды)
-      const buffer = ethers.parseUnits("0.1", 6); // 0.1 USDC буфер
+      const buffer = ethers.parseUnits("0.1", 6);
       if (currentAllowance < listing.price + buffer) {
-        console.log("⚠️ Аппрув недостаточен или есть риск рассинхрона. Отправляем TX апрува на MaxUint256...");
+        console.log("⚠️ Аппрув недостаточен. Отправляем TX апрува на MaxUint256...");
         try {
           const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256, {
             gasLimit: 100000
@@ -322,7 +321,6 @@ export default function MarketplacePage() {
 
       // 3. Проверка владельца NFT
       const currentOwner = await nftContract.ownerOf(listing.tokenId);
-      console.log("Текущий владелец NFT:", currentOwner);
       if (currentOwner.toLowerCase() !== listing.seller.toLowerCase()) {
         throw new Error("Владелец NFT изменился! Продавец больше не владеет этим токеном.");
       }
@@ -333,31 +331,31 @@ export default function MarketplacePage() {
       console.log("Маркетплейс аппрувнут продавцом?", isApprovedAll || isApprovedToken);
       
       if (!isApprovedAll && !isApprovedToken) {
-        throw new Error("Продавец не дал разрешение (Approval) маркетплейсу на передачу этого NFT. Попросите продавца залить его заново.");
+        throw new Error("Продавец не дал разрешение (Approval) маркетплейсу на передачу этого NFT.");
       }
 
-      // 5. Финальная попытка покупки с АВТОМАТИЧЕСКИМ ВОССТАНОВЛЕНИЕМ
-      console.log("🚀 Проверяем готовность контракта к покупке (staticCall)...");
+      // 5. Финальная попытка покупки с ПРАВИЛЬНЫМ staticCall
+      console.log("🚀 Проверяем готовность контракта к покупке (staticCall от имени покупателя)...");
       let buyReady = false;
       
       try {
-        await marketplace.buy.staticCall(listing.tokenId);
+        // ВАЖНО: передаем { from: userAddress }, иначе симуляция идет от нулевого адреса (0x00...00), у которого нет апрува!
+        await marketplace.buy.staticCall(listing.tokenId, { from: userAddress });
         console.log("✅ staticCall успешен, контракт готов к покупке!");
         buyReady = true;
       } catch (staticError: any) {
         console.error("❌ Ошибка симуляции (staticCall):", staticError.reason || staticError.message);
         
-        // САМОВОССТАНОВЛЕНИЕ: Если нода всё ещё жалуется на allowance, форсируем апрув прямо сейчас
         if (staticError.message?.includes("exceeds allowance") || staticError.reason?.includes("exceeds allowance")) {
-          console.log("⚠️ Обнаружен упрямый рассинхрон allowance! Принудительно отправляем MaxUint256 апрув...");
+          console.log("⚠️ Обнаружен рассинхрон allowance! Принудительно отправляем MaxUint256 апрув...");
           const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256, { gasLimit: 100000 });
           await approveTx.wait();
           console.log("✅ Принудительный апрув подтвержден. Ждем синхронизации ноды (4 сек)...");
           await new Promise(r => setTimeout(r, 4000));
           
-          // Пробуем staticCall еще раз
           try {
-            await marketplace.buy.staticCall(listing.tokenId);
+            // Снова проверяем с правильным адресом from
+            await marketplace.buy.staticCall(listing.tokenId, { from: userAddress });
             console.log("✅ Повторный staticCall успешен после принудительного апрува!");
             buyReady = true;
           } catch (retryError: any) {
@@ -369,7 +367,7 @@ export default function MarketplacePage() {
       }
 
       if (buyReady) {
-        console.log("⚠️ Отправляем транзакцию покупки с ФИКСИРОВАННЫМ gasLimit (обходим баг ноды)...");
+        console.log("⚠️ Отправляем реальную транзакцию покупки с ФИКСИРОВАННЫМ gasLimit...");
         const buyTx = await marketplace.buy(listing.tokenId, {
           gasLimit: 300000 
         });
