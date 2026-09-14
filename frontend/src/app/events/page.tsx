@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ethers } from "ethers";
 
 interface EventItem {
   id: string;
@@ -18,7 +19,12 @@ interface EventItem {
   keyFacts?: { label: string; value: string }[];
 }
 
-const EVENTS: EventItem[] = [
+const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
+const GENESIS_ABI = [
+  "function getRemainingSupply() external view returns (uint256)"
+];
+
+const INITIAL_EVENTS: EventItem[] = [
   {
     id: "genesis",
     name: "Genesis Collection",
@@ -26,10 +32,10 @@ const EVENTS: EventItem[] = [
     longDescription:
       "A historic moment — the very first collection minted on Arc Mainnet. Genesis marks the official launch of ScentProtocol as a fully on-chain digital perfume house. Every holder becomes a founding member of the ecosystem with lifetime benefits.",
     totalSupply: 100,
-    minted: 0,
+    minted: 0, // Will be updated from blockchain
     price: "0",
     startDate: "2025-09-16",
-    status: "live",  // ✅ CHANGED TO "live"
+    status: "live",
     partner: "ScentProtocol × Arc Network",
     isLaunch: true,
     keyFacts: [
@@ -42,9 +48,37 @@ const EVENTS: EventItem[] = [
 ];
 
 export default function EventsPage() {
-  const [activeTab, setActiveTab] = useState<"live" | "upcoming" | "ended">("upcoming");
+  const [events, setEvents] = useState<EventItem[]>(INITIAL_EVENTS);
+  // Default to 'live' since Genesis is already active
+  const [activeTab, setActiveTab] = useState<"live" | "upcoming" | "ended">("live");
 
-  const filteredEvents = EVENTS.filter((e) => e.status === activeTab);
+  // Fetch real minted NFT count from blockchain
+  useEffect(() => {
+    async function fetchMintedCount() {
+      try {
+        const w = window as any;
+        const provider = w.ethereum 
+          ? new ethers.BrowserProvider(w.ethereum) 
+          : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+          
+        const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+        const remaining = await contract.getRemainingSupply();
+        const maxSupply = 100;
+        const actualMinted = maxSupply - Number(remaining);
+
+        // Update state only for genesis event
+        setEvents(prev => prev.map(event => 
+          event.id === "genesis" ? { ...event, minted: actualMinted } : event
+        ));
+      } catch (error) {
+        console.error("Failed to fetch minted count:", error);
+      }
+    }
+
+    fetchMintedCount();
+  }, []);
+
+  const filteredEvents = events.filter((e) => e.status === activeTab);
 
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
@@ -72,9 +106,9 @@ export default function EventsPage() {
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            {tab === "live" && EVENTS.filter((e) => e.status === "live").length > 0 && (
+            {tab === "live" && events.filter((e) => e.status === "live").length > 0 && (
               <span className="ml-2 px-2 py-0.5 rounded-full bg-white/20 text-xs">
-                {EVENTS.filter((e) => e.status === "live").length}
+                {events.filter((e) => e.status === "live").length}
               </span>
             )}
           </button>
@@ -100,8 +134,6 @@ export default function EventsPage() {
 
 function EventCard({ event }: { event: EventItem }) {
   const progress = (event.minted / event.totalSupply) * 100;
-
-  // Launch event gets special styling
   const isLaunch = event.isLaunch;
 
   return (
