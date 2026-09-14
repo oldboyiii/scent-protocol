@@ -9,6 +9,7 @@ import { getContract } from "@/utils/contract";
 const MARKETPLACE_ADDRESS = "0x95815163aE441FD8b015B0725fB5C274aFAc4069";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
+const USDC_ADDRESS = "0x3600000000000000000000000000000000000000"; // Hardcoded for reliability
 
 const MARKETPLACE_ABI = [
   "function list(address nftContract, uint256 tokenId, uint256 price)",
@@ -80,7 +81,7 @@ interface ListingData {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "", "♀", ""];
+const GENDER_ICONS = ["", "♂", "♀", ""];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
@@ -94,7 +95,6 @@ export default function MarketplacePage() {
   const [listings, setListings] = useState<ListingData[]>([]);
   const [loading, setLoading] = useState(true);
   const [buyingId, setBuyingId] = useState<number | null>(null);
-  const [usdcAddress, setUsdcAddress] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [sortBy, setSortBy] = useState<SortOption>("priceLow");
   const [filterBy, setFilterBy] = useState<CollectionFilter>("all");
@@ -112,9 +112,6 @@ export default function MarketplacePage() {
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
       const nftContract = getContract(provider);
       const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-
-      const usdcAddr = await marketplace.usdc();
-      setUsdcAddress(usdcAddr);
 
       const activeCount = await marketplace.getActiveCount();
       console.log("Active listings count:", Number(activeCount));
@@ -251,7 +248,7 @@ export default function MarketplacePage() {
     }
   });
 
-      const handleBuy = async (listing: ListingData) => {
+  const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
@@ -259,15 +256,8 @@ export default function MarketplacePage() {
       const provider = signer.provider;
 
       console.log("=== 🕵️ НАЧАЛО ПРОВЕРКИ ПОКУПКИ ===");
-      console.log("USDC Address:", usdcAddress);
-      console.log("Marketplace Address:", MARKETPLACE_ADDRESS);
-
-      // 0. Железная проверка: загружен ли адрес USDC
-      if (!usdcAddress || usdcAddress === "0x0000000000000000000000000000000000000000") {
-        throw new Error("Адрес USDC не загружен. Пожалуйста, обнови страницу (F5) и попробуй снова.");
-      }
-
-      const usdcContract = new ethers.Contract(usdcAddress, USDC_ABI, signer);
+      
+      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       
       const nftContract = new ethers.Contract(
@@ -292,23 +282,34 @@ export default function MarketplacePage() {
         throw new Error(`Недостаточно USDC! Есть: ${ethers.formatUnits(balance, 6)}, Нужно: ${ethers.formatUnits(listing.price, 6)}`);
       }
 
-      // 2. Проверка и запрос Allowance (Разрешения)
+      // Проверка нативного баланса (ARC) для оплаты газа
+      const nativeBalance = await provider.getBalance(userAddress);
+      console.log("Баланс ARC (для газа):", ethers.formatEther(nativeBalance));
+      if (nativeBalance === 0n) {
+        throw new Error("На кошельке закончился ARC для оплаты комиссии за газ (gas fee). Пополни баланс в фаусете.");
+      }
+
+      // 2. Проверка Allowance (Разрешения)
       const currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
       console.log("Текущий аппрув USDC для маркетплейса:", ethers.formatUnits(currentAllowance, 6));
       
       if (currentAllowance < listing.price) {
-        console.log("⚠️ Аппрув недостаточен. СЕЙЧАС ПОЯВИТСЯ ОКНО METAMASK ДЛЯ ПОДТВЕРЖДЕНИЯ РАЗРЕШЕНИЯ (APPROVE).");
+        console.log("⚠️ Аппрув недостаточен. ОТПРАВЛЯЕМ TX С ФИКСИРОВАННЫМ GAS LIMIT...");
         try {
-          const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
+          // ВАЖНО: Передаем gasLimit вручную. Это заставляет MetaMask пропустить 
+          // сломанную симуляцию (estimateGas) и сразу показать окно подтверждения.
+          const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price, {
+            gasLimit: 100000
+          });
           console.log("TX аппрува отправлен:", approveTx.hash);
           await approveTx.wait();
           console.log("✅ USDC успешно аппрувнут!");
         } catch (approveError: any) {
           console.error("Ошибка при аппруве:", approveError);
           if (approveError.code === 4001 || approveError.code === "ACTION_REJECTED") {
-            throw new Error("Транзакция Approve отклонена тобой в MetaMask. Без этого покупка невозможна.");
+            throw new Error("Транзакция Approve отклонена в MetaMask.");
           }
-          throw new Error(`Ошибка аппрува: ${approveError.message}`);
+          throw new Error(`Ошибка аппрува: ${approveError.shortMessage || approveError.message}`);
         }
       } else {
         console.log("✅ Аппрув уже достаточен, пропускаем этот шаг.");
@@ -331,7 +332,7 @@ export default function MarketplacePage() {
       }
 
       // 5. Финальная попытка покупки
-      console.log("🚀 Все проверки пройдены! СЕЙЧАС ПОЯВИТСЯ ОКНО METAMASK ДЛЯ ПОКУПКИ (BUY).");
+      console.log("🚀 Все проверки пройдены! Отправляем транзакцию покупки...");
       const buyTx = await marketplace.buy(listing.tokenId);
       console.log("TX покупки отправлен:", buyTx.hash);
       await buyTx.wait();
@@ -346,6 +347,7 @@ export default function MarketplacePage() {
       setBuyingId(null);
     }
   };
+
   const formatPrice = (price: bigint) => {
     return Number(ethers.formatUnits(price, 6)).toFixed(2);
   };
