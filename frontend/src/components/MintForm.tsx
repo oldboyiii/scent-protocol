@@ -21,7 +21,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
   const [pType, setPType] = useState(defaultType ?? 2);
   const [loading, setLoading] = useState(false);
 
-  // Обновляем при изменении пропсов от AI Advisor
+  // Update state when props from AI Advisor change
   useEffect(() => {
     if (defaultGender !== undefined) setGender(defaultGender);
     if (defaultType !== undefined) setPType(defaultType);
@@ -224,7 +224,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
         disabled={loading}
         className={`w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${loading ? "animate-glow" : ""}`}
       >
-        {loading ? "Processing..." : "Create for 10 USDC"}
+        {loading ? "Processing..." : "Create for 1 USDC"}
       </button>
 
       <p className="text-xs text-white/40 text-center mt-4">
@@ -233,4 +233,3 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
     </div>
   );
 }
-
