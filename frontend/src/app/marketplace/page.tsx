@@ -248,140 +248,87 @@ export default function MarketplacePage() {
     }
   });
 
-          const handleBuy = async (listing: ListingData) => {
+            const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
       const userAddress = await signer.getAddress();
       const provider = signer.provider;
 
-      console.log("=== 🕵️ НАЧАЛО ПРОВЕРКИ ПОКУПКИ ===");
-      
-      const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
-      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+      console.log("=== 🛒 НАЧАЛО ПРОЦЕССА ПОКУПКИ ===");
+
+      // 1. КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что адрес USDC загружен
+      const validUsdcAddress = usdcAddress || "0x3600000000000000000000000000000000000000";
+      if (!validUsdcAddress || validUsdcAddress === ethers.ZeroAddress) {
+        throw new Error("Адрес USDC не загружен. Пожалуйста, обнови страницу (F5) и попробуй снова.");
+      }
+
+      const usdcContract = new ethers.Contract(validUsdcAddress, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
-      
-      const nftContract = new ethers.Contract(
-        listing.contractAddress, 
-        [
-          "function ownerOf(uint256) view returns (address)",
-          "function isApprovedForAll(address owner, address operator) view returns (bool)",
-          "function getApproved(uint256) view returns (address)"
-        ], 
-        provider
-      );
 
       console.log("Token ID:", listing.tokenId);
-      console.log("Покупатель:", userAddress);
-      console.log("Продавец:", listing.seller);
       console.log("Цена:", ethers.formatUnits(listing.price, 6), "USDC");
 
-      // 1. Проверка баланса USDC
+      // 2. Проверка баланса USDC
       const balance = await usdcContract.balanceOf(userAddress);
-      console.log("Баланс USDC покупателя:", ethers.formatUnits(balance, 6));
+      console.log("Баланс USDC:", ethers.formatUnits(balance, 6));
       if (balance < listing.price) {
         throw new Error(`Недостаточно USDC! Есть: ${ethers.formatUnits(balance, 6)}, Нужно: ${ethers.formatUnits(listing.price, 6)}`);
       }
 
-      // Проверка нативного баланса (ARC) для оплаты газа
-      const nativeBalance = await provider.getBalance(userAddress);
-      console.log("Баланс ARC (для газа):", ethers.formatEther(nativeBalance));
-      if (nativeBalance === 0n) {
-        throw new Error("На кошельке закончился ARC для оплаты комиссии за газ. Пополни баланс.");
-      }
+      // 3. Надёжная обработка Allowance (Сброс -> MaxUint256 -> Задержка -> Перепроверка)
+      let currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
+      console.log("Текущий allowance (BigInt):", currentAllowance.toString());
 
-      // 2. Проверка Allowance (Разрешения)
-      const currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
-      console.log("Exact Allowance (BigInt):", currentAllowance.toString());
-      console.log("Exact Price (BigInt):", listing.price.toString());
-      
-      const buffer = ethers.parseUnits("0.1", 6);
-      if (currentAllowance < listing.price + buffer) {
-        console.log("⚠️ Аппрув недостаточен. Отправляем TX апрува на MaxUint256...");
-        try {
-          const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256, {
-            gasLimit: 100000
-          });
-          console.log("TX аппрува отправлен:", approveTx.hash);
-          await approveTx.wait();
-          console.log("✅ USDC успешно аппрувнут (MaxUint256)!");
-          
-          console.log("⏳ Ожидание синхронизации ноды (3 сек)...");
-          await new Promise(r => setTimeout(r, 3000));
-        } catch (approveError: any) {
-          console.error("Ошибка при аппруве:", approveError);
-          if (approveError.code === 4001 || approveError.code === "ACTION_REJECTED") {
-            throw new Error("Транзакция Approve отклонена в MetaMask.");
-          }
-          throw new Error(`Ошибка аппрува: ${approveError.shortMessage || approveError.message}`);
+      if (currentAllowance < listing.price) {
+        console.log("⚠️ Allowance недостаточен. Начинаем процесс обновления...");
+        
+        // Шаг А: Сброс в 0 (предотвращает баги "approval race condition" в некоторых ERC20)
+        if (currentAllowance > 0n) {
+          console.log("Сброс allowance в 0...");
+          const resetTx = await usdcContract.approve(MARKETPLACE_ADDRESS, 0n, { gasLimit: 100000 });
+          await resetTx.wait();
+          console.log("✅ Сброс подтвержден. Ожидание синхронизации ноды (1.5 сек)...");
+          await new Promise(r => setTimeout(r, 1500));
+        }
+
+        // Шаг Б: Выдача MaxUint256 (навсегда)
+        console.log("Выдача MaxUint256 allowance...");
+        const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256, { gasLimit: 100000 });
+        console.log("TX аппрува отправлен:", approveTx.hash);
+        await approveTx.wait();
+        console.log("✅ Approve подтвержден в блокчейне!");
+
+        // Шаг В: Задержка для гарантированной синхронизации RPC-ноды
+        console.log("⏳ Ожидание синхронизации ноды (2 сек)...");
+        await new Promise(r => setTimeout(r, 2000));
+
+        // Шаг Г: Жёсткая перепроверка
+        currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
+        console.log("Новый allowance после перепроверки:", currentAllowance.toString());
+
+        if (currentAllowance < listing.price) {
+          throw new Error("Allowance не обновился после approve. Попробуйте обновить страницу и купить снова.");
         }
       } else {
-        console.log("✅ Аппрув уже достаточен, пропускаем этот шаг.");
+        console.log("✅ Allowance уже достаточен, пропускаем этот шаг.");
       }
 
-      // 3. Проверка владельца NFT
-      const currentOwner = await nftContract.ownerOf(listing.tokenId);
-      if (currentOwner.toLowerCase() !== listing.seller.toLowerCase()) {
-        throw new Error("Владелец NFT изменился! Продавец больше не владеет этим токеном.");
-      }
-
-      // 4. Проверка аппрува NFT от продавца
-      const isApprovedAll = await nftContract.isApprovedForAll(listing.seller, MARKETPLACE_ADDRESS);
-      const isApprovedToken = (await nftContract.getApproved(listing.tokenId)).toLowerCase() === MARKETPLACE_ADDRESS.toLowerCase();
-      console.log("Маркетплейс аппрувнут продавцом?", isApprovedAll || isApprovedToken);
+      // 4. Выполнение покупки (БЕЗ staticCall, чтобы избежать ложных ошибок RPC)
+      console.log("🚀 Отправка транзакции покупки с фиксированным gasLimit...");
+      const buyTx = await marketplace.buy(listing.tokenId, {
+        gasLimit: 300000 // Обходит сломанный estimateGas в MetaMask
+      });
       
-      if (!isApprovedAll && !isApprovedToken) {
-        throw new Error("Продавец не дал разрешение (Approval) маркетплейсу на передачу этого NFT.");
-      }
+      console.log("TX покупки отправлен:", buyTx.hash);
+      await buyTx.wait();
+      console.log("✅ Покупка успешно подтверждена в блокчейне!");
 
-      // 5. Финальная попытка покупки с ПРАВИЛЬНЫМ staticCall
-      console.log("🚀 Проверяем готовность контракта к покупке (staticCall от имени покупателя)...");
-      let buyReady = false;
-      
-      try {
-        // ВАЖНО: передаем { from: userAddress }, иначе симуляция идет от нулевого адреса (0x00...00), у которого нет апрува!
-        await marketplace.buy.staticCall(listing.tokenId, { from: userAddress });
-        console.log("✅ staticCall успешен, контракт готов к покупке!");
-        buyReady = true;
-      } catch (staticError: any) {
-        console.error("❌ Ошибка симуляции (staticCall):", staticError.reason || staticError.message);
-        
-        if (staticError.message?.includes("exceeds allowance") || staticError.reason?.includes("exceeds allowance")) {
-          console.log("⚠️ Обнаружен рассинхрон allowance! Принудительно отправляем MaxUint256 апрув...");
-          const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256, { gasLimit: 100000 });
-          await approveTx.wait();
-          console.log("✅ Принудительный апрув подтвержден. Ждем синхронизации ноды (4 сек)...");
-          await new Promise(r => setTimeout(r, 4000));
-          
-          try {
-            // Снова проверяем с правильным адресом from
-            await marketplace.buy.staticCall(listing.tokenId, { from: userAddress });
-            console.log("✅ Повторный staticCall успешен после принудительного апрува!");
-            buyReady = true;
-          } catch (retryError: any) {
-            throw new Error(`Даже после принудительного апрува контракт отклоняет покупку: ${retryError.reason || retryError.message}`);
-          }
-        } else {
-          throw new Error(`Смарт-контракт отклоняет покупку. Причина: ${staticError.reason || staticError.shortMessage || "Неизвестная ошибка"}`);
-        }
-      }
-
-      if (buyReady) {
-        console.log("⚠️ Отправляем реальную транзакцию покупки с ФИКСИРОВАННЫМ gasLimit...");
-        const buyTx = await marketplace.buy(listing.tokenId, {
-          gasLimit: 300000 
-        });
-        
-        console.log("TX покупки отправлен:", buyTx.hash);
-        await buyTx.wait();
-        console.log("✅ Покупка успешно подтверждена в блокчейне!");
-
-        alert("Purchase successful!");
-        await loadListings();
-      }
+      alert("Purchase successful!");
+      await loadListings();
     } catch (error: any) {
       console.error("=== ❌ ПОКУПКА ПРОВАЛЕНА ===", error);
-      alert(`Purchase failed: ${error.message || "Открой консоль (F12) для деталей"}`);
+      alert(`Purchase failed: ${error.message || error.reason || "Открой консоль (F12) для деталей"}`);
     } finally {
       setBuyingId(null);
     }
