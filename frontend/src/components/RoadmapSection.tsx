@@ -146,7 +146,7 @@ export default function RoadmapSection() {
         
         <div className="flex items-center gap-6">
           {/* Future Socials Placeholders */}
-          <span className="hover:text-white transition-colors cursor-not-allowed opacity-50 select-none">Twitter</span>
+          <span className="hover:text-white transition-colors cursor-not-allowed opacity-50 select-none">X</span>
           <span className="hover:text-white transition-colors cursor-not-allowed opacity-50 select-none">Discord</span>
           
           {/* Active Support Email */}
