@@ -174,8 +174,17 @@ export default function CollectionPage() {
       try {
         const w = window as any;
         const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
         const results: StoredScent[] = [];
+
+        // Get listed tokenIds from localStorage
+        const listedTokenIds = new Set<number>();
+        try {
+          const stored = localStorage.getItem('listedTokens');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            parsed.forEach((id: number) => listedTokenIds.add(id));
+          }
+        } catch (e) {}
 
         // PART 1: Fetch ScentProtocol NFTs
         try {
@@ -199,12 +208,7 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
                   
-                  // Check listing status
-                  let isListed = false;
-                  try {
-                    const listing = await marketplace.listings(tokenId);
-                    isListed = listing && listing.active;
-                  } catch (e) {}
+                  const isListed = listedTokenIds.has(tokenId);
 
                   results.push({
                     tokenId,
@@ -253,12 +257,7 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
                   
-                  // Check listing status
-                  let isListed = false;
-                  try {
-                    const listing = await marketplace.listings(tokenId);
-                    isListed = listing && listing.active;
-                  } catch (e) {}
+                  const isListed = listedTokenIds.has(tokenId);
 
                   results.push({
                     tokenId,
@@ -353,6 +352,16 @@ export default function CollectionPage() {
       );
       await listTx.wait();
 
+      // Save to localStorage
+      try {
+        const stored = localStorage.getItem('listedTokens');
+        const listedTokens = stored ? JSON.parse(stored) : [];
+        if (!listedTokens.includes(listingModal.tokenId)) {
+          listedTokens.push(listingModal.tokenId);
+          localStorage.setItem('listedTokens', JSON.stringify(listedTokens));
+        }
+      } catch (e) {}
+
       setListingStatus("success");
       setTimeout(() => {
         window.location.reload();
@@ -379,6 +388,15 @@ export default function CollectionPage() {
 
       const cancelTx = await marketplaceContract.cancel(tokenId);
       await cancelTx.wait();
+
+      // Remove from localStorage
+      try {
+        const stored = localStorage.getItem('listedTokens');
+        if (stored) {
+          const listedTokens = JSON.parse(stored).filter((id: number) => id !== tokenId);
+          localStorage.setItem('listedTokens', JSON.stringify(listedTokens));
+        }
+      } catch (e) {}
 
       alert("Listing removed successfully!");
       setListingStatus("idle");
