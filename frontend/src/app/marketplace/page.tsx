@@ -6,23 +6,23 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 import { getContract } from "@/utils/contract";
 
-const MARKETPLACE_ADDRESS = "0xBC7669036F8af720A85569448FD3DB198C52468C";
+const MARKETPLACE_ADDRESS = "0x95815163aE441FD8b015B0725fB5C274aFAc4069";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
 const MARKETPLACE_ABI = [
-  "function getActiveListings() view returns (uint256[])",
-  "function list(address nft, uint256 tokenId, uint256 price)",
-  "function buy(uint256 tokenId)",
+  "function list(address nftContract, uint256 tokenId, uint256 price)",
   "function cancel(uint256 tokenId)",
-  "function usdc() view returns (address)",
-  "function getActiveCount() view returns (uint256)"
+  "function buy(uint256 tokenId)",
+  "function listings(uint256) view returns (address seller, address nftContract, uint256 price, bool active)",
+  "function getActiveListings() view returns (uint256[])",
+  "function getActiveCount() view returns (uint256)",
+  "function usdc() view returns (address)"
 ];
 
 const USDC_ABI = [
   "function approve(address spender, uint256 amount)",
-  "function allowance(address owner, address spender) view returns (uint256)",
-  "function decimals() view returns (uint8)"
+  "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
 const NFT_ABI = [
@@ -132,27 +132,38 @@ export default function MarketplacePage() {
       for (const id of activeIds) {
         try {
           const tokenId = Number(id);
+          
+          // Get listing data from V8 (now returns seller, nftContract, price, active)
+          const listing = await marketplace.listings(tokenId);
+          if (!listing || !listing.active) continue;
+
+          const nftContractAddr = listing.nftContract;
           let perfume: any = null;
           let contractAddress = "";
 
-          try {
-            const data: any = await nftContract.getPerfume(tokenId);
-            if (data && data.name) {
-              perfume = {
-                name: data.name,
-                gender: Number(data.gender),
-                pType: Number(data.pType),
-                concentration: Number(data.concentration),
-                rarity: Number(data.rarity),
-                topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
-                heartNotes: data.heartNotes ? Array.from(data.heartNotes).map((n: any) => String(n)) : [],
-                baseNotes: data.baseNotes ? Array.from(data.baseNotes).map((n: any) => String(n)) : [],
-                createdAt: Number(data.createdAt),
-                creator: data.creator,
-              };
-              contractAddress = NFT_CONTRACT_ADDRESS;
+          // Determine which contract this NFT belongs to
+          if (nftContractAddr.toLowerCase() === NFT_CONTRACT_ADDRESS.toLowerCase()) {
+            try {
+              const data: any = await nftContract.getPerfume(tokenId);
+              if (data && data.name) {
+                perfume = {
+                  name: data.name,
+                  gender: Number(data.gender),
+                  pType: Number(data.pType),
+                  concentration: Number(data.concentration),
+                  rarity: Number(data.rarity),
+                  topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                  heartNotes: data.heartNotes ? Array.from(data.heartNotes).map((n: any) => String(n)) : [],
+                  baseNotes: data.baseNotes ? Array.from(data.baseNotes).map((n: any) => String(n)) : [],
+                  createdAt: Number(data.createdAt),
+                  creator: data.creator,
+                };
+                contractAddress = NFT_CONTRACT_ADDRESS;
+              }
+            } catch (e) {
+              console.warn(`Failed to get ScentProtocol data for ${tokenId}:`, e);
             }
-          } catch (e) {
+          } else if (nftContractAddr.toLowerCase() === GENESIS_CONTRACT_ADDRESS.toLowerCase()) {
             try {
               const data: any = await genesisContract.getPerfume(tokenId);
               if (data && data.name) {
@@ -170,16 +181,18 @@ export default function MarketplacePage() {
                 };
                 contractAddress = GENESIS_CONTRACT_ADDRESS;
               }
-            } catch (e2) {}
+            } catch (e) {
+              console.warn(`Failed to get Genesis data for ${tokenId}:`, e);
+            }
           }
 
           if (perfume) {
             results.push({
               tokenId,
               contractAddress,
-              seller: "",
-              price: 0n,
-              active: true,
+              seller: listing.seller,
+              price: listing.price,
+              active: listing.active,
               name: perfume.name,
               rarity: perfume.rarity,
               gender: perfume.gender,
@@ -231,8 +244,8 @@ export default function MarketplacePage() {
 
   const sortedListings = [...filteredListings].sort((a, b) => {
     switch (sortBy) {
-      case "priceLow": return 0;
-      case "priceHigh": return 0;
+      case "priceLow": return Number(a.price - b.price);
+      case "priceHigh": return Number(b.price - a.price);
       case "rarity": return b.rarity - a.rarity;
       case "newest": return b.tokenId - a.tokenId;
       default: return 0;
