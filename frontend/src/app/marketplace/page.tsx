@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 import { getContract } from "@/utils/contract";
 
-const MARKETPLACE_ADDRESS = "0xC9535FeA781028834fA566D5FdbA6292718d1167";
+const MARKETPLACE_ADDRESS = ethers.getAddress("0xc9535fea781028834fa566d5fdba6292718d1167");
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
