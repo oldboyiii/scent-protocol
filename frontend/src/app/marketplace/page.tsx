@@ -11,13 +11,11 @@ const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
 const MARKETPLACE_ABI = [
-  "function getActiveListings() view returns (uint256[])",
   "function listings(uint256) view returns (address seller, uint256 price, bool active)",
   "function list(address nft, uint256 tokenId, uint256 price)",
   "function buy(uint256 tokenId)",
   "function cancel(uint256 tokenId)",
-  "function usdc() view returns (address)",
-  "function getActiveCount() view returns (uint256)"
+  "function usdc() view returns (address)"
 ];
 
 const USDC_ABI = [
@@ -76,7 +74,7 @@ interface ListingData {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "", "♀", ""];
+const GENDER_ICONS = ["", "♂", "♀", ""];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
@@ -97,59 +95,39 @@ export default function MarketplacePage() {
   const [showSort, setShowSort] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
 
-const loadListings = async () => {
-  try {
-    setLoading(true);
-    setError("");
-    const signer = await getArcSigner();
-    const provider = signer.provider;
-    if (!provider) throw new Error("Provider not found");
+  const loadListings = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const signer = await getArcSigner();
+      const provider = signer.provider;
+      if (!provider) throw new Error("Provider not found");
 
-    const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-    const nftContract = getContract(provider);
-    const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+      const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+      const nftContract = getContract(provider);
+      const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
 
-    const usdcAddr = await marketplace.usdc();
-    setUsdcAddress(usdcAddr);
-    console.log("USDC address:", usdcAddr);
+      const usdcAddr = await marketplace.usdc();
+      setUsdcAddress(usdcAddr);
 
-    const results: ListingData[] = [];
-    const maxTokenId = 100;
-    
-    console.log("Scanning marketplace for active listings...");
-    
-    for (let tokenId = 1; tokenId <= maxTokenId; tokenId++) {
-      try {
-        const listing = await marketplace.listings(tokenId);
-        
-        if (!listing || !listing.active || listing.seller === "0x0000000000000000000000000000000000000000") {
-          continue;
-        }
-
-        console.log(`Found active listing for token ${tokenId}`);
-
-        let perfume = null;
-        let contractAddress = "";
-
-        // Try ScentProtocol first
+      const results: ListingData[] = [];
+      const maxTokenId = 100;
+      
+      console.log("Scanning marketplace for active listings (1 to 100)...");
+      
+      for (let tokenId = 1; tokenId <= maxTokenId; tokenId++) {
         try {
-          const data = await nftContract.getPerfume(tokenId);
-          if (data && data.name) {
-            perfume = {
-              name: data.name,
-              gender: Number(data.gender),
-              pType: Number(data.pType),
-              concentration: Number(data.concentration),
-              rarity: Number(data.rarity),
-              topNotes: Array.from(data.topNotes || []) as string[],
-            };
-            contractAddress = NFT_CONTRACT_ADDRESS;
-            console.log(`Token ${tokenId} from ScentProtocol: ${data.name}`);
+          const listing = await marketplace.listings(tokenId);
+          
+          if (!listing || !listing.active || listing.seller === "0x0000000000000000000000000000000000000000") {
+            continue;
           }
-        } catch (e) {
-          // Try Genesis
+
+          let perfume = null;
+          let contractAddress = "";
+
           try {
-            const data = await genesisContract.getPerfume(tokenId);
+            const data = await nftContract.getPerfume(tokenId);
             if (data && data.name) {
               perfume = {
                 name: data.name,
@@ -159,43 +137,54 @@ const loadListings = async () => {
                 rarity: Number(data.rarity),
                 topNotes: Array.from(data.topNotes || []) as string[],
               };
-              contractAddress = GENESIS_CONTRACT_ADDRESS;
-              console.log(`Token ${tokenId} from Genesis: ${data.name}`);
+              contractAddress = NFT_CONTRACT_ADDRESS;
             }
-          } catch (e2) {
-            console.log(`Token ${tokenId} not found in either contract`);
+          } catch (e) {
+            try {
+              const data = await genesisContract.getPerfume(tokenId);
+              if (data && data.name) {
+                perfume = {
+                  name: data.name,
+                  gender: Number(data.gender),
+                  pType: Number(data.pType),
+                  concentration: Number(data.concentration),
+                  rarity: Number(data.rarity),
+                  topNotes: Array.from(data.topNotes || []) as string[],
+                };
+                contractAddress = GENESIS_CONTRACT_ADDRESS;
+              }
+            } catch (e2) {}
           }
-        }
 
-        if (perfume) {
-          results.push({
-            tokenId,
-            contractAddress,
-            seller: listing.seller,
-            price: listing.price,
-            active: listing.active,
-            name: perfume.name,
-            rarity: perfume.rarity,
-            gender: perfume.gender,
-            pType: perfume.pType,
-            concentration: perfume.concentration,
-            topNotes: perfume.topNotes,
-          });
+          if (perfume) {
+            results.push({
+              tokenId,
+              contractAddress,
+              seller: listing.seller,
+              price: listing.price,
+              active: listing.active,
+              name: perfume.name,
+              rarity: perfume.rarity,
+              gender: perfume.gender,
+              pType: perfume.pType,
+              concentration: perfume.concentration,
+              topNotes: perfume.topNotes,
+            });
+          }
+        } catch (e) {
+          // No listing for this tokenId
         }
-      } catch (e) {
-        // No listing for this tokenId
       }
-    }
 
-    console.log("Final listings:", results.length, results);
-    setListings(results);
-  } catch (error: any) {
-    console.error("Failed to fetch listings:", error);
-    setError(error.message || "Failed to load marketplace");
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log("Final listings:", results.length, results);
+      setListings(results);
+    } catch (error: any) {
+      console.error("Failed to fetch listings:", error);
+      setError(error.message || "Failed to load marketplace");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadListings();
@@ -242,12 +231,10 @@ const loadListings = async () => {
       const currentAllowance: bigint = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
       
       if (currentAllowance < listing.price) {
-        console.log("Approving USDC...");
         const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
         await approveTx.wait();
       }
 
-      console.log("Buying NFT...");
       const buyTx = await marketplace.buy(listing.tokenId);
       await buyTx.wait();
 
