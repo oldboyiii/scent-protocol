@@ -252,30 +252,67 @@ export default function MarketplacePage() {
     }
   });
 
-  const handleBuy = async (listing: ListingData) => {
+    const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
       const userAddress = await signer.getAddress();
+      const provider = signer.provider;
 
       const usdcContract = new ethers.Contract(usdcAddress, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
-
-      const currentAllowance: bigint = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
       
-      if (currentAllowance < listing.price) {
-        const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
-        await approveTx.wait();
+      // Минимальный ABI для проверок
+      const nftContract = new ethers.Contract(
+        listing.contractAddress, 
+        ["function ownerOf(uint256) view returns (address)", "function isApprovedForAll(address, address) view returns (bool)"], 
+        provider
+      );
+
+      console.log("=== 🕵️ DEBUG BUY PROCESS ===");
+      console.log("Token ID:", listing.tokenId);
+      console.log("Buyer:", userAddress);
+      console.log("Seller:", listing.seller);
+      console.log("Price:", ethers.formatUnits(listing.price, 6), "USDC");
+
+      // 1. ПРОВЕРКА БАЛАНСА
+      const balance = await usdcContract.balanceOf(userAddress);
+      console.log("Buyer USDC Balance:", ethers.formatUnits(balance, 6));
+      if (balance < listing.price) {
+        throw new Error(`Недостаточно USDC! Есть: ${ethers.formatUnits(balance, 6)}, Нужно: ${ethers.formatUnits(listing.price, 6)}`);
       }
 
+      // 2. ПРОВЕРКА ALLOWANCE (Разрешения на списание)
+      const currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
+      console.log("Current USDC Allowance:", ethers.formatUnits(currentAllowance, 6));
+      
+      if (currentAllowance < listing.price) {
+        console.log("⚠️ Allowance недостаточен. Отправляем approve...");
+        const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
+        console.log("Approval TX sent:", approveTx.hash);
+        await approveTx.wait();
+        console.log("✅ USDC Approved successfully!");
+      }
+
+      // 3. ПРОВЕРКА ВЛАДЕЛЬЦА NFT (Самая частая скрытая причина!)
+      const currentOwner = await nftContract.ownerOf(listing.tokenId);
+      console.log("Current NFT Owner:", currentOwner);
+      if (currentOwner.toLowerCase() !== listing.seller.toLowerCase()) {
+        throw new Error("Владелец NFT изменился! Продавец больше не владеет этим токеном (возможно, перевёл его).");
+      }
+
+      // 4. ПОПЫТКА ПОКУПКИ
+      console.log("🚀 Executing marketplace.buy()...");
       const buyTx = await marketplace.buy(listing.tokenId);
+      console.log("Buy TX sent:", buyTx.hash);
       await buyTx.wait();
+      console.log("✅ Buy TX confirmed!");
 
       alert("Purchase successful!");
       await loadListings();
     } catch (error: any) {
-      console.error("Buy failed:", error);
-      alert(error.code === 4001 ? "Rejected" : error.shortMessage || error.message);
+      console.error("=== ❌ BUY FAILED ===", error);
+      alert(`Purchase failed: ${error.message || error.reason || "Открой консоль браузера (F12) для деталей"}`);
     } finally {
       setBuyingId(null);
     }
