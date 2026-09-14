@@ -251,17 +251,25 @@ export default function MarketplacePage() {
     }
   });
 
-    const handleBuy = async (listing: ListingData) => {
+      const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
       const userAddress = await signer.getAddress();
       const provider = signer.provider;
 
+      console.log("=== 🕵️ НАЧАЛО ПРОВЕРКИ ПОКУПКИ ===");
+      console.log("USDC Address:", usdcAddress);
+      console.log("Marketplace Address:", MARKETPLACE_ADDRESS);
+
+      // 0. Железная проверка: загружен ли адрес USDC
+      if (!usdcAddress || usdcAddress === "0x0000000000000000000000000000000000000000") {
+        throw new Error("Адрес USDC не загружен. Пожалуйста, обнови страницу (F5) и попробуй снова.");
+      }
+
       const usdcContract = new ethers.Contract(usdcAddress, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       
-      // ABI для проверок состояния NFT
       const nftContract = new ethers.Contract(
         listing.contractAddress, 
         [
@@ -272,66 +280,58 @@ export default function MarketplacePage() {
         provider
       );
 
-      console.log("=== 🕵️ НАЧАЛО ПРОВЕРКИ ПОКУПКИ ===");
       console.log("Token ID:", listing.tokenId);
       console.log("Покупатель:", userAddress);
-      console.log("Продавец (из листинга):", listing.seller);
+      console.log("Продавец:", listing.seller);
       console.log("Цена:", ethers.formatUnits(listing.price, 6), "USDC");
 
-      // 1. ПРОВЕРКА: Активен ли листинг прямо сейчас?
-      const currentListing = await marketplace.listings(listing.tokenId);
-      console.log("Статус листинга в контракте:", currentListing.active ? "АКТИВЕН" : "НЕАКТИВЕН");
-      if (!currentListing.active) {
-        throw new Error("Этот листинг больше не активен (возможно, его только что купили или отменили).");
-      }
-
-      // 2. ПРОВЕРКА: Баланс USDC у покупателя
+      // 1. Проверка баланса USDC
       const balance = await usdcContract.balanceOf(userAddress);
       console.log("Баланс USDC покупателя:", ethers.formatUnits(balance, 6));
       if (balance < listing.price) {
         throw new Error(`Недостаточно USDC! Есть: ${ethers.formatUnits(balance, 6)}, Нужно: ${ethers.formatUnits(listing.price, 6)}`);
       }
 
-      // 3. ПРОВЕРКА: Разрешение (Allowance) на списание USDC
+      // 2. Проверка и запрос Allowance (Разрешения)
       const currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
-      console.log("Текущий аппрув USDC:", ethers.formatUnits(currentAllowance, 6));
+      console.log("Текущий аппрув USDC для маркетплейса:", ethers.formatUnits(currentAllowance, 6));
       
       if (currentAllowance < listing.price) {
-        console.log("⚠️ Аппрув недостаточен. Отправляем транзакцию approve...");
-        const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
-        console.log("TX аппрува отправлен:", approveTx.hash);
-        await approveTx.wait();
-        console.log("✅ USDC успешно аппрувнут!");
+        console.log("⚠️ Аппрув недостаточен. СЕЙЧАС ПОЯВИТСЯ ОКНО METAMASK ДЛЯ ПОДТВЕРЖДЕНИЯ РАЗРЕШЕНИЯ (APPROVE).");
+        try {
+          const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
+          console.log("TX аппрува отправлен:", approveTx.hash);
+          await approveTx.wait();
+          console.log("✅ USDC успешно аппрувнут!");
+        } catch (approveError: any) {
+          console.error("Ошибка при аппруве:", approveError);
+          if (approveError.code === 4001 || approveError.code === "ACTION_REJECTED") {
+            throw new Error("Транзакция Approve отклонена тобой в MetaMask. Без этого покупка невозможна.");
+          }
+          throw new Error(`Ошибка аппрува: ${approveError.message}`);
+        }
+      } else {
+        console.log("✅ Аппрув уже достаточен, пропускаем этот шаг.");
       }
 
-      // 4. ПРОВЕРКА: Владеет ли продавец всё ещё этим NFT?
+      // 3. Проверка владельца NFT
       const currentOwner = await nftContract.ownerOf(listing.tokenId);
       console.log("Текущий владелец NFT:", currentOwner);
       if (currentOwner.toLowerCase() !== listing.seller.toLowerCase()) {
-        throw new Error("Владелец NFT изменился! Продавец больше не владеет этим токеном (возможно, перевёл его).");
+        throw new Error("Владелец NFT изменился! Продавец больше не владеет этим токеном.");
       }
 
-      // 5. ПРОВЕРКА: Аппрувнул ли продавец маркетплейс на трансфер этого NFT?
+      // 4. Проверка аппрува NFT от продавца
       const isApprovedAll = await nftContract.isApprovedForAll(listing.seller, MARKETPLACE_ADDRESS);
       const isApprovedToken = (await nftContract.getApproved(listing.tokenId)).toLowerCase() === MARKETPLACE_ADDRESS.toLowerCase();
-      console.log("Маркетплейс аппрувнут на все NFT продавца?", isApprovedAll);
-      console.log("Маркетплейс аппрувнут на этот конкретный токен?", isApprovedToken);
+      console.log("Маркетплейс аппрувнут продавцом?", isApprovedAll || isApprovedToken);
       
       if (!isApprovedAll && !isApprovedToken) {
-        throw new Error("Продавец отозвал разрешение (Approval) для маркетплейса. Маркетплейс не может забрать NFT.");
+        throw new Error("Продавец не дал разрешение (Approval) маркетплейсу на передачу этого NFT.");
       }
 
-      // 6. ПОПЫТКА ПОКУПКИ
-      console.log("🚀 Все проверки пройдены! Выполняю marketplace.buy()...");
-      
-      // Пытаемся сделать статический вызов, чтобы поймать точную причину реверта, если estimateGas падает
-      try {
-        await marketplace.buy.staticCall(listing.tokenId);
-      } catch (staticError: any) {
-        console.error("❌ Ошибка симуляции (staticCall):", staticError.reason || staticError.message);
-        throw new Error(`Смарт-контракт отклоняет покупку. Причина: ${staticError.reason || staticError.shortMessage || "Неизвестная ошибка контракта"}`);
-      }
-
+      // 5. Финальная попытка покупки
+      console.log("🚀 Все проверки пройдены! СЕЙЧАС ПОЯВИТСЯ ОКНО METAMASK ДЛЯ ПОКУПКИ (BUY).");
       const buyTx = await marketplace.buy(listing.tokenId);
       console.log("TX покупки отправлен:", buyTx.hash);
       await buyTx.wait();
@@ -341,7 +341,7 @@ export default function MarketplacePage() {
       await loadListings();
     } catch (error: any) {
       console.error("=== ❌ ПОКУПКА ПРОВАЛЕНА ===", error);
-      alert(`Purchase failed: ${error.message || error.reason || "Открой консоль браузера (F12) для точной причины"}`);
+      alert(`Purchase failed: ${error.message || "Открой консоль (F12) для деталей"}`);
     } finally {
       setBuyingId(null);
     }
