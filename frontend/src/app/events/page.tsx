@@ -54,7 +54,7 @@ const INITIAL_EVENTS: EventItem[] = [
       "An exclusive collaboration bridging high fashion and digital perfumery. Mint a unique NFT fragrance inspired by the runway trends of Milan Fashion Week. Holders receive an exclusive digital badge and priority access to future platform features.",
     totalSupply: 500,
     minted: 0,
-    price: "5", // Changed to 5 USDC
+    price: "5",
     startDate: "2026-09-22",
     endDate: "2026-09-28",
     status: "upcoming",
@@ -64,7 +64,7 @@ const INITIAL_EVENTS: EventItem[] = [
       { label: "Dates", value: "Sep 22-28, 2026" },
       { label: "Supply", value: "500 NFTs" },
       { label: "Price", value: "5 USDC" },
-      { label: "Bonus", value: "Exclusive Digital Badge" }, // Changed from VIP Physical Access
+      { label: "Bonus", value: "Exclusive Digital Badge" },
     ],
   },
 ];
@@ -282,7 +282,7 @@ function EventCard({ event }: { event: EventItem }) {
     );
   }
 
-  // --- RENDER FOR UPCOMING EVENTS (NEW PREMIUM DESIGN WITH DUOMO) ---
+  // --- RENDER FOR UPCOMING EVENTS (PREMIUM DESIGN WITH BOTTLE) ---
   return (
     <Link href={`/events/${event.id}`}>
       <div className="group relative rounded-3xl overflow-hidden border border-purple-500/30 bg-gradient-to-br from-slate-900/90 via-indigo-950/50 to-slate-900/90 hover:border-purple-400/60 hover:shadow-[0_0_40px_rgba(168,85,247,0.1)] transition-all duration-300 cursor-pointer">
@@ -348,26 +348,23 @@ function EventCard({ event }: { event: EventItem }) {
             </div>
           </div>
 
-          {/* Right Column: Premium Visual Teaser with Duomo Silhouette */}
+          {/* Right Column: Premium Visual Teaser with Perfume Bottle */}
           <div className="w-full md:w-72 flex-shrink-0 order-1 md:order-2">
             <div className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-purple-500/30 bg-gradient-to-b from-purple-900/20 to-black/80 group-hover:border-purple-400/60 transition-all duration-500 shadow-2xl shadow-purple-900/20">
               
-              {/* Milan Duomo Silhouette Visualization */}
-              <div className="absolute inset-0 flex flex-col items-center justify-end pb-16 px-8">
+              {/* Abstract Perfume Bottle Visualization */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
                 
-                {/* Duomo Spires (Abstract CSS Art) */}
-                <div className="relative w-full h-48 flex items-end justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity duration-500">
-                  {/* Central Spire */}
-                  <div className="w-4 h-32 bg-gradient-to-t from-purple-600/60 to-purple-400/80 clip-path-spire-center"></div>
-                  {/* Side Spires Left */}
-                  <div className="w-3 h-24 bg-gradient-to-t from-purple-700/50 to-purple-500/70 clip-path-spire-side -ml-2"></div>
-                  <div className="w-2 h-16 bg-gradient-to-t from-purple-800/40 to-purple-600/60 clip-path-spire-small -ml-1"></div>
-                  {/* Side Spires Right */}
-                  <div className="w-3 h-24 bg-gradient-to-t from-purple-700/50 to-purple-500/70 clip-path-spire-side -mr-2"></div>
-                  <div className="w-2 h-16 bg-gradient-to-t from-purple-800/40 to-purple-600/60 clip-path-spire-small -mr-1"></div>
-                  
-                  {/* Base Structure */}
-                  <div className="absolute bottom-0 w-40 h-8 bg-gradient-to-t from-purple-900/80 to-purple-700/60 rounded-t-lg"></div>
+                {/* Cap */}
+                <div className="w-16 h-8 bg-gradient-to-r from-amber-400 to-amber-600 rounded-t-lg shadow-[0_0_20px_rgba(245,158,11,0.6)] mb-1 relative z-10"></div>
+                
+                {/* Neck */}
+                <div className="w-8 h-6 bg-purple-400/20 border-x border-t border-purple-300/40 backdrop-blur-sm -mt-1 relative z-10"></div>
+                
+                {/* Body */}
+                <div className="w-32 h-40 bg-gradient-to-t from-purple-600/30 via-purple-500/10 to-transparent rounded-t-[3rem] border border-purple-400/30 backdrop-blur-md -mt-1 relative z-10 flex items-center justify-center">
+                   {/* Inner Glow */}
+                   <div className="w-20 h-20 bg-purple-500/20 rounded-full blur-xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
                 </div>
 
                 {/* Floating Particles */}
@@ -389,8 +386,3 @@ function EventCard({ event }: { event: EventItem }) {
     </Link>
   );
 }
-
-// Custom CSS for Duomo spires (add to global.css or use inline styles)
-// .clip-path-spire-center { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
-// .clip-path-spire-side { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
-// .clip-path-spire-small { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
