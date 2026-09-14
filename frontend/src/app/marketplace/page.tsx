@@ -120,11 +120,11 @@ export default function MarketplacePage() {
             continue;
           }
 
-          let perfume = null;
+          let perfume: any = null;
           let contractAddress = "";
 
           try {
-            const data = await nftContract.getPerfume(tokenId);
+            const data: any = await nftContract.getPerfume(tokenId);
             if (data && data.name) {
               perfume = {
                 name: data.name,
@@ -132,13 +132,13 @@ export default function MarketplacePage() {
                 pType: Number(data.pType),
                 concentration: Number(data.concentration),
                 rarity: Number(data.rarity),
-                topNotes: Array.from(data.topNotes || []),
+                topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
               };
               contractAddress = NFT_CONTRACT_ADDRESS;
             }
           } catch (e) {
             try {
-              const data = await genesisContract.getPerfume(tokenId);
+              const data: any = await genesisContract.getPerfume(tokenId);
               if (data && data.name) {
                 perfume = {
                   name: data.name,
@@ -146,7 +146,7 @@ export default function MarketplacePage() {
                   pType: Number(data.pType),
                   concentration: Number(data.concentration),
                   rarity: Number(data.rarity),
-                  topNotes: Array.from(data.topNotes || []),
+                  topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
                 };
                 contractAddress = GENESIS_CONTRACT_ADDRESS;
               }
