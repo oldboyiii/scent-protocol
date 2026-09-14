@@ -264,14 +264,33 @@ export default function GenesisEventPage() {
           )}
 
           {step === "revealed" && (
-            <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-6 text-center">
-              <p className="text-emerald-400 text-xl font-bold mb-2">🎉 NFT Minted!</p>
-              <p className="text-white/80">Token ID: {tokenId || "Check your wallet"}</p>
-              <p className="text-white/50 text-sm mt-2">
-                You've reached the maximum of {maxPerWallet} NFT
-              </p>
-            </div>
-          )}
+  <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-8 text-center">
+    <div className="flex justify-center mb-4">
+      <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
+        <svg 
+          className="w-9 h-9 text-emerald-400" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2.5} 
+            d="M5 13l4 4L19 7" 
+          />
+        </svg>
+      </div>
+    </div>
+    <p className="text-emerald-400 text-2xl font-bold mb-2">NFT Minted!</p>
+    <p className="text-white/80 mb-1">
+      Token ID: <span className="font-mono text-amber-400">{tokenId || "Check your wallet"}</span>
+    </p>
+    <p className="text-white/50 text-sm">
+      You've reached the maximum of {maxPerWallet} NFT
+    </p>
+  </div>
+)}
 
           {userMinted >= maxPerWallet && step !== "revealed" && (
             <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-6 text-center">
