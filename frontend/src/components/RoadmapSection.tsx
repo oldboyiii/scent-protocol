@@ -12,7 +12,6 @@ const phases = [
       "Collection & Gallery pages",
     ],
   },
-  // NEW PHASE ADDED HERE
   {
     phase: "Phase 1.5",
     title: "Marketplace Launch",
@@ -26,13 +25,14 @@ const phases = [
   },
   {
     phase: "Phase 2",
-    title: "AI Agent Integration",
-    status: "upcoming",
+    title: "AI Agent & Mainnet",
+    status: "in-progress", // Изменено на in-progress, так как часть уже готова
     items: [
-      "Personal AI advisor for scent recommendations",
-      "Auto-minting based on mood & context",
-      "Session keys for gasless experience",
-      "Natural language → fragrance pipeline",
+      { text: "Personal AI advisor for scent recommendations", done: true },
+      { text: "Successful Mainnet deployment", done: true }, // Добавлен выход в мейннет
+      { text: "Auto-minting based on mood & context", done: false },
+      { text: "Session keys for gasless experience", done: false },
+      { text: "Natural language → fragrance pipeline", done: false },
     ],
   },
   {
@@ -75,34 +75,59 @@ export default function RoadmapSection() {
 
         <div className="space-y-8">
           {phases.map((p, i) => (
-            <div key={i} className={`relative flex flex-col md:flex-row gap-4 ${i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"}`}>
+            <div 
+              key={i} 
+              className={`relative flex flex-col md:flex-row gap-4 ${i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"}`}
+            >
               {/* Dot - Color depends on status */}
               <div 
                 className={`absolute left-4 md:left-1/2 w-3 h-3 rounded-full border-2 border-[#0a0a1a] md:-translate-x-1.5 translate-y-2 z-10 
-                  ${p.status === "completed" ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : "bg-amber-500"}`} 
+                  ${p.status === "completed" ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : 
+                    p.status === "in-progress" ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" : "bg-white/20"}`} 
               />
 
               {/* Content */}
               <div className={`ml-10 md:ml-0 md:w-1/2 ${i % 2 === 0 ? "md:pr-10 md:text-right" : "md:pl-10 md:text-left"}`}>
-                <div className={`glass-card p-5 ${p.status === "completed" ? "border-l-2 border-green-500" : "border-l-2 border-amber-500/50"}`}>
+                <div className={`glass-card p-5 ${
+                  p.status === "completed" ? "border-l-2 border-green-500" : 
+                  p.status === "in-progress" ? "border-l-2 border-amber-500" : "border-l-2 border-white/10"
+                }`}>
                   <div className="flex items-center gap-2 mb-2 justify-start md:justify-inherit">
-                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">{p.phase}</span>
+                    <span className={`text-xs font-bold uppercase tracking-wider ${
+                      p.status === "completed" ? "text-green-400" : 
+                      p.status === "in-progress" ? "text-amber-400" : "text-white/40"
+                    }`}>
+                      {p.phase}
+                    </span>
                     {p.status === "completed" && (
                       <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-[10px] text-green-400 font-bold uppercase border border-green-500/30">
                         Live
                       </span>
                     )}
+                    {p.status === "in-progress" && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-400 font-bold uppercase border border-amber-500/30">
+                        In Progress
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-3">{p.title}</h3>
                   <ul className="space-y-1.5">
-                    {p.items.map((item, j) => (
-                      <li key={j} className="text-sm text-white/60 flex items-start gap-2">
-                        <span className={`mt-0.5 ${p.status === "completed" ? "text-green-500" : "text-amber-500"}`}>
-                          {p.status === "completed" ? "✓" : "○"}
-                        </span>
-                        {item}
-                      </li>
-                    ))}
+                    {p.items.map((item, j) => {
+                      // Поддержка как старых строк, так и новых объектов { text, done }
+                      const isDone = typeof item === 'object' ? item.done : (p.status === "completed");
+                      const itemText = typeof item === 'object' ? item.text : item;
+                      
+                      return (
+                        <li key={j} className="text-sm text-white/60 flex items-start gap-2">
+                          <span className={`mt-0.5 ${isDone ? "text-green-500" : "text-amber-500"}`}>
+                            {isDone ? "✓" : "○"}
+                          </span>
+                          <span className={isDone ? "text-white/80 line-through decoration-white/20" : ""}>
+                            {itemText}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>
