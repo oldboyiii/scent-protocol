@@ -14,9 +14,7 @@ const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 const MARKETPLACE_ABI = [
   "function list(address nft, uint256 tokenId, uint256 price)",
   "function cancel(uint256 tokenId)",
-  "function listings(uint256) view returns (address seller, uint256 price, bool active)",
-  "event Listed(uint256 indexed tokenId, address indexed seller, uint256 price, address indexed nftContract)",
-  "event Cancelled(uint256 indexed tokenId, address indexed seller)"
+  "function listings(uint256) view returns (address seller, uint256 price, bool active)"
 ];
 
 const NFT_ABI = [
@@ -131,9 +129,7 @@ export default function CollectionPage() {
         if (w.ethereum) {
           try {
             const accounts = await w.ethereum.request({ method: 'eth_accounts' });
-            if (accounts && accounts.length > 0) {
-              setWalletReady(true);
-            }
+            if (accounts && accounts.length > 0) setWalletReady(true);
           } catch {}
         }
       };
@@ -179,42 +175,6 @@ export default function CollectionPage() {
         const w = window as any;
         const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-        
-        // Get all active listings by checking events
-        const listedFilter = marketplace.filters.Listed();
-        const cancelledFilter = marketplace.filters.Cancelled();
-        
-        const [listedEvents, cancelledEvents] = await Promise.all([
-          marketplace.queryFilter(listedFilter, 0, 'latest'),
-          marketplace.queryFilter(cancelledFilter, 0, 'latest')
-        ]);
-
-        console.log("Listed events:", listedEvents.length);
-        console.log("Cancelled events:", cancelledEvents.length);
-
-        const activeListingIds = new Set<number>();
-        const cancelledIds = new Set<number>();
-
-        cancelledEvents.forEach((event: any) => {
-          if (event.args) {
-            const tokenId = Number(event.args.tokenId);
-            if (!isNaN(tokenId)) {
-              cancelledIds.add(tokenId);
-            }
-          }
-        });
-
-        listedEvents.forEach((event: any) => {
-          if (event.args) {
-            const tokenId = Number(event.args.tokenId);
-            if (!isNaN(tokenId) && !cancelledIds.has(tokenId)) {
-              activeListingIds.add(tokenId);
-            }
-          }
-        });
-
-        console.log("Active listing IDs from events:", Array.from(activeListingIds));
-
         const results: StoredScent[] = [];
 
         // PART 1: Fetch ScentProtocol NFTs
@@ -228,7 +188,6 @@ export default function CollectionPage() {
 
           const balance = await contract.balanceOf(currentAddress);
           const balanceNum = Number(balance);
-          console.log("ScentProtocol balance:", balanceNum);
 
           if (balanceNum > 0) {
             let foundCount = 0;
@@ -239,8 +198,13 @@ export default function CollectionPage() {
                 const owner = await contract.ownerOf(tokenId);
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
-                  const isListed = activeListingIds.has(tokenId);
-                  console.log(`ScentProtocol token ${tokenId} isListed:`, isListed);
+                  
+                  // SAFE CHECK: Check listing status ONLY for this specific token
+                  let isListed = false;
+                  try {
+                    const listing = await marketplace.listings(tokenId);
+                    isListed = listing.active;
+                  } catch (e) {}
 
                   results.push({
                     tokenId,
@@ -278,7 +242,6 @@ export default function CollectionPage() {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const genesisBalance = await genesisContract.balanceOf(currentAddress);
           const genesisBalanceNum = Number(genesisBalance);
-          console.log("Genesis balance:", genesisBalanceNum);
 
           if (genesisBalanceNum > 0) {
             let foundCount = 0;
@@ -289,8 +252,13 @@ export default function CollectionPage() {
                 const owner = await genesisContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
-                  const isListed = activeListingIds.has(tokenId);
-                  console.log(`Genesis token ${tokenId} isListed:`, isListed);
+                  
+                  // SAFE CHECK: Check listing status ONLY for this specific token
+                  let isListed = false;
+                  try {
+                    const listing = await marketplace.listings(tokenId);
+                    isListed = listing.active;
+                  } catch (e) {}
 
                   results.push({
                     tokenId,
@@ -323,7 +291,6 @@ export default function CollectionPage() {
           console.error("Genesis fetch error:", e);
         }
 
-        console.log("Total results:", results.length);
         setScents(results);
       } catch (e) {
         console.error("Collection fetch error:", e);
@@ -372,14 +339,12 @@ export default function CollectionPage() {
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
       
       if (!isApproved) {
-        console.log(`Approving marketplace for contract: ${listingModal.contractAddress}...`);
         const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
         await approveTx.wait();
       }
 
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-      console.log(`Listing NFT ${listingModal.tokenId} from ${listingModal.contractAddress}...`);
       
       const listTx = await marketplaceContract.list(
         listingModal.contractAddress,
@@ -388,9 +353,7 @@ export default function CollectionPage() {
       );
       await listTx.wait();
 
-      console.log("Listing successful!");
       setListingStatus("success");
-      
       setTimeout(() => {
         window.location.reload();
       }, 2000);
@@ -414,7 +377,6 @@ export default function CollectionPage() {
       const signer = await provider.getSigner();
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-      console.log("Canceling listing for token:", tokenId);
       const cancelTx = await marketplaceContract.cancel(tokenId);
       await cancelTx.wait();
 
@@ -530,32 +492,26 @@ export default function CollectionPage() {
                 )}
 
                 {!isGenesis && (
-                  <div 
-                    className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                    style={{
-                      background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
-                      backgroundSize: "200% 100%",
-                      animation: "shimmer 2s linear infinite",
-                      padding: "2px",
-                      WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                      WebkitMaskComposite: "xor",
-                      maskComposite: "exclude",
-                    }}
-                  />
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+                    background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2s linear infinite",
+                    padding: "2px",
+                    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                    WebkitMaskComposite: "xor",
+                    maskComposite: "exclude",
+                  }} />
                 )}
 
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
                 {!isGenesis && (
-                  <div 
-                    className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-                    style={{
-                      background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
-                      backgroundSize: "200% 100%",
-                      animation: "shimmer 2.5s infinite",
-                    }}
-                  />
+                  <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{
+                    background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2.5s infinite",
+                  }} />
                 )}
 
                 <div className="relative flex items-start justify-between">
