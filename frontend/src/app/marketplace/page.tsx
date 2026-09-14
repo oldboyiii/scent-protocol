@@ -21,6 +21,7 @@ const MARKETPLACE_ABI = [
 ];
 
 const USDC_ABI = [
+  "function balanceOf(address account) view returns (uint256)",
   "function approve(address spender, uint256 amount)",
   "function allowance(address owner, address spender) view returns (uint256)"
 ];
@@ -79,7 +80,7 @@ interface ListingData {
 }
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER_ICONS = ["", "♂", "♀", ""];
+const GENDER_ICONS = ["", "", "♀", ""];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
@@ -133,7 +134,6 @@ export default function MarketplacePage() {
         try {
           const tokenId = Number(id);
           
-          // Get listing data from V8 (now returns seller, nftContract, price, active)
           const listing = await marketplace.listings(tokenId);
           if (!listing || !listing.active) continue;
 
@@ -141,7 +141,6 @@ export default function MarketplacePage() {
           let perfume: any = null;
           let contractAddress = "";
 
-          // Determine which contract this NFT belongs to
           if (nftContractAddr.toLowerCase() === NFT_CONTRACT_ADDRESS.toLowerCase()) {
             try {
               const data: any = await nftContract.getPerfume(tokenId);
@@ -252,7 +251,7 @@ export default function MarketplacePage() {
     }
   });
 
-    const handleBuy = async (listing: ListingData) => {
+  const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
@@ -262,57 +261,52 @@ export default function MarketplacePage() {
       const usdcContract = new ethers.Contract(usdcAddress, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       
-      // Минимальный ABI для проверок
       const nftContract = new ethers.Contract(
         listing.contractAddress, 
-        ["function ownerOf(uint256) view returns (address)", "function isApprovedForAll(address, address) view returns (bool)"], 
+        ["function ownerOf(uint256) view returns (address)"], 
         provider
       );
 
-      console.log("=== 🕵️ DEBUG BUY PROCESS ===");
+      console.log("=== DEBUG BUY PROCESS ===");
       console.log("Token ID:", listing.tokenId);
       console.log("Buyer:", userAddress);
       console.log("Seller:", listing.seller);
       console.log("Price:", ethers.formatUnits(listing.price, 6), "USDC");
 
-      // 1. ПРОВЕРКА БАЛАНСА
       const balance = await usdcContract.balanceOf(userAddress);
       console.log("Buyer USDC Balance:", ethers.formatUnits(balance, 6));
       if (balance < listing.price) {
-        throw new Error(`Недостаточно USDC! Есть: ${ethers.formatUnits(balance, 6)}, Нужно: ${ethers.formatUnits(listing.price, 6)}`);
+        throw new Error(`Insufficient USDC! Have: ${ethers.formatUnits(balance, 6)}, Need: ${ethers.formatUnits(listing.price, 6)}`);
       }
 
-      // 2. ПРОВЕРКА ALLOWANCE (Разрешения на списание)
       const currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
       console.log("Current USDC Allowance:", ethers.formatUnits(currentAllowance, 6));
       
       if (currentAllowance < listing.price) {
-        console.log("⚠️ Allowance недостаточен. Отправляем approve...");
+        console.log("Allowance insufficient. Sending approve...");
         const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
         console.log("Approval TX sent:", approveTx.hash);
         await approveTx.wait();
-        console.log("✅ USDC Approved successfully!");
+        console.log("USDC Approved successfully!");
       }
 
-      // 3. ПРОВЕРКА ВЛАДЕЛЬЦА NFT (Самая частая скрытая причина!)
       const currentOwner = await nftContract.ownerOf(listing.tokenId);
       console.log("Current NFT Owner:", currentOwner);
       if (currentOwner.toLowerCase() !== listing.seller.toLowerCase()) {
-        throw new Error("Владелец NFT изменился! Продавец больше не владеет этим токеном (возможно, перевёл его).");
+        throw new Error("NFT owner changed! Seller no longer owns this token.");
       }
 
-      // 4. ПОПЫТКА ПОКУПКИ
-      console.log("🚀 Executing marketplace.buy()...");
+      console.log("Executing marketplace.buy()...");
       const buyTx = await marketplace.buy(listing.tokenId);
       console.log("Buy TX sent:", buyTx.hash);
       await buyTx.wait();
-      console.log("✅ Buy TX confirmed!");
+      console.log("Buy TX confirmed!");
 
       alert("Purchase successful!");
       await loadListings();
     } catch (error: any) {
-      console.error("=== ❌ BUY FAILED ===", error);
-      alert(`Purchase failed: ${error.message || error.reason || "Открой консоль браузера (F12) для деталей"}`);
+      console.error("=== BUY FAILED ===", error);
+      alert(`Purchase failed: ${error.message || error.reason || "Check browser console (F12) for details"}`);
     } finally {
       setBuyingId(null);
     }
