@@ -9,7 +9,7 @@ const faqs = [
     a: "An ERC-721 NFT containing a unique 9-note fragrance formula (3 top, 3 heart, 3 base notes), concentration level, rarity tier, and an AI-generated poetic description.",
   },
   {
-    q: "Why 10 USDC?",
+    q: "Why 1 USDC?",
     a: "This covers the on-chain formula generation, NFT minting, and gas fees on the Arc network. No hidden costs.",
   },
   {
