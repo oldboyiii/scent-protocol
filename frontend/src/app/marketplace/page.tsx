@@ -248,7 +248,7 @@ export default function MarketplacePage() {
     }
   });
 
-    const handleBuy = async (listing: ListingData) => {
+      const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
@@ -287,22 +287,32 @@ export default function MarketplacePage() {
       const nativeBalance = await provider.getBalance(userAddress);
       console.log("Баланс ARC (для газа):", ethers.formatEther(nativeBalance));
       if (nativeBalance === 0n) {
-        throw new Error("На кошельке закончился ARC для оплаты комиссии за газ (gas fee). Пополни баланс в фаусете.");
+        throw new Error("На кошельке закончился ARC для оплаты комиссии за газ. Пополни баланс.");
       }
 
       // 2. Проверка Allowance (Разрешения)
       const currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
-      console.log("Текущий аппрув USDC для маркетплейса:", ethers.formatUnits(currentAllowance, 6));
+      console.log("Exact Allowance (BigInt):", currentAllowance.toString());
+      console.log("Exact Price (BigInt):", listing.price.toString());
       
+      // Если аппрув меньше цены (даже на 1 вей) или мы хотим сделать его вечным
       if (currentAllowance < listing.price) {
-        console.log("⚠️ Аппрув недостаточен. ОТПРАВЛЯЕМ TX С ФИКСИРОВАННЫМ GAS LIMIT...");
+        console.log("⚠️ Аппрув недостаточен или есть рассинхрон ноды. Принудительно отправляем TX аппрува...");
         try {
-          const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price, {
+          // АППРУВИМ НА MAXUINT256 (бесконечность), чтобы больше никогда не спрашивать пользователя
+          const approveAmount = ethers.MaxUint256;
+          
+          const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, approveAmount, {
             gasLimit: 100000
           });
           console.log("TX аппрува отправлен:", approveTx.hash);
           await approveTx.wait();
-          console.log("✅ USDC успешно аппрувнут!");
+          console.log("✅ USDC успешно аппрувнут (MaxUint256)!");
+          
+          // КРИТИЧЕСКИ ВАЖНО: Ждем 2 секунды, чтобы RPC-нода успела обновить состояние allowance
+          console.log("⏳ Ожидание синхронизации ноды (2 сек)...");
+          await new Promise(r => setTimeout(r, 2000));
+          
         } catch (approveError: any) {
           console.error("Ошибка при аппруве:", approveError);
           if (approveError.code === 4001 || approveError.code === "ACTION_REJECTED") {
@@ -330,20 +340,19 @@ export default function MarketplacePage() {
         throw new Error("Продавец не дал разрешение (Approval) маркетплейсу на передачу этого NFT.");
       }
 
-      // 5. Финальная попытка покупки с обходом estimateGas
+      // 5. Финальная попытка покупки
       console.log("🚀 Все проверки пройдены! Делаем staticCall для проверки контракта...");
       try {
-        // Пытаемся сделать статический вызов, чтобы поймать точную причину реверта, если она есть
         await marketplace.buy.staticCall(listing.tokenId);
         console.log("✅ staticCall успешен, контракт готов к покупке!");
       } catch (staticError: any) {
         console.error("❌ Ошибка симуляции (staticCall):", staticError.reason || staticError.message);
-        throw new Error(`Смарт-контракт отклоняет покупку. Причина: ${staticError.reason || staticError.shortMessage || "Неизвестная ошибка контракта"}`);
+        throw new Error(`Смарт-контракт отклоняет покупку. Причина: ${staticError.reason || staticError.shortMessage || "Неизвестная ошибка"}`);
       }
 
-      console.log("⚠️ Отправляем транзакцию покупки с ФИКСИРОВАННЫМ gasLimit (обходим баг ноды)...");
+      console.log("⚠️ Отправляем транзакцию покупки с ФИКСИРОВАННЫМ gasLimit...");
       const buyTx = await marketplace.buy(listing.tokenId, {
-        gasLimit: 300000 // Фиксированный лимит газа, чтобы MetaMask не делал сломанный estimateGas
+        gasLimit: 300000 
       });
       
       console.log("TX покупки отправлен:", buyTx.hash);
