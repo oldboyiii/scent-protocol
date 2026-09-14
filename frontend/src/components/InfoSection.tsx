@@ -26,7 +26,7 @@ export default function InfoSection() {
               </li>
               <li className="flex gap-3">
                 <span className="text-arc-500 font-bold">2.</span>
-                <span>Pay 10 USDC — the smart contract generates a unique formula on-chain</span>
+                <span>Pay 1 USDC — the smart contract generates a unique formula on-chain</span>
               </li>
               <li className="flex gap-3">
                 <span className="text-arc-500 font-bold">3.</span>
