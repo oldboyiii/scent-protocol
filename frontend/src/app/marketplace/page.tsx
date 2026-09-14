@@ -248,7 +248,7 @@ export default function MarketplacePage() {
     }
   });
 
-  const handleBuy = async (listing: ListingData) => {
+    const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
@@ -257,6 +257,7 @@ export default function MarketplacePage() {
 
       console.log("=== 🕵️ НАЧАЛО ПРОВЕРКИ ПОКУПКИ ===");
       
+      const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
       const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       
@@ -296,8 +297,6 @@ export default function MarketplacePage() {
       if (currentAllowance < listing.price) {
         console.log("⚠️ Аппрув недостаточен. ОТПРАВЛЯЕМ TX С ФИКСИРОВАННЫМ GAS LIMIT...");
         try {
-          // ВАЖНО: Передаем gasLimit вручную. Это заставляет MetaMask пропустить 
-          // сломанную симуляцию (estimateGas) и сразу показать окно подтверждения.
           const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price, {
             gasLimit: 100000
           });
@@ -331,9 +330,22 @@ export default function MarketplacePage() {
         throw new Error("Продавец не дал разрешение (Approval) маркетплейсу на передачу этого NFT.");
       }
 
-      // 5. Финальная попытка покупки
-      console.log("🚀 Все проверки пройдены! Отправляем транзакцию покупки...");
-      const buyTx = await marketplace.buy(listing.tokenId);
+      // 5. Финальная попытка покупки с обходом estimateGas
+      console.log("🚀 Все проверки пройдены! Делаем staticCall для проверки контракта...");
+      try {
+        // Пытаемся сделать статический вызов, чтобы поймать точную причину реверта, если она есть
+        await marketplace.buy.staticCall(listing.tokenId);
+        console.log("✅ staticCall успешен, контракт готов к покупке!");
+      } catch (staticError: any) {
+        console.error("❌ Ошибка симуляции (staticCall):", staticError.reason || staticError.message);
+        throw new Error(`Смарт-контракт отклоняет покупку. Причина: ${staticError.reason || staticError.shortMessage || "Неизвестная ошибка контракта"}`);
+      }
+
+      console.log("⚠️ Отправляем транзакцию покупки с ФИКСИРОВАННЫМ gasLimit (обходим баг ноды)...");
+      const buyTx = await marketplace.buy(listing.tokenId, {
+        gasLimit: 300000 // Фиксированный лимит газа, чтобы MetaMask не делал сломанный estimateGas
+      });
+      
       console.log("TX покупки отправлен:", buyTx.hash);
       await buyTx.wait();
       console.log("✅ Покупка успешно подтверждена в блокчейне!");
