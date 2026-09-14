@@ -7,14 +7,17 @@ import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
 
-const MARKETPLACE_ADDRESS = "0xBC7669036F8af720A85569448FD3DB198C52468C";
+const MARKETPLACE_ADDRESS = "0x95815163aE441FD8b015B0725fB5C274aFAc4069";
 const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
 const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
 
 const MARKETPLACE_ABI = [
-  "function list(address nft, uint256 tokenId, uint256 price)",
+  "function list(address nftContract, uint256 tokenId, uint256 price)",
   "function cancel(uint256 tokenId)",
-  "function listings(uint256) view returns (address seller, uint256 price, bool active)"
+  "function listings(uint256) view returns (address seller, address nftContract, uint256 price, bool active)",
+  "function getActiveListings() view returns (uint256[])",
+  "function getActiveCount() view returns (uint256)",
+  "function usdc() view returns (address)"
 ];
 
 const NFT_ABI = [
@@ -174,17 +177,19 @@ export default function CollectionPage() {
       try {
         const w = window as any;
         const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-        const results: StoredScent[] = [];
-
-        // Get listed tokenIds from localStorage
-        const listedTokenIds = new Set<number>();
+        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+        
+        // Get ALL active listings from marketplace V8
+        let activeTokenIds = new Set<number>();
         try {
-          const stored = localStorage.getItem('listedTokens');
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            parsed.forEach((id: number) => listedTokenIds.add(id));
-          }
-        } catch (e) {}
+          const activeIds: bigint[] = await marketplace.getActiveListings();
+          activeIds.forEach(id => activeTokenIds.add(Number(id)));
+          console.log("Active marketplace listings:", Array.from(activeTokenIds));
+        } catch (e) {
+          console.error("Failed to get active listings:", e);
+        }
+        
+        const results: StoredScent[] = [];
 
         // PART 1: Fetch ScentProtocol NFTs
         try {
@@ -208,7 +213,8 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
                   
-                  const isListed = listedTokenIds.has(tokenId);
+                  // Check if this token is in marketplace active listings
+                  const isListed = activeTokenIds.has(tokenId);
 
                   results.push({
                     tokenId,
@@ -257,7 +263,8 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
                   
-                  const isListed = listedTokenIds.has(tokenId);
+                  // Check if this token is in marketplace active listings
+                  const isListed = activeTokenIds.has(tokenId);
 
                   results.push({
                     tokenId,
@@ -352,16 +359,6 @@ export default function CollectionPage() {
       );
       await listTx.wait();
 
-      // Save to localStorage
-      try {
-        const stored = localStorage.getItem('listedTokens');
-        const listedTokens = stored ? JSON.parse(stored) : [];
-        if (!listedTokens.includes(listingModal.tokenId)) {
-          listedTokens.push(listingModal.tokenId);
-          localStorage.setItem('listedTokens', JSON.stringify(listedTokens));
-        }
-      } catch (e) {}
-
       setListingStatus("success");
       setTimeout(() => {
         window.location.reload();
@@ -388,15 +385,6 @@ export default function CollectionPage() {
 
       const cancelTx = await marketplaceContract.cancel(tokenId);
       await cancelTx.wait();
-
-      // Remove from localStorage
-      try {
-        const stored = localStorage.getItem('listedTokens');
-        if (stored) {
-          const listedTokens = JSON.parse(stored).filter((id: number) => id !== tokenId);
-          localStorage.setItem('listedTokens', JSON.stringify(listedTokens));
-        }
-      } catch (e) {}
 
       alert("Listing removed successfully!");
       setListingStatus("idle");
