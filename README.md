@@ -12,7 +12,7 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 
 **How It Works:**
 1. Choose gender and perfume type (Parfum, EDP, EDT, EDC)
-2. Pay 10 USDC — the smart contract generates a unique formula on-chain
+2. Pay 1 USDC — the smart contract generates a unique formula on-chain
 3. AI writes a poetic description — your NFT is ready
 
 ---
