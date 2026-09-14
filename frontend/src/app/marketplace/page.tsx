@@ -251,7 +251,7 @@ export default function MarketplacePage() {
     }
   });
 
-  const handleBuy = async (listing: ListingData) => {
+    const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
@@ -261,57 +261,91 @@ export default function MarketplacePage() {
       const usdcContract = new ethers.Contract(usdcAddress, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       
+      // ABI для проверок состояния NFT
       const nftContract = new ethers.Contract(
         listing.contractAddress, 
-        ["function ownerOf(uint256) view returns (address)"], 
+        [
+          "function ownerOf(uint256) view returns (address)",
+          "function isApprovedForAll(address owner, address operator) view returns (bool)",
+          "function getApproved(uint256) view returns (address)"
+        ], 
         provider
       );
 
-      console.log("=== DEBUG BUY PROCESS ===");
+      console.log("=== 🕵️ НАЧАЛО ПРОВЕРКИ ПОКУПКИ ===");
       console.log("Token ID:", listing.tokenId);
-      console.log("Buyer:", userAddress);
-      console.log("Seller:", listing.seller);
-      console.log("Price:", ethers.formatUnits(listing.price, 6), "USDC");
+      console.log("Покупатель:", userAddress);
+      console.log("Продавец (из листинга):", listing.seller);
+      console.log("Цена:", ethers.formatUnits(listing.price, 6), "USDC");
 
-      const balance = await usdcContract.balanceOf(userAddress);
-      console.log("Buyer USDC Balance:", ethers.formatUnits(balance, 6));
-      if (balance < listing.price) {
-        throw new Error(`Insufficient USDC! Have: ${ethers.formatUnits(balance, 6)}, Need: ${ethers.formatUnits(listing.price, 6)}`);
+      // 1. ПРОВЕРКА: Активен ли листинг прямо сейчас?
+      const currentListing = await marketplace.listings(listing.tokenId);
+      console.log("Статус листинга в контракте:", currentListing.active ? "АКТИВЕН" : "НЕАКТИВЕН");
+      if (!currentListing.active) {
+        throw new Error("Этот листинг больше не активен (возможно, его только что купили или отменили).");
       }
 
+      // 2. ПРОВЕРКА: Баланс USDC у покупателя
+      const balance = await usdcContract.balanceOf(userAddress);
+      console.log("Баланс USDC покупателя:", ethers.formatUnits(balance, 6));
+      if (balance < listing.price) {
+        throw new Error(`Недостаточно USDC! Есть: ${ethers.formatUnits(balance, 6)}, Нужно: ${ethers.formatUnits(listing.price, 6)}`);
+      }
+
+      // 3. ПРОВЕРКА: Разрешение (Allowance) на списание USDC
       const currentAllowance = await usdcContract.allowance(userAddress, MARKETPLACE_ADDRESS);
-      console.log("Current USDC Allowance:", ethers.formatUnits(currentAllowance, 6));
+      console.log("Текущий аппрув USDC:", ethers.formatUnits(currentAllowance, 6));
       
       if (currentAllowance < listing.price) {
-        console.log("Allowance insufficient. Sending approve...");
+        console.log("⚠️ Аппрув недостаточен. Отправляем транзакцию approve...");
         const approveTx = await usdcContract.approve(MARKETPLACE_ADDRESS, listing.price);
-        console.log("Approval TX sent:", approveTx.hash);
+        console.log("TX аппрува отправлен:", approveTx.hash);
         await approveTx.wait();
-        console.log("USDC Approved successfully!");
+        console.log("✅ USDC успешно аппрувнут!");
       }
 
+      // 4. ПРОВЕРКА: Владеет ли продавец всё ещё этим NFT?
       const currentOwner = await nftContract.ownerOf(listing.tokenId);
-      console.log("Current NFT Owner:", currentOwner);
+      console.log("Текущий владелец NFT:", currentOwner);
       if (currentOwner.toLowerCase() !== listing.seller.toLowerCase()) {
-        throw new Error("NFT owner changed! Seller no longer owns this token.");
+        throw new Error("Владелец NFT изменился! Продавец больше не владеет этим токеном (возможно, перевёл его).");
       }
 
-      console.log("Executing marketplace.buy()...");
+      // 5. ПРОВЕРКА: Аппрувнул ли продавец маркетплейс на трансфер этого NFT?
+      const isApprovedAll = await nftContract.isApprovedForAll(listing.seller, MARKETPLACE_ADDRESS);
+      const isApprovedToken = (await nftContract.getApproved(listing.tokenId)).toLowerCase() === MARKETPLACE_ADDRESS.toLowerCase();
+      console.log("Маркетплейс аппрувнут на все NFT продавца?", isApprovedAll);
+      console.log("Маркетплейс аппрувнут на этот конкретный токен?", isApprovedToken);
+      
+      if (!isApprovedAll && !isApprovedToken) {
+        throw new Error("Продавец отозвал разрешение (Approval) для маркетплейса. Маркетплейс не может забрать NFT.");
+      }
+
+      // 6. ПОПЫТКА ПОКУПКИ
+      console.log("🚀 Все проверки пройдены! Выполняю marketplace.buy()...");
+      
+      // Пытаемся сделать статический вызов, чтобы поймать точную причину реверта, если estimateGas падает
+      try {
+        await marketplace.buy.staticCall(listing.tokenId);
+      } catch (staticError: any) {
+        console.error("❌ Ошибка симуляции (staticCall):", staticError.reason || staticError.message);
+        throw new Error(`Смарт-контракт отклоняет покупку. Причина: ${staticError.reason || staticError.shortMessage || "Неизвестная ошибка контракта"}`);
+      }
+
       const buyTx = await marketplace.buy(listing.tokenId);
-      console.log("Buy TX sent:", buyTx.hash);
+      console.log("TX покупки отправлен:", buyTx.hash);
       await buyTx.wait();
-      console.log("Buy TX confirmed!");
+      console.log("✅ Покупка успешно подтверждена в блокчейне!");
 
       alert("Purchase successful!");
       await loadListings();
     } catch (error: any) {
-      console.error("=== BUY FAILED ===", error);
-      alert(`Purchase failed: ${error.message || error.reason || "Check browser console (F12) for details"}`);
+      console.error("=== ❌ ПОКУПКА ПРОВАЛЕНА ===", error);
+      alert(`Purchase failed: ${error.message || error.reason || "Открой консоль браузера (F12) для точной причины"}`);
     } finally {
       setBuyingId(null);
     }
   };
-
   const formatPrice = (price: bigint) => {
     return Number(ethers.formatUnits(price, 6)).toFixed(2);
   };
