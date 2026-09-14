@@ -248,7 +248,7 @@ export default function MarketplacePage() {
     }
   });
 
-            const handleBuy = async (listing: ListingData) => {
+              const handleBuy = async (listing: ListingData) => {
     try {
       setBuyingId(listing.tokenId);
       const signer = await getArcSigner();
@@ -257,13 +257,10 @@ export default function MarketplacePage() {
 
       console.log("=== 🛒 НАЧАЛО ПРОЦЕССА ПОКУПКИ ===");
 
-      // 1. КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что адрес USDC загружен
-      const validUsdcAddress = usdcAddress || "0x3600000000000000000000000000000000000000";
-      if (!validUsdcAddress || validUsdcAddress === ethers.ZeroAddress) {
-        throw new Error("Адрес USDC не загружен. Пожалуйста, обнови страницу (F5) и попробуй снова.");
-      }
-
-      const usdcContract = new ethers.Contract(validUsdcAddress, USDC_ABI, signer);
+      // 1. КРИТИЧЕСКАЯ ПРОВЕРКА: Используем жёстко заданный адрес USDC
+      const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+      
+      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
       console.log("Token ID:", listing.tokenId);
@@ -300,7 +297,7 @@ export default function MarketplacePage() {
         console.log("✅ Approve подтвержден в блокчейне!");
 
         // Шаг В: Задержка для гарантированной синхронизации RPC-ноды
-        console.log("⏳ Ожидание синхронизации ноды (2 сек)...");
+        console.log(" Ожидание синхронизации ноды (2 сек)...");
         await new Promise(r => setTimeout(r, 2000));
 
         // Шаг Г: Жёсткая перепроверка
@@ -315,7 +312,7 @@ export default function MarketplacePage() {
       }
 
       // 4. Выполнение покупки (БЕЗ staticCall, чтобы избежать ложных ошибок RPC)
-      console.log("🚀 Отправка транзакции покупки с фиксированным gasLimit...");
+      console.log(" Отправка транзакции покупки с фиксированным gasLimit...");
       const buyTx = await marketplace.buy(listing.tokenId, {
         gasLimit: 300000 // Обходит сломанный estimateGas в MetaMask
       });
