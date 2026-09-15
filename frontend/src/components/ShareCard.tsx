@@ -55,7 +55,6 @@ export default function ShareCard({
       `Mint yours →`
   );
   
-  // Изменено с twitter.com на x.com
   const tweetUrl = `https://x.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(url)}`;
 
   const copyText =
@@ -259,24 +258,34 @@ export default function ShareCard({
               </div>
             </div>
 
+            {/* Action Buttons - Clean SVG icons, no emojis */}
             <div className="relative grid grid-cols-2 gap-3">
               <button
                 onClick={handleTweet}
-                className="py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(14,165,233,0.4)]"
+                className="py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-white/10 text-white text-sm font-semibold transition-all hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] flex items-center justify-center gap-2"
               >
-                ✖ Post on X
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                Post on X
               </button>
               <button
                 onClick={handleDownload}
-                className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2"
               >
-                🖼️ Save PNG
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Save PNG
               </button>
               <button
                 onClick={handleCopy}
-                className="py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors col-span-2 border border-white/10"
+                className="py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-sm font-semibold transition-colors col-span-2 border border-white/10 flex items-center justify-center gap-2"
               >
-                📋 Copy Text
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copy Text
               </button>
             </div>
 
