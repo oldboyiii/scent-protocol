@@ -217,12 +217,13 @@ export default function ShareCard({
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative rounded-2xl p-6 max-w-sm w-full space-y-5 overflow-hidden"
-            style={{
-              background: `linear-gradient(145deg, ${rarityBg} 0%, #0f172a 100%)`,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+  className="relative rounded-2xl p-6 max-w-sm w-full space-y-5 overflow-hidden"
+  style={{
+    background: `linear-gradient(135deg, ${rarityHex}15 0%, ${rarityHex}05 50%, #0f172a 100%)`,
+    border: `1px solid ${rarityHex}50`,
+  }}
+  onClick={(e) => e.stopPropagation()}
+>
             {/* Animated border */}
             <div 
               className="absolute inset-0 rounded-2xl pointer-events-none"
