@@ -57,16 +57,16 @@ export default function Home() {
   const handleAdvisorSelect = (gender: number, pType: number) => {
     setAdvisorGender(gender);
     setAdvisorType(pType);
-    // Скролл к форме
-    document.getElementById("mint-form")?.scrollIntoView({ behavior: "smooth" });
+    // Smooth scroll to the mint form
+    document.getElementById("mint-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   return (
-    <div className="flex flex-col items-center gap-8">
+    <div className="flex flex-col items-center gap-16 pb-20 w-full">
       <Confetti active={showConfetti} />
 
-      {/* Inner Header */}
-      <div className="w-full max-w-4xl animate-fade-up">
+      {/* Header */}
+      <div className="w-full max-w-4xl px-4 animate-fade-up">
         <div className="glass-card flex items-center justify-between px-6 py-4">
           <Logo size={36} />
           <div className="flex items-center gap-4">
@@ -78,42 +78,38 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Hero */}
-      <section className="text-center max-w-2xl mx-auto mt-8 animate-fade-up overflow-visible">
-        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-[1.5] pb-3 block overflow-visible">
+      {/* Hero Section */}
+      <section className="text-center max-w-3xl mx-auto px-4 animate-fade-up">
+        {/* leading-tight prevents descenders (g, p, y) from being clipped */}
+        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-tight">
           Digital Perfume House
         </h1>
-        <p className="text-lg text-white/70 mb-6">
+        <p className="text-lg text-white/70 mb-8">
           Create unique AI-generated fragrances. Built on Arc. Every formula is an NFT certificate of ownership.
         </p>
-        <div className="flex items-center justify-center gap-4 text-sm text-white/50">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-400" />
+        <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50">
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
             USDC = gas
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-400" />
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
             Sub-second finality
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-purple-400" />
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
             AI descriptions
           </span>
         </div>
       </section>
 
-      {/* AI Advisor */}
-      <div className="w-full flex justify-center animate-fade-up-delay">
-        <AIAdvisor onSelect={handleAdvisorSelect} />
-      </div>
-
-      {/* Info Section */}
-      <div className="w-full animate-fade-up-delay">
+      {/* Info Section (Explains the project first) */}
+      <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
         <InfoSection />
       </div>
 
-      {/* Mint Form */}
-      <div id="mint-form" className="animate-fade-up-delay w-full flex justify-center">
+      {/* Mint Form (Primary Call to Action) */}
+      <div id="mint-form" className="w-full max-w-xl px-4 animate-fade-up-delay">
         <MintForm 
           onMinted={handleMinted} 
           defaultGender={advisorGender ?? undefined}
@@ -121,9 +117,23 @@ export default function Home() {
         />
       </div>
 
-      {/* Minted Cards */}
+      {/* AI Advisor (Helper tool, placed AFTER the main form) */}
+      <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-white mb-2">Not sure what to create?</h2>
+          <p className="text-white/50 text-sm max-w-lg mx-auto">
+            Let our Scent AI Advisor find your perfect fragrance profile based on your mood or occasion.
+          </p>
+        </div>
+        <div className="flex justify-center">
+          <AIAdvisor onSelect={handleAdvisorSelect} />
+        </div>
+      </div>
+
+      {/* Minted Cards (Recent Activity) */}
       {minted.length > 0 && (
-        <div className="w-full max-w-md space-y-4">
+        <div className="w-full max-w-md px-4 space-y-4 animate-fade-up-delay">
+          <h3 className="text-xl font-bold text-white text-center mb-4">Your Recent Creations</h3>
           {minted.map((item) => (
             <PerfumeCard
               key={item.tokenId}
@@ -136,7 +146,9 @@ export default function Home() {
       )}
 
       {/* Roadmap */}
-      <RoadmapSection />
+      <div className="w-full animate-fade-up-delay">
+        <RoadmapSection />
+      </div>
     </div>
   );
 }
