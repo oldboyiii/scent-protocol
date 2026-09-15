@@ -79,29 +79,33 @@ export default function Home() {
       </div>
 
       {/* Hero Section */}
-      <section className="text-center max-w-3xl mx-auto px-4 animate-fade-up">
-        {/* leading-tight prevents descenders (g, p, y) from being clipped */}
-        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 leading-tight">
-          Digital Perfume House
-        </h1>
-        <p className="text-lg text-white/70 mb-8">
-          Create unique AI-generated fragrances. Built on Arc. Every formula is an NFT certificate of ownership.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50">
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
-            USDC = gas
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
-            Sub-second finality
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
-            AI descriptions
-          </span>
-        </div>
-      </section>
+<section className="text-center max-w-3xl mx-auto px-4 animate-fade-up">
+  {/* Added pb-4 and increased gap to prevent letter clipping */}
+  <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 pb-2 leading-none">
+    Digital Perfume House
+  </h1>
+  
+  {/* Increased gap from mb-6 to mb-8 */}
+  <p className="text-lg text-white/70 mb-8">
+    Create unique AI-generated fragrances. Built on Arc. Every formula is an NFT certificate of ownership.
+  </p>
+  
+  {/* Added mt-4 for extra spacing */}
+  <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50 mt-4">
+    <span className="flex items-center gap-2">
+      <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
+      USDC = gas
+    </span>
+    <span className="flex items-center gap-2">
+      <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
+      Sub-second finality
+    </span>
+    <span className="flex items-center gap-2">
+      <span className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
+      AI descriptions
+    </span>
+  </div>
+</section>
 
       {/* Info Section (Explains the project first) */}
       <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
