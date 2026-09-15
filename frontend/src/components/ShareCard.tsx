@@ -46,24 +46,45 @@ export default function ShareCard({
   const url = `https://scentprotocol.vercel.app/nft/${tokenId}`;
 
   const tweetText = encodeURIComponent(
-    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}\n\n` +
-      `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
-      `Top: ${perfume.topNotes.join(", ")}\n` +
-      `Heart: ${perfume.heartNotes.join(", ")}\n` +
-      `Base: ${perfume.baseNotes.join(", ")}\n\n` +
-      `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.\n\n` +
+    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}
+
+` +
+      `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
+
+` +
+      `Top: ${perfume.topNotes.join(", ")}
+` +
+      `Heart: ${perfume.heartNotes.join(", ")}
+` +
+      `Base: ${perfume.baseNotes.join(", ")}
+
+` +
+      `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.
+
+` +
       `Mint yours →`
   );
   
+  // Изменено с twitter.com на x.com
   const tweetUrl = `https://x.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(url)}`;
 
   const copyText =
-    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}\n\n` +
-    `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
-    `Top: ${perfume.topNotes.join(", ")}\n` +
-    `Heart: ${perfume.heartNotes.join(", ")}\n` +
-    `Base: ${perfume.baseNotes.join(", ")}\n\n` +
-    `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.\n\n` +
+    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}
+
+` +
+    `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
+
+` +
+    `Top: ${perfume.topNotes.join(", ")}
+` +
+    `Heart: ${perfume.heartNotes.join(", ")}
+` +
+    `Base: ${perfume.baseNotes.join(", ")}
+
+` +
+    `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.
+
+` +
     `Mint yours → ${url}`;
 
   const drawCard = useCallback(() => {
@@ -258,7 +279,7 @@ export default function ShareCard({
               </div>
             </div>
 
-            {/* Action Buttons - Clean SVG icons, no emojis */}
+            {/* Обновленные кнопки без эмодзи, с SVG иконками */}
             <div className="relative grid grid-cols-2 gap-3">
               <button
                 onClick={handleTweet}
