@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 
 interface Perfume {
   name: string;
@@ -45,22 +45,27 @@ export default function ShareCard({
   const rarityBg = RARITY_BG[perfume.rarity] || RARITY_BG[0];
   const url = `https://scentprotocol.vercel.app/nft/${tokenId}`;
 
-  // Clean, professional text without UI emojis (using ◆ for premium feel)
-  const shareText = 
-    `◆ ${perfume.name} — Digital Perfume NFT #${tokenId}\n\n` +
-    `Gender: ${GENDER[perfume.gender]} | Type: ${TYPE[perfume.pType]} | Concentration: ${perfume.concentration}%\n` +
-    `Rarity: ${RARITY[perfume.rarity]}\n\n` +
-    `Top Notes: ${perfume.topNotes.join(", ")}\n` +
-    `Heart Notes: ${perfume.heartNotes.join(", ")}\n` +
-    `Base Notes: ${perfume.baseNotes.join(", ")}\n\n` +
-    `Created with AI on ScentProtocol — the first digital perfume house on Arc.\n` +
-    `Discover yours → ${url}`;
-
-  const encodedText = encodeURIComponent(shareText);
-  const encodedUrl = encodeURIComponent(url);
+  const tweetText = encodeURIComponent(
+    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}\n\n` +
+      `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
+      `Top: ${perfume.topNotes.join(", ")}\n` +
+      `Heart: ${perfume.heartNotes.join(", ")}\n` +
+      `Base: ${perfume.baseNotes.join(", ")}\n\n` +
+      `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.\n\n` +
+      `Mint yours →`
+  );
   
-  // Updated to X (formerly Twitter)
-  const xUrl = `https://x.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+  // Изменено с twitter.com на x.com
+  const tweetUrl = `https://x.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(url)}`;
+
+  const copyText =
+    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}\n\n` +
+    `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
+    `Top: ${perfume.topNotes.join(", ")}\n` +
+    `Heart: ${perfume.heartNotes.join(", ")}\n` +
+    `Base: ${perfume.baseNotes.join(", ")}\n\n` +
+    `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.\n\n` +
+    `Mint yours → ${url}`;
 
   const drawCard = useCallback(() => {
     const canvas = canvasRef.current;
@@ -80,7 +85,7 @@ export default function ShareCard({
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // Animated border glow simulation (static for canvas)
+    // Animated border glow
     ctx.shadowColor = rarityHex;
     ctx.shadowBlur = 80;
     ctx.strokeStyle = rarityHex;
@@ -102,24 +107,24 @@ export default function ShareCard({
 
     // Brand
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 32px system-ui, -apple-system, sans-serif";
+    ctx.font = "bold 32px sans-serif";
     ctx.fillText("ScentProtocol", 80, 110);
     ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "22px system-ui, -apple-system, sans-serif";
+    ctx.font = "22px sans-serif";
     ctx.fillText("Built on Arc", 80, 140);
 
     // Token ID
     ctx.fillStyle = rarityHex;
-    ctx.font = "bold 28px system-ui, -apple-system, sans-serif";
+    ctx.font = "bold 28px sans-serif";
     ctx.fillText(`SCENT #${tokenId}`, 80, 200);
 
     // Name
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 80px system-ui, -apple-system, sans-serif";
+    ctx.font = "bold 80px sans-serif";
     ctx.fillText(perfume.name, 80, 300);
 
     // Tags
-    ctx.font = "30px system-ui, -apple-system, sans-serif";
+    ctx.font = "30px sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     const tags = `${GENDER[perfume.gender]}  ·  ${TYPE[perfume.pType]}  ·  ${perfume.concentration}%  ·  ${RARITY[perfume.rarity]}`;
     ctx.fillText(tags, 80, 360);
@@ -136,11 +141,11 @@ export default function ShareCard({
     ctx.shadowBlur = 0;
 
     // Notes
-    ctx.font = "bold 28px system-ui, -apple-system, sans-serif";
+    ctx.font = "bold 28px sans-serif";
     ctx.fillStyle = rarityHex;
     ctx.fillText("PYRAMID OF NOTES", 80, 450);
 
-    ctx.font = "26px system-ui, -apple-system, sans-serif";
+    ctx.font = "26px sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.95)";
     ctx.fillText(`Top:     ${perfume.topNotes.join(", ")}`, 80, 495);
     ctx.fillText(`Heart:   ${perfume.heartNotes.join(", ")}`, 80, 535);
@@ -148,7 +153,7 @@ export default function ShareCard({
 
     // URL
     ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "22px system-ui, -apple-system, sans-serif";
+    ctx.font = "22px sans-serif";
     ctx.textAlign = "right";
     ctx.fillText(url, W - 80, H - 60);
     ctx.textAlign = "left";
@@ -167,49 +172,32 @@ export default function ShareCard({
   };
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareText);
-      // Optional: Add a toast notification here instead of alert
-      setOpen(false);
-    } catch (err) {
-      console.error("Failed to copy text", err);
-    }
-  };
-
-  const handleShareX = () => {
-    window.open(xUrl, "_blank", "width=600,height=400");
+    await navigator.clipboard.writeText(copyText);
     setOpen(false);
   };
 
-  // Close modal on Escape key (Accessibility best practice)
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    if (open) window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, [open]);
+  const handleTweet = () => {
+    window.open(tweetUrl, "_blank", "width=600,height=400");
+    setOpen(false);
+  };
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs text-white/50 hover:text-amber-400 transition-colors underline underline-offset-4 decoration-white/20 hover:decoration-amber-400/50"
-        aria-label="Share this NFT"
+        className="text-xs text-white/50 hover:text-white transition-colors underline underline-offset-2"
       >
         Share Card
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
           onClick={() => setOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="share-modal-title"
         >
           <div
-            className="relative rounded-2xl p-6 max-w-sm w-full space-y-5 overflow-hidden border border-white/10 shadow-2xl"
+            className="relative rounded-2xl p-6 max-w-sm w-full space-y-5 overflow-hidden"
             style={{
               background: `linear-gradient(145deg, ${rarityBg} 0%, #0f172a 100%)`,
             }}
@@ -222,16 +210,22 @@ export default function ShareCard({
                 background: `linear-gradient(90deg, ${rarityHex}40, ${rarityHex}, ${rarityHex}40)`,
                 backgroundSize: "200% 100%",
                 animation: "shimmer-border 3s linear infinite",
-                padding: "1px",
+                padding: "2px",
                 WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                 WebkitMaskComposite: "xor",
                 maskComposite: "exclude",
               }}
             />
 
-            <h3 id="share-modal-title" className="relative text-lg font-bold text-white">
-              Share Your Scent
-            </h3>
+            {/* Inner glow */}
+            <div 
+              className="absolute inset-0 rounded-2xl pointer-events-none opacity-30"
+              style={{
+                background: `radial-gradient(circle at 50% 0%, ${rarityHex}30, transparent 70%)`,
+              }}
+            />
+
+            <h3 className="relative text-lg font-bold text-white">Share Your Scent</h3>
 
             {/* Preview card */}
             <div
@@ -241,6 +235,7 @@ export default function ShareCard({
                 border: `1px solid ${rarityHex}50`,
               }}
             >
+              {/* Shimmer overlay */}
               <div 
                 className="absolute inset-0 pointer-events-none"
                 style={{
@@ -264,40 +259,30 @@ export default function ShareCard({
               </div>
             </div>
 
-            {/* Action Buttons - Intent-based coloring, no emojis */}
             <div className="relative grid grid-cols-2 gap-3">
               <button
-                onClick={handleShareX}
-                className="py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-white/10 text-white text-sm font-semibold transition-all hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] flex items-center justify-center gap-2"
+                onClick={handleTweet}
+                className="py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(14,165,233,0.4)]"
               >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-                Post on X
+                ✖ Post on X
               </button>
               <button
                 onClick={handleDownload}
-                className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-all hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2"
+                className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Save PNG
+                🖼️ Save PNG
               </button>
               <button
                 onClick={handleCopy}
-                className="py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-sm font-semibold transition-colors col-span-2 border border-white/10 flex items-center justify-center gap-2"
+                className="py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors col-span-2 border border-white/10"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                Copy Text
+                📋 Copy Text
               </button>
             </div>
 
             <button
               onClick={() => setOpen(false)}
-              className="relative w-full text-xs text-white/40 hover:text-white transition-colors py-2"
+              className="relative w-full text-xs text-white/40 hover:text-white/70 transition-colors"
             >
               Close
             </button>
@@ -314,7 +299,7 @@ export default function ShareCard({
             `}</style>
           </div>
 
-          <canvas ref={canvasRef} style={{ display: "none" }} aria-hidden="true" />
+          <canvas ref={canvasRef} style={{ display: "none" }} />
         </div>
       )}
     </>
