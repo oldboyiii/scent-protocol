@@ -110,7 +110,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   };
 
   const quickScenarios = [
-    { emoji: "🏖️", text: "Beach sunset", tags: "summer beach" },
+    { emoji: "️", text: "Beach sunset", tags: "summer beach" },
     { emoji: "💼", text: "CEO meeting", tags: "work elegant" },
     { emoji: "💃", text: "First date", tags: "date romantic" },
     { emoji: "✨", text: "Gala night", tags: "luxury elegant" },
@@ -213,3 +213,4 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
       )}
     </div>
   );
+}
