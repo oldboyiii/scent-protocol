@@ -23,7 +23,7 @@ interface KnowledgeEntry {
   archetype?: string;
 }
 
-// Цвета для нот (маппинг для Scent DNA)
+// Colors for notes (mapping for Scent DNA)
 const NOTE_COLORS: Record<string, string> = {
   "Bergamot": "#fbbf24", "Lemon": "#fbbf24", "Citrus": "#fbbf24", "Orange": "#fbbf24",
   "Rose": "#ec4899", "Jasmine": "#ec4899", "Floral": "#ec4899", "Peony": "#ec4899",
@@ -64,7 +64,7 @@ const CREATIVE_DESCRIPTIONS: Record<number, Record<number, string>> = {
 const TYPE_NAMES = ["Parfum", "Eau de Parfum", "Eau de Toilette", "Eau de Cologne"];
 const GENDER_NAMES = ["Unisex", "Male", "Female"];
 
-// SVG иконки для сценариев
+// SVG icons for scenarios
 const SCENARIO_ICONS: Record<string, JSX.Element> = {
   beach: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
   work: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
@@ -91,7 +91,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     return "";
   };
 
-  // Генерация цветов DNA на основе реальных нот
+  // Generate DNA colors based on real notes
   const generateDNAColors = (notes: { top?: string[]; heart?: string[]; base?: string[] }): string[] => {
     const allNotes = [...(notes.top || []), ...(notes.heart || []), ...(notes.base || [])];
     const colors: string[] = [];
@@ -101,7 +101,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
       if (color) colors.push(color);
     });
 
-    // Если нот мало, добавляем дефолтные
+    // If notes are few, add defaults
     while (colors.length < 8) {
       colors.push("#6366f1");
     }
@@ -136,6 +136,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         }
       }
 
+      // If user selected gender manually, use it
       if (gender === undefined) gender = selectedGender;
       if (pType === undefined) pType = 2;
 
