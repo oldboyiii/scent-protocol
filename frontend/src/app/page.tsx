@@ -79,19 +79,16 @@ export default function Home() {
       </div>
 
       {/* Hero Section */}
-<section className="text-center max-w-3xl mx-auto px-4 animate-fade-up">
-  {/* Added pb-4 and increased gap to prevent letter clipping */}
-  <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-6 pb-2 leading-none">
+<section className="text-center max-w-3xl mx-auto px-4 animate-fade-up pt-4">
+  <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-8 pb-4 leading-none">
     Digital Perfume House
   </h1>
   
-  {/* Increased gap from mb-6 to mb-8 */}
   <p className="text-lg text-white/70 mb-8">
     Create unique AI-generated fragrances. Built on Arc. Every formula is an NFT certificate of ownership.
   </p>
   
-  {/* Added mt-4 for extra spacing */}
-  <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50 mt-4">
+  <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50 mt-6">
     <span className="flex items-center gap-2">
       <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
       USDC = gas
