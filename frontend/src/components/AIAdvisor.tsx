@@ -12,106 +12,106 @@ interface Suggestion {
   vibe: string;
 }
 
-// Расширенная база знаний с весами и категориями
-const KNOWLEDGE_BASE: Record<string, { 
-  gender?: number; 
-  pType?: number; 
+interface KnowledgeEntry {
+  gender?: number;
+  pType?: number;
   intensity?: number;
   tags: string[];
   notes: { top?: string[]; heart?: string[]; base?: string[] };
   scenarios: string[];
-}> = {
-  // СЕЗОНЫ И ВРЕМЯ
-  "summer": { 
-    pType: 2, 
+}
+
+const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
+  // SEASONS AND TIME
+  summer: {
+    pType: 2,
     intensity: 1,
     tags: ["fresh", "light", "citrus", "aquatic", "airy"],
     notes: { top: ["Bergamot", "Lemon", "Mint"], heart: ["Jasmine", "Neroli"], base: ["White Musk", "Cedar"] },
     scenarios: ["beach vacation", "hot day", "poolside", "tropical getaway"]
   },
-  "winter": { 
-    pType: 0, 
+  winter: {
+    pType: 0,
     intensity: 3,
     tags: ["warm", "woody", "spicy", "rich", "cozy"],
     notes: { top: ["Cinnamon", "Cardamom"], heart: ["Rose", "Oud"], base: ["Vanilla", "Amber", "Sandalwood"] },
     scenarios: ["snowy evening", "fireside", "holiday party", "ski resort"]
   },
-  "spring": {
+  spring: {
     pType: 2,
     intensity: 1,
     tags: ["floral", "fresh", "green", "blooming", "delicate"],
     notes: { top: ["Peony", "Freesia"], heart: ["Lily", "Violet"], base: ["Moss", "Musk"] },
     scenarios: ["garden party", "first date", "morning walk", "picnic"]
   },
-  "autumn": {
+  autumn: {
     pType: 1,
     intensity: 2,
     tags: ["earthy", "warm", "mysterious", "amber", "spiced"],
     notes: { top: ["Apple", "Pear"], heart: ["Amber", "Patchouli"], base: ["Oakmoss", "Tonka"] },
     scenarios: ["coffee shop", "art gallery", "rainy day", "harvest festival"]
   },
-  
-  // ВРЕМЯ СУТОК
-  "morning": { 
-    pType: 2, 
+
+  // TIME OF DAY
+  morning: {
+    pType: 2,
     intensity: 1,
     tags: ["fresh", "energizing", "clean", "bright"],
     notes: { top: ["Grapefruit", "Orange"], heart: ["Tea", "Ginger"], base: ["Light Woods"] },
     scenarios: ["breakfast", "morning run", "yoga session"]
   },
-  "day": { 
-    pType: 2, 
+  day: {
+    pType: 2,
     intensity: 1,
     tags: ["versatile", "balanced", "professional"],
     notes: { top: ["Bergamot"], heart: ["Lavender"], base: ["Vetiver"] },
     scenarios: ["lunch meeting", "shopping", "casual outing"]
   },
-  "evening": { 
-    pType: 1, 
+  evening: {
+    pType: 1,
     intensity: 2,
     tags: ["sophisticated", "elegant", "refined"],
     notes: { top: ["Black Pepper"], heart: ["Violet", "Iris"], base: ["Sandalwood", "Amber"] },
     scenarios: ["dinner", "theater", "cocktail bar"]
   },
-  "night": { 
-    pType: 0, 
+  night: {
+    pType: 0,
     intensity: 3,
     tags: ["intense", "mysterious", "seductive", "bold"],
     notes: { top: ["Saffron"], heart: ["Oud", "Leather"], base: ["Tobacco", "Vanilla"] },
     scenarios: ["club", "late night", "romantic encounter"]
   },
-  
-  // СОБЫТИЯ И ОККАЗИИ
-  "date": { 
-    gender: undefined,
-    pType: 1, 
+
+  // EVENTS AND OCCASIONS
+  date: {
+    pType: 1,
     intensity: 2,
     tags: ["seductive", "romantic", "floral", "sweet", "alluring"],
     notes: { top: ["Pink Pepper"], heart: ["Rose", "Jasmine"], base: ["Musk", "Vanilla"] },
     scenarios: ["first date", "anniversary", "romantic dinner"]
   },
-  "work": { 
-    pType: 2, 
+  work: {
+    pType: 2,
     intensity: 1,
     tags: ["clean", "professional", "subtle", "confident", "minimal"],
     notes: { top: ["Lemon"], heart: ["Neroli", "Petitgrain"], base: ["Cedar", "White Musk"] },
     scenarios: ["presentation", "interview", "business meeting", "office"]
   },
-  "party": { 
-    pType: 1, 
+  party: {
+    pType: 1,
     intensity: 3,
     tags: ["bold", "sparkling", "sweet", "energetic", "fun"],
     notes: { top: ["Champagne", "Citrus"], heart: ["Tuberose", "Orchid"], base: ["Amber", "Tonka"] },
     scenarios: ["birthday", "celebration", "nightclub", "festival"]
   },
-  "sport": { 
-    pType: 3, 
+  sport: {
+    pType: 3,
     intensity: 1,
     tags: ["energetic", "fresh", "minty", "aquatic", "dynamic"],
     notes: { top: ["Mint", "Eucalyptus"], heart: ["Sea Notes"], base: ["Driftwood"] },
     scenarios: ["gym", "running", "swimming", "tennis"]
   },
-  "wedding": {
+  wedding: {
     gender: 2,
     pType: 0,
     intensity: 2,
@@ -119,56 +119,55 @@ const KNOWLEDGE_BASE: Record<string, {
     notes: { top: ["Pear", "Bergamot"], heart: ["Tuberose", "Orange Blossom"], base: ["Vanilla", "Sandalwood"] },
     scenarios: ["bride", "wedding ceremony", "reception"]
   },
-  
-  // НАСТРОЕНИЯ И АТМОСФЕРА
-  "romantic": { 
-    gender: undefined, 
-    pType: 1, 
+
+  // MOODS AND ATMOSPHERE
+  romantic: {
+    pType: 1,
     intensity: 2,
     tags: ["rose", "jasmine", "soft", "tender", "dreamy"],
     notes: { top: ["Raspberry"], heart: ["Rose", "Peony"], base: ["Musk", "Patchouli"] },
     scenarios: ["candlelight", "love letter", "slow dance"]
   },
-  "masculine": { 
-    gender: 1, 
-    pType: 1, 
+  masculine: {
+    gender: 1,
+    pType: 1,
     intensity: 2,
     tags: ["woody", "leathery", "aromatic", "strong", "rugged"],
     notes: { top: ["Bergamot", "Lavender"], heart: ["Geranium", "Sage"], base: ["Oud", "Leather"] },
     scenarios: ["boardroom", "luxury car", "gentleman's club"]
   },
-  "feminine": { 
-    gender: 2, 
-    pType: 1, 
+  feminine: {
+    gender: 2,
+    pType: 1,
     intensity: 2,
     tags: ["floral", "fruity", "sweet", "delicate", "graceful"],
     notes: { top: ["Mandarin", "Black Currant"], heart: ["Jasmine", "Freesia"], base: ["Vanilla", "Sandalwood"] },
     scenarios: ["spa day", "brunch", "shopping"]
   },
-  "elegant": { 
-    pType: 0, 
+  elegant: {
+    pType: 0,
     intensity: 2,
     tags: ["sophisticated", "refined", "classic", "timeless", "luxury"],
     notes: { top: ["Aldehydes"], heart: ["Iris", "Rose"], base: ["Sandalwood", "Amber"] },
     scenarios: ["opera", "gala", "five star hotel"]
   },
-  "casual": { 
-    pType: 2, 
+  casual: {
+    pType: 2,
     intensity: 1,
     tags: ["easy-going", "versatile", "comfortable", "relaxed"],
     notes: { top: ["Bergamot"], heart: ["Lavender", "Geranium"], base: ["Cedar", "Musk"] },
     scenarios: ["weekend", "errands", "coffee with friends"]
   },
-  
-  // АРОМАТИЧЕСКИЕ СЕМЕЙСТВА
-  "woody": {
+
+  // AROMATIC FAMILIES
+  woody: {
     pType: 1,
     intensity: 2,
     tags: ["earthy", "natural", "grounding", "forest"],
     notes: { top: ["Bergamot"], heart: ["Vetiver", "Patchouli"], base: ["Cedar", "Sandalwood", "Oud"] },
     scenarios: ["hiking", "cabin retreat", "autumn walk"]
   },
-  "floral": {
+  floral: {
     gender: 2,
     pType: 1,
     intensity: 2,
@@ -176,51 +175,51 @@ const KNOWLEDGE_BASE: Record<string, {
     notes: { top: ["Freesia"], heart: ["Rose", "Peony", "Lily"], base: ["Musk", "Amber"] },
     scenarios: ["flower shop", "spring garden", "tea party"]
   },
-  "citrus": {
+  citrus: {
     pType: 2,
     intensity: 1,
     tags: ["fresh", "energizing", "zesty", "bright", "uplifting"],
     notes: { top: ["Lemon", "Orange", "Bergamot"], heart: ["Ginger", "Neroli"], base: ["Light Woods"] },
     scenarios: ["morning shower", "breakfast", "beach day"]
   },
-  "oriental": {
+  oriental: {
     pType: 0,
     intensity: 3,
     tags: ["exotic", "spicy", "warm", "mysterious", "sensual"],
     notes: { top: ["Saffron", "Cardamom"], heart: ["Oud", "Incense"], base: ["Vanilla", "Amber", "Musk"] },
     scenarios: ["moroccan market", "incense shop", "desert night"]
   },
-  "fresh": {
+  fresh: {
     pType: 2,
     intensity: 1,
     tags: ["clean", "aquatic", "crisp", "pure", "airy"],
     notes: { top: ["Sea Salt", "Bergamot"], heart: ["Sage", "Lavender"], base: ["Driftwood", "Musk"] },
     scenarios: ["ocean breeze", "fresh laundry", "mountain air"]
   },
-  
-  // КОНКРЕТНЫЕ СЦЕНАРИИ
-  "beach": { 
-    pType: 3, 
+
+  // SPECIFIC SCENARIOS
+  beach: {
+    pType: 3,
     intensity: 1,
     tags: ["salty", "sunny", "tropical", "coconut", "relaxed"],
     notes: { top: ["Coconut", "Pineapple"], heart: ["Tiare Flower"], base: ["Sandalwood", "Vanilla"] },
     scenarios: ["tanning", "surfing", "beach bar"]
   },
-  "luxury": { 
-    pType: 0, 
+  luxury: {
+    pType: 0,
     intensity: 3,
     tags: ["rich", "exclusive", "rare", "expensive", "opulent"],
     notes: { top: ["Saffron", "Truffle"], heart: ["Oud", "Rose"], base: ["Ambergris", "Leather"] },
     scenarios: ["private jet", "yacht", "michelin restaurant"]
   },
-  "cozy": {
+  cozy: {
     pType: 1,
     intensity: 2,
     tags: ["warm", "comforting", "homey", "sweet", "soft"],
     notes: { top: ["Apple", "Cinnamon"], heart: ["Vanilla Orchid"], base: ["Tonka", "Cashmeran"] },
     scenarios: ["reading by fireplace", "baking", "rainy afternoon"]
   },
-  "adventure": {
+  adventure: {
     gender: 1,
     pType: 1,
     intensity: 2,
@@ -228,7 +227,7 @@ const KNOWLEDGE_BASE: Record<string, {
     notes: { top: ["Ginger", "Cardamom"], heart: ["Tobacco Leaf", "Oud"], base: ["Leather", "Amber"] },
     scenarios: ["mountain climbing", "safari", "road trip"]
   },
-  "meditation": {
+  meditation: {
     pType: 0,
     intensity: 1,
     tags: ["calm", "spiritual", "peaceful", "zen", "incense"],
@@ -237,8 +236,7 @@ const KNOWLEDGE_BASE: Record<string, {
   },
 };
 
-// Креативные описания для разных типов
-const CREATIVE_DESCRIPTIONS = {
+const CREATIVE_DESCRIPTIONS: Record<number, Record<number, string>> = {
   0: {
     0: "A unisex elixir of pure sophistication — where artistry meets alchemy.",
     1: "Unisex elegance captured in liquid form — timeless and unforgettable.",
@@ -272,13 +270,20 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   const [loading, setLoading] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
 
+  const getCreativeDescription = (gender: number, pType: number): string => {
+    if (gender in CREATIVE_DESCRIPTIONS && pType in CREATIVE_DESCRIPTIONS[gender]) {
+      return CREATIVE_DESCRIPTIONS[gender][pType];
+    }
+    return "";
+  };
+
   const analyze = (customInput?: string) => {
     const text = customInput || input;
     if (!text.trim()) return;
-    
+
     setLoading(true);
     setSelectedScenario(null);
-    
+
     setTimeout(() => {
       const lower = text.toLowerCase();
       let gender: number | undefined;
@@ -288,43 +293,35 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
       const matchedNotes: { top?: string[]; heart?: string[]; base?: string[] } = {};
       let matchCount = 0;
 
-      // Умный поиск с весами
       for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
         if (lower.includes(keyword)) {
           matchCount++;
           if (data.gender !== undefined && gender === undefined) gender = data.gender;
           if (data.pType !== undefined) {
-            // Если несколько совпадений, выбираем среднее или более интенсивное
             pType = pType !== undefined ? Math.min(pType, data.pType) : data.pType;
           }
           if (data.intensity !== undefined) intensity = Math.max(intensity, data.intensity);
           matchedTags.push(...data.tags);
-          
-          // Объединяем ноты
+
           if (data.notes.top) matchedNotes.top = [...(matchedNotes.top || []), ...data.notes.top];
           if (data.notes.heart) matchedNotes.heart = [...(matchedNotes.heart || []), ...data.notes.heart];
           if (data.notes.base) matchedNotes.base = [...(matchedNotes.base || []), ...data.notes.base];
         }
       }
 
-      // Дефолтные значения если ничего не найдено
       if (gender === undefined) gender = 0;
       if (pType === undefined) pType = 2;
 
-      // Убираем дубликаты
       const uniqueTags = [...new Set(matchedTags)].slice(0, 5);
-      
-      // Выбираем топ-3 ноты для каждого уровня
+
       const topNotes = matchedNotes.top ? [...new Set(matchedNotes.top)].slice(0, 3) : ["Bergamot", "Citrus"];
       const heartNotes = matchedNotes.heart ? [...new Set(matchedNotes.heart)].slice(0, 3) : ["Floral"];
       const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
 
-      // Креативное описание на основе найденных тегов
-      const vibe = uniqueTags.length > 0 
+      const vibe = uniqueTags.length > 0
         ? uniqueTags.join(", ")
         : "unique and mysterious";
 
-      // Умная генерация причины
       let reason = "";
       if (matchCount === 0) {
         reason = `Your vibe is intriguing! I'm sensing something ${vibe}. Let's create something uniquely yours.`;
@@ -334,14 +331,15 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         reason = `A fascinating blend of ${uniqueTags.slice(0, 3).join(", ")}. Your perfect match: a ${GENDER_NAMES[gender].toLowerCase()} ${TYPE_NAMES[pType].toLowerCase()} with depth and character.`;
       }
 
-      // Добавляем креативное описание
-      const creativeDesc = CREATIVE_DESCRIPTIONS[gender][pType];
-      reason += ` ${creativeDesc}`;
+      const creativeDesc = getCreativeDescription(gender, pType);
+      if (creativeDesc) {
+        reason += ` ${creativeDesc}`;
+      }
 
-      setSuggestion({ 
-        gender, 
-        pType, 
-        reason, 
+      setSuggestion({
+        gender,
+        pType,
+        reason,
         topNotes,
         heartNotes,
         baseNotes,
@@ -355,9 +353,9 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     { emoji: "🏖️", text: "Beach sunset", tags: ["summer", "evening", "romantic"] },
     { emoji: "", text: "CEO meeting", tags: ["work", "elegant", "masculine"] },
     { emoji: "💃", text: "First date", tags: ["date", "romantic", "evening"] },
-    { emoji: "", text: "Gala night", tags: ["luxury", "elegant", "night"] },
-    { emoji: "", text: "Yoga retreat", tags: ["meditation", "fresh", "morning"] },
-    { emoji: "🏔️", text: "Mountain adventure", tags: ["adventure", "winter", "woody"] },
+    { emoji: "✨", text: "Gala night", tags: ["luxury", "elegant", "night"] },
+    { emoji: "🧘", text: "Yoga retreat", tags: ["meditation", "fresh", "morning"] },
+    { emoji: "️", text: "Mountain adventure", tags: ["adventure", "winter", "woody"] },
   ];
 
   return (
@@ -371,13 +369,12 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
           <p className="text-xs text-white/50">Powered by fragrance intelligence</p>
         </div>
       </div>
-      
+
       <p className="text-sm text-white/60 mb-6 leading-relaxed">
-        Describe your mood, occasion, or vibe. Our AI analyzes over 100 scenarios to recommend 
+        Describe your mood, occasion, or vibe. Our AI analyzes over 100 scenarios to recommend
         your perfect fragrance profile — complete with note pyramids and creative direction.
       </p>
 
-      {/* Input Area */}
       <div className="flex gap-3 mb-6">
         <input
           type="text"
@@ -406,7 +403,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </button>
       </div>
 
-      {/* Quick Scenarios */}
       <div className="mb-6">
         <p className="text-xs text-white/40 uppercase tracking-wider mb-3">Quick scenarios</p>
         <div className="flex flex-wrap gap-2">
@@ -429,7 +425,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </div>
       </div>
 
-      {/* Suggestion Card */}
       {suggestion && (
         <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-2xl p-6 mb-6 border border-white/10 animate-fade-up">
           <div className="flex items-start justify-between mb-4">
@@ -444,12 +439,11 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
               {suggestion.pType === 0 ? "INTENSE" : suggestion.pType === 1 ? "ELEGANT" : suggestion.pType === 2 ? "FRESH" : "LIGHT"}
             </div>
           </div>
-          
+
           <p className="text-sm text-white/70 italic mb-5 leading-relaxed">
             &ldquo;{suggestion.reason}&rdquo;
           </p>
 
-          {/* Note Pyramid */}
           <div className="space-y-3 mb-5">
             <div className="flex items-center gap-3">
               <span className="text-xs text-white/40 w-16">Top Notes</span>
@@ -492,9 +486,8 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </div>
       )}
 
-      {/* Advanced Tips */}
       <div className="border-t border-white/10 pt-6">
-        <p className="text-xs text-white/40 mb-3"> Try combining multiple elements:</p>
+        <p className="text-xs text-white/40 mb-3">Try combining multiple elements:</p>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="text-white/60">"elegant summer evening"</span>
           <span className="text-white/30">•</span>
