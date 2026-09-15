@@ -5,7 +5,6 @@ import MintForm from "@/components/MintForm";
 import PerfumeCard from "@/components/PerfumeCard";
 import InfoSection from "@/components/InfoSection";
 import Logo from "@/components/Logo";
-import WalletButton from "@/components/WalletButton";
 import Confetti from "@/components/Confetti";
 import AIAdvisor from "@/components/AIAdvisor";
 import RoadmapSection from "@/components/RoadmapSection";
@@ -75,7 +74,6 @@ export default function Home() {
               <p className="text-sm font-bold text-white">ScentProtocol</p>
               <p className="text-xs text-white/50">Built on Arc</p>
             </div>
-            <WalletButton />
           </div>
         </div>
       </div>
