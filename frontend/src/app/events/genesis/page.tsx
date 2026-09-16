@@ -13,6 +13,7 @@ const GENESIS_ABI = [
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
+  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber))",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
 ];
 
@@ -28,35 +29,58 @@ export default function GenesisEventPage() {
   const maxSupply = 100;
   const maxPerWallet = 1;
 
-  // Fetch real-time data from the blockchain
   const fetchContractData = async () => {
     if (!address) return;
-    
     try {
       const w = window as any;
+      if (!w.ethereum) return;
+      
       const provider = new ethers.BrowserProvider(w.ethereum);
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
 
-      // Fetch actual minted count
+      // 1. Общий прогресс
       const remaining = await contract.getRemainingSupply();
-      const minted = await contract.getWalletMintedCount(address);
-      
       const actualMinted = maxSupply - Number(remaining);
       setTotalMinted(actualMinted);
-      setUserMinted(Number(minted));
+
+      // 2. Сначала ищем pending mint для нашего адреса
+      const nextTokenId = Number(await contract.getNextTokenId());
+      let foundPending: number | null = null;
       
-      // If already minted, show success status
-      if (minted > 0n) {
-        setStep("revealed");
-      } else {
-        setStep("idle");
+      for (let i = 1; i < nextTokenId; i++) {
+        try {
+          const p = await contract.getPendingMint(i);
+          if (p.minter && p.minter.toLowerCase() === address.toLowerCase()) {
+            foundPending = i;
+            break;
+          }
+        } catch (err) {
+          // Игнорируем ошибки чтения конкретного токена, идем дальше
+        }
       }
+
+      if (foundPending !== null) {
+        setTokenId(foundPending);
+        setStep("requested");
+        // Считаем countdown от текущего блока
+        const currentBlock = await provider.getBlockNumber();
+        const p = await contract.getPendingMint(foundPending);
+        const blocksPassed = currentBlock - Number(p.blockNumber);
+        const blocksRemaining = Math.max(0, 5 - blocksPassed);
+        setCountdown(blocksRemaining * 2); // ~2 сек на блок
+        return; // Выходим, так как нашли pending
+      }
+
+      // 3. Pending нет — смотрим walletMintedCount
+      const minted = await contract.getWalletMintedCount(address);
+      setUserMinted(Number(minted));
+      setStep(Number(minted) > 0 ? "revealed" : "idle");
+      
     } catch (error) {
       console.error("Failed to fetch contract data:", error);
     }
   };
 
-  // Fetch data on component mount and wallet change
   useEffect(() => {
     fetchContractData();
   }, [address]);
@@ -74,7 +98,6 @@ export default function GenesisEventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
-      // Step 1: Request Mint
       console.log("Calling requestMint...");
       const tx = await contract.requestMint();
       console.log("Transaction sent:", tx.hash);
@@ -82,7 +105,6 @@ export default function GenesisEventPage() {
       const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
 
-      // Extract tokenId from event
       const mintEvent = receipt.logs
         .map((log: any) => {
           try {
@@ -96,9 +118,8 @@ export default function GenesisEventPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
       setTokenId(newTokenId);
       setStep("requested");
-      setCountdown(60);
+      setCountdown(10); // Исправлено: ~10 секунд (5 блоков)
 
-      // Countdown timer
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
@@ -132,14 +153,17 @@ export default function GenesisEventPage() {
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
       console.log("Calling revealAndMint...");
-      const userSeed = Math.floor(Math.random() * 1e18);
+      
+      // ИСПРАВЛЕНО: безопасная генерация uint256 без overflow
+      const seedBytes = ethers.randomBytes(32);
+      const userSeed = BigInt(ethers.hexlify(seedBytes));
+      console.log("userSeed generated safely:", userSeed.toString());
+      
       const tx = await contract.revealAndMint(tokenId, userSeed);
       await tx.wait();
 
       setStep("revealed");
-      
-      // Refresh contract data after mint
-      await fetchContractData();
+      await fetchContractData(); // Обновляем данные после успешного минта
       
       alert("NFT successfully minted! Check your Collection.");
 
@@ -156,7 +180,6 @@ export default function GenesisEventPage() {
   return (
     <div className="min-h-screen py-20 px-4">
       <div className="max-w-3xl mx-auto">
-        {/* Back button */}
         <Link href="/events" className="inline-flex items-center gap-2 text-white/50 hover:text-amber-400 mb-12 transition-colors text-sm">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -164,16 +187,13 @@ export default function GenesisEventPage() {
           Back to Events
         </Link>
 
-        {/* Header */}
         <div className="text-center mb-16">
           <span className="inline-block px-4 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold uppercase tracking-wider border border-amber-500/20 mb-6">
             Live Now
           </span>
-          
           <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-orange-500 mb-4">
             Genesis Collection
           </h1>
-          
           <p className="text-white/60 text-base max-w-xl mx-auto leading-relaxed">
             The first 100 AI-generated fragrances on Arc Mainnet. 
             <span className="text-amber-400 font-medium"> Free mint </span> 
@@ -181,7 +201,6 @@ export default function GenesisEventPage() {
           </p>
         </div>
 
-        {/* Stats */}
         <div className="mb-16">
           <div className="flex items-center justify-center mb-8">
             <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-500/30" />
@@ -217,7 +236,6 @@ export default function GenesisEventPage() {
           </p>
         </div>
 
-        {/* Mint Card */}
         <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl p-8 border border-white/10 mb-12">
           {step === "idle" && userMinted < maxPerWallet && (
             <div className="flex items-center justify-between">
@@ -264,33 +282,23 @@ export default function GenesisEventPage() {
           )}
 
           {step === "revealed" && (
-  <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-8 text-center">
-    <div className="flex justify-center mb-4">
-      <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
-        <svg 
-          className="w-9 h-9 text-emerald-400" 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2.5} 
-            d="M5 13l4 4L19 7" 
-          />
-        </svg>
-      </div>
-    </div>
-    <p className="text-emerald-400 text-2xl font-bold mb-2">NFT Minted!</p>
-    <p className="text-white/80 mb-1">
-      Token ID: <span className="font-mono text-amber-400">{tokenId || "Check your wallet"}</span>
-    </p>
-    <p className="text-white/50 text-sm">
-      You've reached the maximum of {maxPerWallet} NFT
-    </p>
-  </div>
-)}
+            <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-8 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
+                  <svg className="w-9 h-9 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-emerald-400 text-2xl font-bold mb-2">NFT Minted!</p>
+              <p className="text-white/80 mb-1">
+                Token ID: <span className="font-mono text-amber-400">{tokenId || "Check your wallet"}</span>
+              </p>
+              <p className="text-white/50 text-sm">
+                You've reached the maximum of {maxPerWallet} NFT
+              </p>
+            </div>
+          )}
 
           {userMinted >= maxPerWallet && step !== "revealed" && (
             <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-6 text-center">
@@ -326,7 +334,6 @@ export default function GenesisEventPage() {
           </div>
         </div>
 
-        {/* Info blocks */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-6 rounded-xl bg-white/[0.02] border border-white/5">
             <h3 className="text-lg font-semibold text-white mb-3">What is Genesis?</h3>
