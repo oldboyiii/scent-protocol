@@ -1,1 +1,181 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.26;
 
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
+
+/**
+ * @title ScentMarketplace
+ * @notice Marketplace for trading NFT fragrances with USDC on Arc Mainnet
+ * @dev Uses transferFrom instead of safeTransferFrom for Circle USDC compatibility
+ */
+contract ScentMarketplace is ReentrancyGuard, Ownable2Step {
+    
+    // Arc Mainnet Chain ID для безопасности
+    uint256 private constant ARC_MAINNET_CHAIN_ID = 5042;
+
+    struct Listing {
+        address seller;
+        address nftContract;
+        uint256 price;
+        bool active;
+    }
+
+    mapping(uint256 => Listing) public listings;
+    uint256[] public activeListings;
+    mapping(uint256 => uint256) private activeIndex;
+    
+    IERC20 public immutable usdc;
+
+    event Listed(uint256 indexed tokenId, address indexed seller, address indexed nftContract, uint256 price);
+    event Cancelled(uint256 indexed tokenId, address indexed seller);
+    event Sold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
+
+    /**
+     * @notice Constructor
+     * @param _usdc Address of USDC token (Arc Mainnet: 0x3600000000000000000000000000000000000000)
+     */
+    constructor(address _usdc) Ownable(msg.sender) {
+        // ПРОВЕРКА СЕТИ: Разрешаем деплой только на Arc Mainnet
+        require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be deployed on Arc Mainnet");
+        
+        require(_usdc != address(0), "Invalid USDC address");
+        usdc = IERC20(_usdc);
+    }
+
+    /**
+     * @notice List an NFT for sale
+     * @param nftContract Address of NFT contract
+     * @param tokenId Token ID to list
+     * @param price Price in USDC
+     */
+    function list(address nftContract, uint256 tokenId, uint256 price) external nonReentrant {
+        require(price > 0, "Price must be greater than 0");
+        require(nftContract != address(0), "Invalid NFT contract address");
+        
+        IERC721 nft = IERC721(nftContract);
+        require(nft.ownerOf(tokenId) == msg.sender, "Not the token owner");
+        require(
+            nft.isApprovedForAll(msg.sender, address(this)) || nft.getApproved(tokenId) == address(this),
+            "Marketplace not approved for token transfer"
+        );
+
+        bool isFirstTime = !listings[tokenId].active;
+        
+        listings[tokenId] = Listing({
+            seller: msg.sender,
+            nftContract: nftContract,
+            price: price,
+            active: true
+        });
+
+        if (isFirstTime) {
+            activeIndex[tokenId] = activeListings.length;
+            activeListings.push(tokenId);
+        }
+
+        emit Listed(tokenId, msg.sender, nftContract, price);
+    }
+
+    /**
+     * @notice Cancel a listing
+     * @param tokenId Token ID to cancel
+     */
+    function cancel(uint256 tokenId) external nonReentrant {
+        Listing storage listing = listings[tokenId];
+        require(listing.active, "Listing is not active");
+        require(listing.seller == msg.sender, "Not the seller");
+
+        listing.active = false;
+
+        uint256 index = activeIndex[tokenId];
+        uint256 lastIndex = activeListings.length - 1;
+        
+        if (index != lastIndex) {
+            uint256 lastTokenId = activeListings[lastIndex];
+            activeListings[index] = lastTokenId;
+            activeIndex[lastTokenId] = index;
+        }
+        activeListings.pop();
+        delete activeIndex[tokenId];
+
+        emit Cancelled(tokenId, msg.sender);
+    }
+
+    /**
+     * @notice Buy a listed NFT
+     * @param tokenId Token ID to buy
+     */
+    function buy(uint256 tokenId) external nonReentrant {
+        Listing storage listing = listings[tokenId];
+        require(listing.active, "Listing is not active");
+
+        address seller = listing.seller;
+        address nftContract = listing.nftContract;
+        uint256 price = listing.price;
+
+        // Verify seller still owns the NFT
+        require(IERC721(nftContract).ownerOf(tokenId) == seller, "Seller no longer owns this NFT");
+
+        // Verify marketplace is approved to transfer NFT
+        require(
+            IERC721(nftContract).isApprovedForAll(seller, address(this)) || 
+            IERC721(nftContract).getApproved(tokenId) == address(this),
+            "Marketplace not approved by seller"
+        );
+
+        // Mark as inactive before transfers
+        listing.active = false;
+
+        // Remove from active listings array (O(1) operation)
+        uint256 index = activeIndex[tokenId];
+        uint256 lastIndex = activeListings.length - 1;
+        if (index != lastIndex) {
+            uint256 lastTokenId = activeListings[lastIndex];
+            activeListings[index] = lastTokenId;
+            activeIndex[lastTokenId] = index;
+        }
+        activeListings.pop();
+        delete activeIndex[tokenId];
+
+        // CRITICAL FIX: Use transferFrom instead of safeTransferFrom
+        // NativeFiatTokenV2_2 (Circle USDC on Arc) compatibility
+        usdc.transferFrom(msg.sender, seller, price);
+
+        // Transfer NFT to buyer
+        IERC721(nftContract).transferFrom(seller, msg.sender, tokenId);
+
+        emit Sold(tokenId, seller, msg.sender, price);
+    }
+
+    /**
+     * @notice Get all active listing token IDs
+     * @return Array of active token IDs
+     */
+    function getActiveListings() external view returns (uint256[] memory) {
+        return activeListings;
+    }
+
+    /**
+     * @notice Get total number of active listings
+     * @return Count of active listings
+     */
+    function getActiveCount() external view returns (uint256) {
+        return activeListings.length;
+    }
+    
+    /**
+     * @notice Get listing details
+     * @param tokenId Token ID
+     * @return seller Seller address
+     * @return nftContract NFT contract address
+     * @return price Price in USDC
+     * @return active Listing status
+     */
+    function getListing(uint256 tokenId) external view returns (address seller, address nftContract, uint256 price, bool active) {
+        Listing storage l = listings[tokenId];
+        return (l.seller, l.nftContract, l.price, l.active);
+    }
+}
