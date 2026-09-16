@@ -36,7 +36,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
     }
 
     setLoading(true);
-    const toastId = addToast("Preparing transaction...", "loading");
+    const toastId = addToast("Confirm the transaction in your wallet...", "loading");
 
     try {
       const provider = new ethers.BrowserProvider(w.ethereum);
@@ -46,26 +46,21 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       const contract = getContract(signer);
       const usdc = getUSDCContract(signer);
 
-      // 1. Get mint price (will be 1_000_000n for 1 USDC with 6 decimals)
       const mintPrice = await contract.mintPrice();
       updateToast(toastId, "Checking USDC allowance...", "loading");
 
-      // 2. Approve USDC if needed
       const allowance = await usdc.allowance(userAddress, CONTRACT_ADDRESS);
       if (allowance < mintPrice) {
         updateToast(toastId, "Approving USDC spend...", "loading");
-        // Approve 100x the mint price to save gas on future mints
-        const approveAmount = mintPrice * 100n;
-        const txApprove = await usdc.approve(CONTRACT_ADDRESS, approveAmount);
-        await txApprove.wait();
+        const tx = await usdc.approve(CONTRACT_ADDRESS, mintPrice * BigInt(100));
+        await tx.wait();
       }
 
-      // 3. STEP 1: Request Mint (locks USDC, reserves TokenId)
+      // STEP 1: Request Mint
       updateToast(toastId, "Step 1/2: Requesting mint...", "loading");
       const txRequest = await contract.requestMint();
       const receiptRequest = await txRequest.wait();
 
-      // Parse TokenId from MintRequested event
       let tokenId = 0;
       for (const log of receiptRequest.logs) {
         if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) continue;
@@ -81,22 +76,20 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
         } catch {}
       }
 
-      if (tokenId === 0) throw new Error("TokenId not found in request logs");
+      if (tokenId === 0) throw new Error("TokenId not found");
 
-      // 4. Wait for reveal blocks (5 blocks on Arc is ~5-10 seconds)
-      updateToast(toastId, `Step 2/2: Waiting for reveal (Token #${tokenId})...`, "loading");
-      await new Promise((resolve) => setTimeout(resolve, 12000)); // Wait 12 seconds to be safe
+      // Wait for reveal
+      updateToast(toastId, `Step 2/2: Waiting for reveal...`, "loading");
+      await new Promise((resolve) => setTimeout(resolve, 12000));
 
-      // 5. STEP 2: Reveal and Mint
+      // STEP 2: Reveal and Mint
       updateToast(toastId, "Revealing your Scent NFT...", "loading");
-      const userSeed = BigInt(Math.floor(Math.random() * 1000000000)); // Random seed for fairness
+      const userSeed = BigInt(Math.floor(Math.random() * 1000000000));
       const txReveal = await contract.revealAndMint(tokenId, userSeed);
       await txReveal.wait();
 
-      // 6. Fetch perfume data
       updateToast(toastId, "Fetching your perfume data...", "loading");
       const rawPerfume = await contract.getPerfume(tokenId);
-      
       const perfume: PerfumeData = {
         name: rawPerfume.name,
         gender: Number(rawPerfume.gender),
@@ -116,12 +109,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       updateToast(toastId, `Scent #${tokenId} minted successfully!`, "success");
     } catch (error: any) {
       console.error(error);
-      let errorMsg = "Transaction failed. Please try again.";
-      if (error?.reason) errorMsg = error.reason;
-      else if (error?.message) errorMsg = error.message;
-      else if (error?.data?.message) errorMsg = error.data.message;
-      
-      updateToast(toastId, errorMsg, "error");
+      updateToast(toastId, error?.reason || error?.message || "Transaction failed. Please try again.", "error");
     } finally {
       setLoading(false);
     }
@@ -183,7 +171,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
                 onClick={() => setGender(i)}
                 className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   gender === i
-                    ? "bg-amber-600 text-white shadow-lg"
+                    ? "bg-amber-600 text-white"
                     : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
@@ -207,7 +195,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
                 onClick={() => setPType(i)}
                 className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   pType === i
-                    ? "bg-amber-600 text-white shadow-lg"
+                    ? "bg-amber-600 text-white"
                     : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
@@ -222,21 +210,9 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       <button
         onClick={mint}
         disabled={loading}
-        className={`w-full py-3 px-4 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-          loading ? "animate-pulse" : ""
-        }`}
+        className={`w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${loading ? "animate-glow" : ""}`}
       >
-        {loading ? (
-          <>
-            <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            Processing...
-          </>
-        ) : (
-          "Create for 1 USDC"
-        )}
+        {loading ? "Processing..." : "Create for 1 USDC"}
       </button>
 
       <p className="text-xs text-white/40 text-center mt-4">
