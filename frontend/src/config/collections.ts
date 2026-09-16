@@ -14,7 +14,7 @@ export const COLLECTIONS: Record<string, CollectionConfig> = {
   genesis: {
     id: "genesis",
     name: "Genesis",
-    contractAddress: "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf",
+    contractAddress: "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9",
     badgeIcon: "🏆",
     badgeColor: "bg-amber-500/20 text-amber-300",
     borderColor: "border-amber-500/40",
@@ -25,7 +25,7 @@ export const COLLECTIONS: Record<string, CollectionConfig> = {
   scentProtocol: {
     id: "scentProtocol",
     name: "ScentProtocol",
-    contractAddress: "0x5a8EFf24A69200c9D7F7E80d6b72960c72024b63",
+    contractAddress: "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9",
     badgeIcon: "",
     badgeColor: "bg-purple-500/20 text-purple-300",
     borderColor: "border-purple-500/40",
