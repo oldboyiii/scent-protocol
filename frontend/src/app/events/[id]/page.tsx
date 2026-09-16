@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import Link from "next/link";
 
 // Updated to the correctly deployed Genesis contract address
-const GENESIS_CONTRACT_ADDRESS = "0x1152E29703313B49BAD9560af64458E24C785E2B";
+const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 
 const GENESIS_ABI = [
   "function requestMint() external returns (uint256)",
