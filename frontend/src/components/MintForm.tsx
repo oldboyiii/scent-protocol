@@ -21,6 +21,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
   const [pType, setPType] = useState(defaultType ?? 2);
   const [loading, setLoading] = useState(false);
 
+  // Update state when props from AI Advisor change
   useEffect(() => {
     if (defaultGender !== undefined) setGender(defaultGender);
     if (defaultType !== undefined) setPType(defaultType);
@@ -79,7 +80,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       if (tokenId === 0) throw new Error("TokenId not found");
 
       // Wait for reveal
-      updateToast(toastId, `Step 2/2: Waiting for reveal...`, "loading");
+      updateToast(toastId, "Step 2/2: Waiting for reveal...", "loading");
       await new Promise((resolve) => setTimeout(resolve, 12000));
 
       // STEP 2: Reveal and Mint
@@ -171,7 +172,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
                 onClick={() => setGender(i)}
                 className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   gender === i
-                    ? "bg-amber-600 text-white"
+                    ? "bg-blue-500 text-white"
                     : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
@@ -195,7 +196,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
                 onClick={() => setPType(i)}
                 className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   pType === i
-                    ? "bg-amber-600 text-white"
+                    ? "bg-blue-500 text-white"
                     : "bg-white/5 text-white/60 hover:bg-white/10"
                 }`}
               >
