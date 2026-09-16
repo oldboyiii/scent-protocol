@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 
 export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
 export const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x3600000000000000000000000000000000000000";
-export const GENESIS_ADDRESS = "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9";
+export const GENESIS_ADDRESS = "0x1152E29703313B49BAD9560af64458E24C785E2B";
 
 export const SCENT_PROTOCOL_ABI = [
   "function balanceOf(address account) external view returns (uint256)",
