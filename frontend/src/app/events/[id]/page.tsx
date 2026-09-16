@@ -53,28 +53,29 @@ export default function EventDetailPage() {
           const minted = await contract.getWalletMintedCount(address);
           setUserMinted(Number(minted));
           
-          // Если уже минтил — показываем успех
+          // If already revealed, show success
           if (Number(minted) >= maxPerWallet) {
             setStep("revealed");
             return;
           }
 
-          // Проверяем, есть ли pending mint для этого пользователя
-          // Перебираем tokenId от 1 до nextTokenId-1
+          // Check for pending mint - get nextTokenId and check the last one
           const nextTokenId = await contract.getNextTokenId();
-          for (let i = 1; i < Number(nextTokenId); i++) {
-            const pending = await contract.getPendingMint(i);
+          const lastTokenId = Number(nextTokenId) - 1;
+          
+          if (lastTokenId >= 1) {
+            // Check if the last minted tokenId belongs to this user
+            const pending = await contract.getPendingMint(lastTokenId);
             if (pending.minter.toLowerCase() === address.toLowerCase()) {
-              // Найден pending mint для текущего пользователя
-              setTokenId(i);
+              // Found pending mint for this user
+              setTokenId(lastTokenId);
               setStep("requested");
               
-              // Проверяем, прошло ли 5 блоков
+              // Calculate blocks remaining
               const currentBlock = await provider.getBlockNumber();
               const blocksPassed = currentBlock - Number(pending.blockNumber);
-              const secondsToWait = Math.max(0, (5 - blocksPassed) * 2); // ~2 сек на блок
-              setCountdown(secondsToWait);
-              break;
+              const blocksRemaining = Math.max(0, 5 - blocksPassed);
+              setCountdown(blocksRemaining * 2); // ~2 seconds per block
             }
           }
         }
