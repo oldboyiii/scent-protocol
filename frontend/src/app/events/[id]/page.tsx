@@ -6,13 +6,14 @@ import { ethers } from "ethers";
 import Link from "next/link";
 
 const GENESIS_CONTRACT_ADDRESS = "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9";
+
 const GENESIS_ABI = [
   "function requestMint() external returns (uint256)",
   "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
-  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
+  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
 ];
 
 export default function EventDetailPage() {
@@ -22,9 +23,8 @@ export default function EventDetailPage() {
   const [minting, setMinting] = useState(false);
   const [mintedCount, setMintedCount] = useState(0);
   const [userMinted, setUserMinted] = useState(0);
-  const [timeLeft, setTimeLeft] = useState<any>(null);
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null);
   
-  // Состояния для двухэтапного минта
   const [step, setStep] = useState<"idle" | "requested" | "revealed">("idle");
   const [tokenId, setTokenId] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
@@ -32,7 +32,6 @@ export default function EventDetailPage() {
   const maxSupply = 100;
   const maxPerWallet = 1;
 
-  // Fetch real data from blockchain
   useEffect(() => {
     async function fetchData() {
       try {
@@ -47,7 +46,6 @@ export default function EventDetailPage() {
         const actualMinted = maxSupply - Number(remaining);
         setMintedCount(actualMinted);
 
-        // Если кошелек подключен, проверяем сколько он минтил
         if (w.ethereum) {
           const signer = await provider.getSigner();
           const address = await signer.getAddress();
@@ -65,7 +63,6 @@ export default function EventDetailPage() {
 
     fetchData();
 
-    // Countdown timer
     const endTime = Math.floor(new Date("2025-09-18T00:00:00Z").getTime() / 1000);
     const timer = setInterval(() => {
       const now = Math.floor(Date.now() / 1000);
@@ -86,7 +83,7 @@ export default function EventDetailPage() {
   const handleMint = async () => {
     const w = window as any;
     if (!w.ethereum) {
-      alert("Please connect your wallet first");
+      alert("Please connect your wallet first.");
       return;
     }
 
@@ -96,12 +93,11 @@ export default function EventDetailPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
-      // ШАГ 1: Request Mint (gasLimit обходит баг MetaMask estimateGas)
       console.log("Calling requestMint...");
-      const txRequest = await contract.requestMint({ gasLimit: 300000 });
+      // gasLimit bypasses MetaMask estimateGas bug (-32603)
+      const txRequest = await contract.requestMint({ gasLimit: 500000 });
       const receipt = await txRequest.wait();
 
-      // Извлекаем tokenId из события
       const mintEvent = receipt.logs
         .map((log: any) => {
           try {
@@ -115,9 +111,8 @@ export default function EventDetailPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       setTokenId(newTokenId);
       setStep("requested");
-      setCountdown(12); // 12 секунд ожидания для 5 блоков в Arc
+      setCountdown(12);
 
-      // Обратный отсчет
       const countdownTimer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
@@ -130,7 +125,7 @@ export default function EventDetailPage() {
 
     } catch (error: any) {
       console.error("Mint request failed:", error);
-      alert(error.message || "Mint failed");
+      alert(error.message || "Mint request failed. Please try again.");
     } finally {
       setMinting(false);
     }
@@ -148,8 +143,8 @@ export default function EventDetailPage() {
       console.log("Calling revealAndMint...");
       const userSeed = Math.floor(Math.random() * 1e18);
       
-      // ШАГ 2: Reveal and Mint (gasLimit обходит баг MetaMask estimateGas)
-      const txReveal = await contract.revealAndMint(tokenId, userSeed, { gasLimit: 300000 });
+      // gasLimit bypasses MetaMask estimateGas bug (-32603)
+      const txReveal = await contract.revealAndMint(tokenId, userSeed, { gasLimit: 500000 });
       await txReveal.wait();
 
       setStep("revealed");
@@ -159,7 +154,7 @@ export default function EventDetailPage() {
 
     } catch (error: any) {
       console.error("Reveal failed:", error);
-      alert(error.message || "Reveal failed");
+      alert(error.message || "Reveal failed. Please try again.");
     } finally {
       setMinting(false);
     }
@@ -185,7 +180,7 @@ export default function EventDetailPage() {
         </h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
           The first 100 AI-generated fragrances on Arc Mainnet. 
-          Limited edition with enhanced Legendary drop rate.
+          Limited edition with an enhanced Legendary drop rate.
         </p>
       </div>
 
@@ -222,12 +217,11 @@ export default function EventDetailPage() {
           <p className="text-xs text-white/40 mt-2 text-center">{progress.toFixed(1)}% minted • {maxSupply - mintedCount} remaining</p>
         </div>
 
-        {/* Логика отображения в зависимости от шага */}
         {step === "idle" && userMinted < maxPerWallet && (
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-black/20 rounded-2xl border border-white/10">
             <div className="text-center md:text-left">
               <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Price per NFT</p>
-              <p className="text-4xl font-bold text-white">Free <span className="text-xl text-emerald-400"></span></p>
+              <p className="text-4xl font-bold text-white">Free</p>
               <p className="text-xs text-white/40 mt-2">Max {maxPerWallet} per wallet • You minted: {userMinted}/{maxPerWallet}</p>
             </div>
             <button
@@ -270,7 +264,7 @@ export default function EventDetailPage() {
             </div>
             <p className="text-emerald-400 text-2xl font-bold mb-2">NFT Minted!</p>
             <p className="text-white/80 mb-1">Token ID: <span className="font-mono text-amber-400">{tokenId || "Check your wallet"}</span></p>
-            <p className="text-white/50 text-sm">You've reached the maximum of {maxPerWallet} NFT</p>
+            <p className="text-white/50 text-sm">You have reached the maximum of {maxPerWallet} NFT</p>
           </div>
         )}
 
