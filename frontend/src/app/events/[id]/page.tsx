@@ -80,6 +80,44 @@ export default function EventDetailPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Direct MetaMask transaction sender - bypasses estimateGas completely
+  const sendDirectTransaction = async (data: string): Promise<string> => {
+    const w = window as any;
+    if (!w.ethereum) throw new Error("MetaMask not found");
+    
+    const accounts = await w.ethereum.request({ method: "eth_accounts" });
+    if (!accounts || accounts.length === 0) throw new Error("No accounts connected");
+    
+    // Get current gas price
+    const gasPrice = await w.ethereum.request({ method: "eth_gasPrice" });
+    
+    // Send transaction directly with explicit gasLimit - NO estimateGas call
+    const txHash = await w.ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{
+        from: accounts[0],
+        to: GENESIS_CONTRACT_ADDRESS,
+        data: data,
+        gas: "0x7A120", // 500000 in hex
+        gasPrice: gasPrice,
+        value: "0x0"
+      }]
+    });
+    
+    return txHash;
+  };
+
+  const waitForTransaction = async (txHash: string) => {
+    const w = window as any;
+    const provider = new ethers.BrowserProvider(w.ethereum);
+    
+    while (true) {
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (receipt) return receipt;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  };
+
   const handleMint = async () => {
     const w = window as any;
     if (!w.ethereum) {
@@ -90,13 +128,17 @@ export default function EventDetailPage() {
     setMinting(true);
     try {
       const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
+      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
 
-      console.log("Calling requestMint...");
-      // gasLimit bypasses MetaMask estimateGas bug (-32603)
-      const txRequest = await contract.requestMint({ gasLimit: 500000 });
-      const receipt = await txRequest.wait();
+      console.log("Encoding requestMint...");
+      const data = contract.interface.encodeFunctionData("requestMint");
+      
+      console.log("Sending direct transaction (bypassing estimateGas)...");
+      const txHash = await sendDirectTransaction(data);
+      console.log("Transaction sent:", txHash);
+      
+      const receipt = await waitForTransaction(txHash);
+      console.log("Transaction confirmed:", receipt);
 
       const mintEvent = receipt.logs
         .map((log: any) => {
@@ -125,7 +167,11 @@ export default function EventDetailPage() {
 
     } catch (error: any) {
       console.error("Mint request failed:", error);
-      alert(error.message || "Mint request failed. Please try again.");
+      if (error.code === 4001) {
+        alert("Transaction rejected by user.");
+      } else {
+        alert(error.message || "Mint request failed. Please try again.");
+      }
     } finally {
       setMinting(false);
     }
@@ -137,15 +183,18 @@ export default function EventDetailPage() {
     try {
       const w = window as any;
       const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
+      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
 
-      console.log("Calling revealAndMint...");
+      console.log("Encoding revealAndMint...");
       const userSeed = Math.floor(Math.random() * 1e18);
+      const data = contract.interface.encodeFunctionData("revealAndMint", [tokenId, userSeed]);
       
-      // gasLimit bypasses MetaMask estimateGas bug (-32603)
-      const txReveal = await contract.revealAndMint(tokenId, userSeed, { gasLimit: 500000 });
-      await txReveal.wait();
+      console.log("Sending direct transaction (bypassing estimateGas)...");
+      const txHash = await sendDirectTransaction(data);
+      console.log("Transaction sent:", txHash);
+      
+      await waitForTransaction(txHash);
+      console.log("Reveal confirmed");
 
       setStep("revealed");
       setUserMinted((prev) => prev + 1);
@@ -154,7 +203,11 @@ export default function EventDetailPage() {
 
     } catch (error: any) {
       console.error("Reveal failed:", error);
-      alert(error.message || "Reveal failed. Please try again.");
+      if (error.code === 4001) {
+        alert("Transaction rejected by user.");
+      } else {
+        alert(error.message || "Reveal failed. Please try again.");
+      }
     } finally {
       setMinting(false);
     }
