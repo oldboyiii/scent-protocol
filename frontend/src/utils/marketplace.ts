@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 
 // Deployed Marketplace Contract Address on Arc Testnet
-export const MARKETPLACE_ADDRESS = "0x23d2F6655F23D245348ce6Db11e07eab823E6D66";
+export const MARKETPLACE_ADDRESS = "0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c";
 export const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const MARKETPLACE_ABI = [
