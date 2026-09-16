@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { ethers } from "ethers";
 import Link from "next/link";
 
-const GENESIS_CONTRACT_ADDRESS = "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9";
+// Updated to the newly deployed Genesis contract address
+const GENESIS_CONTRACT_ADDRESS = "0x1152E29703313B49BAD9560af64458E24C785E2B";
 
 const GENESIS_ABI = [
   "function requestMint() external returns (uint256)",
@@ -80,44 +81,6 @@ export default function EventDetailPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Direct MetaMask transaction sender - bypasses estimateGas completely
-  const sendDirectTransaction = async (data: string): Promise<string> => {
-    const w = window as any;
-    if (!w.ethereum) throw new Error("MetaMask not found");
-    
-    const accounts = await w.ethereum.request({ method: "eth_accounts" });
-    if (!accounts || accounts.length === 0) throw new Error("No accounts connected");
-    
-    // Get current gas price
-    const gasPrice = await w.ethereum.request({ method: "eth_gasPrice" });
-    
-    // Send transaction directly with explicit gasLimit - NO estimateGas call
-    const txHash = await w.ethereum.request({
-      method: "eth_sendTransaction",
-      params: [{
-        from: accounts[0],
-        to: GENESIS_CONTRACT_ADDRESS,
-        data: data,
-        gas: "0x7A120", // 500000 in hex
-        gasPrice: gasPrice,
-        value: "0x0"
-      }]
-    });
-    
-    return txHash;
-  };
-
-  const waitForTransaction = async (txHash: string) => {
-    const w = window as any;
-    const provider = new ethers.BrowserProvider(w.ethereum);
-    
-    while (true) {
-      const receipt = await provider.getTransactionReceipt(txHash);
-      if (receipt) return receipt;
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-  };
-
   const handleMint = async () => {
     const w = window as any;
     if (!w.ethereum) {
@@ -128,22 +91,22 @@ export default function EventDetailPage() {
     setMinting(true);
     try {
       const provider = new ethers.BrowserProvider(w.ethereum);
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+      const signer = await provider.getSigner();
+      
+      // Use signer for write operations
+      const contractWithSigner = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
-      console.log("Encoding requestMint...");
-      const data = contract.interface.encodeFunctionData("requestMint");
+      console.log("Calling requestMint...");
+      const tx = await contractWithSigner.requestMint();
+      console.log("Transaction sent:", tx.hash);
       
-      console.log("Sending direct transaction (bypassing estimateGas)...");
-      const txHash = await sendDirectTransaction(data);
-      console.log("Transaction sent:", txHash);
-      
-      const receipt = await waitForTransaction(txHash);
+      const receipt = await tx.wait();
       console.log("Transaction confirmed:", receipt);
 
       const mintEvent = receipt.logs
         .map((log: any) => {
           try {
-            return contract.interface.parseLog(log);
+            return contractWithSigner.interface.parseLog(log);
           } catch {
             return null;
           }
@@ -153,7 +116,7 @@ export default function EventDetailPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       setTokenId(newTokenId);
       setStep("requested");
-      setCountdown(12);
+      setCountdown(12); // 12 seconds wait for ~5 blocks on Arc
 
       const countdownTimer = setInterval(() => {
         setCountdown((prev) => {
@@ -167,7 +130,7 @@ export default function EventDetailPage() {
 
     } catch (error: any) {
       console.error("Mint request failed:", error);
-      if (error.code === 4001) {
+      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else {
         alert(error.message || "Mint request failed. Please try again.");
@@ -183,17 +146,19 @@ export default function EventDetailPage() {
     try {
       const w = window as any;
       const provider = new ethers.BrowserProvider(w.ethereum);
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+      const signer = await provider.getSigner();
+      
+      const contractWithSigner = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
-      console.log("Encoding revealAndMint...");
-      const userSeed = Math.floor(Math.random() * 1e18);
-      const data = contract.interface.encodeFunctionData("revealAndMint", [tokenId, userSeed]);
+      console.log("Calling revealAndMint...");
       
-      console.log("Sending direct transaction (bypassing estimateGas)...");
-      const txHash = await sendDirectTransaction(data);
-      console.log("Transaction sent:", txHash);
+      // FIXED: Cryptographically safe uint256 without precision loss
+      const userSeed = ethers.toBigInt(ethers.randomBytes(32));
       
-      await waitForTransaction(txHash);
+      const tx = await contractWithSigner.revealAndMint(tokenId, userSeed);
+      console.log("Reveal transaction sent:", tx.hash);
+      
+      await tx.wait();
       console.log("Reveal confirmed");
 
       setStep("revealed");
@@ -203,7 +168,7 @@ export default function EventDetailPage() {
 
     } catch (error: any) {
       console.error("Reveal failed:", error);
-      if (error.code === 4001) {
+      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else {
         alert(error.message || "Reveal failed. Please try again.");
