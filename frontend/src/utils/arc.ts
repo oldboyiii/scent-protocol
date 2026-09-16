@@ -1,13 +1,13 @@
 export const ARC_CONFIG = {
-  chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "5042002"),
-  rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.testnet.arc.network",
-  name: "Arc Testnet",
+  chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "5042"), // 5042 is Arc Mainnet
+  rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.mainnet.arc.io", // Mainnet RPC
+  name: "Arc Mainnet",
   nativeCurrency: {
     name: "USDC",
     symbol: "USDC",
-    decimals: 6,
+    decimals: 18, // 18 decimals for correct native gas balance display in MetaMask
   },
-  blockExplorer: "https://testnet.arcscan.app",
+  blockExplorer: "https://explorer.arc.io", // Mainnet Explorer
 };
 
 export async function addArcNetwork() {
