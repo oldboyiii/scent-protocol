@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "";
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.testnet.arc.network";
+// Updated to Arc Mainnet defaults
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.mainnet.arc.io";
 
+// Updated ABI to match ScentProtocolV2 (tokenId is now the first element in the tuple)
 const ABI = [
-  "function getPerfume(uint256 tokenId) external view returns (tuple(string name,uint8 gender,uint8 pType,string[3] topNotes,string[3] heartNotes,string[3] baseNotes,uint8 concentration,uint8 rarity,uint256 createdAt,address creator))",
+  "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))",
 ];
 
 export async function GET(
@@ -17,6 +19,8 @@ export async function GET(
   try {
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    
+    // Ethers v6 will map the tuple to an object with named properties (perfume.name, perfume.gender, etc.)
     const perfume = await contract.getPerfume(tokenId);
 
     const svg = generateSVG(perfume, tokenId);
@@ -36,11 +40,13 @@ export async function GET(
 
     return NextResponse.json(metadata);
   } catch (error) {
+    console.error("Metadata generation error:", error);
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 }
 
 function generateSVG(perfume: any, tokenId: number): string {
+  // Visual logic remains exactly as it was
   const colors = [
     ["#2c3e50", "#8e44ad"],
     ["#0f2027", "#2c5364"],
