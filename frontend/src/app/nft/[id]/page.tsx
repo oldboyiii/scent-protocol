@@ -7,7 +7,7 @@ import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
 
-const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
+const GENESIS_CONTRACT_ADDRESS = "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9";
 
 const GENESIS_ABI = [
   {
