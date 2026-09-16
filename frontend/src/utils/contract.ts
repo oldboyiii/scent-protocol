@@ -2,9 +2,9 @@
 
 import { ethers } from "ethers";
 
-export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "";
-export const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS || "";
-export const GENESIS_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
+export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
+export const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x3600000000000000000000000000000000000000";
+export const GENESIS_ADDRESS = "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9";
 
 export const SCENT_PROTOCOL_ABI = [
   "function balanceOf(address account) external view returns (uint256)",
