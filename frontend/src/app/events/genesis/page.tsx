@@ -7,6 +7,7 @@ import { useWallet } from "@/context/WalletContext";
 
 const GENESIS_CONTRACT_ADDRESS = "0x1152E29703313B49BAD9560af64458E24C785E2B";
 
+// ДОБАВЛЕНЫ: кастомные ошибки для расшифровки причин реверта
 const GENESIS_ABI = [
   "function requestMint() external returns (uint256)",
   "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
@@ -14,6 +15,11 @@ const GENESIS_ABI = [
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
   "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber))",
+  "error ScentProtocol__TooEarly()",
+  "error ScentProtocol__NoPendingMint()",
+  "error ScentProtocol__NotAuthorized()",
+  "error ScentProtocol__MaxSupplyReached()",
+  "error ScentProtocol__MaxPerWalletReached()",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
 ];
 
@@ -38,12 +44,10 @@ export default function GenesisEventPage() {
       const provider = new ethers.BrowserProvider(w.ethereum);
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
 
-      // 1. Общий прогресс
       const remaining = await contract.getRemainingSupply();
       const actualMinted = maxSupply - Number(remaining);
       setTotalMinted(actualMinted);
 
-      // 2. Сначала ищем pending mint для нашего адреса
       const nextTokenId = Number(await contract.getNextTokenId());
       let foundPending: number | null = null;
       
@@ -54,24 +58,20 @@ export default function GenesisEventPage() {
             foundPending = i;
             break;
           }
-        } catch (err) {
-          // Игнорируем ошибки чтения конкретного токена, идем дальше
-        }
+        } catch (err) {}
       }
 
       if (foundPending !== null) {
         setTokenId(foundPending);
         setStep("requested");
-        // Считаем countdown от текущего блока
         const currentBlock = await provider.getBlockNumber();
         const p = await contract.getPendingMint(foundPending);
         const blocksPassed = currentBlock - Number(p.blockNumber);
         const blocksRemaining = Math.max(0, 5 - blocksPassed);
-        setCountdown(blocksRemaining * 2); // ~2 сек на блок
-        return; // Выходим, так как нашли pending
+        setCountdown(blocksRemaining * 2);
+        return;
       }
 
-      // 3. Pending нет — смотрим walletMintedCount
       const minted = await contract.getWalletMintedCount(address);
       setUserMinted(Number(minted));
       setStep(Number(minted) > 0 ? "revealed" : "idle");
@@ -118,7 +118,7 @@ export default function GenesisEventPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
       setTokenId(newTokenId);
       setStep("requested");
-      setCountdown(10); // Исправлено: ~10 секунд (5 блоков)
+      setCountdown(10);
 
       const timer = setInterval(() => {
         setCountdown((prev) => {
@@ -135,7 +135,7 @@ export default function GenesisEventPage() {
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else {
-        alert(error.message || "Mint failed");
+        alert(error.reason || error.message || "Mint failed");
       }
     } finally {
       setMinting(false);
@@ -143,7 +143,10 @@ export default function GenesisEventPage() {
   };
 
   const handleReveal = async () => {
-    if (!address || tokenId === null) return;
+    if (!address || tokenId === null) {
+      console.error("Reveal aborted: missing address or tokenId", { address, tokenId });
+      return;
+    }
 
     setMinting(true);
     try {
@@ -152,24 +155,39 @@ export default function GenesisEventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
+      console.log("=== PREPARING REVEAL ===");
+      console.log("tokenId:", tokenId, "type:", typeof tokenId);
+      
+      // ИСПРАВЛЕНО: самый надежный способ передать uint256 в ethers v6 — hex-строка
+      const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
+      console.log("userSeedHex:", userSeedHex);
+      
       console.log("Calling revealAndMint...");
+      const tx = await contract.revealAndMint(tokenId, userSeedHex);
+      console.log("Reveal transaction sent:", tx.hash);
       
-      // ИСПРАВЛЕНО: безопасная генерация uint256 без overflow
-      const seedBytes = ethers.randomBytes(32);
-      const userSeed = BigInt(ethers.hexlify(seedBytes));
-      console.log("userSeed generated safely:", userSeed.toString());
-      
-      const tx = await contract.revealAndMint(tokenId, userSeed);
       await tx.wait();
+      console.log("Reveal confirmed");
 
       setStep("revealed");
-      await fetchContractData(); // Обновляем данные после успешного минта
+      await fetchContractData(); 
       
       alert("NFT successfully minted! Check your Collection.");
 
     } catch (error: any) {
-      console.error("Reveal failed:", error);
-      alert(error.message || "Reveal failed");
+      console.error("=== REVEAL FAILED ===");
+      console.error("Full error object:", error);
+      console.error("Decoded reason:", error.reason);
+      console.error("Short message:", error.shortMessage);
+      
+      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+        alert("Transaction rejected by user.");
+      } else if (error.reason) {
+        // Теперь мы увидим точную причину, например: "ScentProtocol__TooEarly"
+        alert(`Reveal failed: ${error.reason}`);
+      } else {
+        alert(error.message || "Reveal failed");
+      }
     } finally {
       setMinting(false);
     }
