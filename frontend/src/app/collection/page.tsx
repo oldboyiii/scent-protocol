@@ -7,9 +7,9 @@ import { getContract } from "@/utils/contract";
 import { useWallet } from "@/context/WalletContext";
 import ShareCard from "@/components/ShareCard";
 
-const MARKETPLACE_ADDRESS = ethers.getAddress("0xc9535fea781028834fa566d5fdba6292718d1167");
-const NFT_CONTRACT_ADDRESS = "0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1";
-const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
+const MARKETPLACE_ADDRESS = ethers.getAddress("0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c");
+const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
+const GENESIS_CONTRACT_ADDRESS = "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9";
 
 const MARKETPLACE_ABI = [
   "function list(address nftContract, uint256 tokenId, uint256 price)",
