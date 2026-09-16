@@ -46,41 +46,52 @@ export default function EventDetailPage() {
         const remaining = await contract.getRemainingSupply();
         const actualMinted = maxSupply - Number(remaining);
         setMintedCount(actualMinted);
+        console.log("📊 Total minted (from supply):", actualMinted);
 
         if (w.ethereum) {
           const signer = await provider.getSigner();
           const address = await signer.getAddress();
+          console.log("👤 Your wallet address:", address);
+
           const minted = await contract.getWalletMintedCount(address);
+          console.log("✅ Wallet minted count (revealed):", minted.toString());
           setUserMinted(Number(minted));
           
-          // If already revealed, show success
           if (Number(minted) >= maxPerWallet) {
+            console.log("🎉 Already revealed, setting step to 'revealed'");
             setStep("revealed");
             return;
           }
 
-          // Check for pending mint - get nextTokenId and check the last one
           const nextTokenId = await contract.getNextTokenId();
-          const lastTokenId = Number(nextTokenId) - 1;
-          
-          if (lastTokenId >= 1) {
-            // Check if the last minted tokenId belongs to this user
-            const pending = await contract.getPendingMint(lastTokenId);
+          console.log("⏭️ Next Token ID:", nextTokenId.toString());
+
+          let foundPending = false;
+          // Check from the latest tokenId down to 1
+          for (let i = Number(nextTokenId) - 1; i >= 1; i--) {
+            const pending = await contract.getPendingMint(i);
+            console.log(`🔍 Checking tokenId ${i} -> pending minter:`, pending.minter);
+            
             if (pending.minter.toLowerCase() === address.toLowerCase()) {
-              // Found pending mint for this user
-              setTokenId(lastTokenId);
+              console.log(`🎯 FOUND! Pending mint belongs to you at tokenId: ${i}`);
+              setTokenId(i);
               setStep("requested");
               
-              // Calculate blocks remaining
               const currentBlock = await provider.getBlockNumber();
               const blocksPassed = currentBlock - Number(pending.blockNumber);
               const blocksRemaining = Math.max(0, 5 - blocksPassed);
               setCountdown(blocksRemaining * 2); // ~2 seconds per block
+              foundPending = true;
+              break;
             }
+          }
+          
+          if (!foundPending) {
+            console.log("⚠️ No pending mint found for your address. Staying 'idle'.");
           }
         }
       } catch (error) {
-        console.error("Failed to fetch contract data:", error);
+        console.error("❌ Failed to fetch contract data:", error);
       }
     }
 
