@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { ethers } from "ethers";
 import Link from "next/link";
 
-// Updated to the newly deployed Genesis contract address
+// Updated to the newly deployed and verified Genesis contract address
 const GENESIS_CONTRACT_ADDRESS = "0x1152E29703313B49BAD9560af64458E24C785E2B";
 
 const GENESIS_ABI = [
@@ -92,8 +92,6 @@ export default function EventDetailPage() {
     try {
       const provider = new ethers.BrowserProvider(w.ethereum);
       const signer = await provider.getSigner();
-      
-      // Use signer for write operations
       const contractWithSigner = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
       console.log("Calling requestMint...");
@@ -116,7 +114,7 @@ export default function EventDetailPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       setTokenId(newTokenId);
       setStep("requested");
-      setCountdown(12); // 12 seconds wait for ~5 blocks on Arc
+      setCountdown(12); // Wait ~12 seconds for 5 blocks on Arc
 
       const countdownTimer = setInterval(() => {
         setCountdown((prev) => {
@@ -147,13 +145,22 @@ export default function EventDetailPage() {
       const w = window as any;
       const provider = new ethers.BrowserProvider(w.ethereum);
       const signer = await provider.getSigner();
-      
       const contractWithSigner = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
       console.log("Calling revealAndMint...");
       
-      // FIXED: Cryptographically safe uint256 without precision loss
-      const userSeed = ethers.toBigInt(ethers.randomBytes(32));
+      // FIXED: Cryptographically secure 32-byte random value for uint256 without overflow
+      const randomArray = new Uint8Array(32);
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(randomArray);
+      } else {
+        // Fallback for older environments
+        for (let i = 0; i < 32; i++) {
+          randomArray[i] = Math.floor(Math.random() * 256);
+        }
+      }
+      const userSeedHex = "0x" + Array.from(randomArray, b => b.toString(16).padStart(2, "0")).join("");
+      const userSeed = BigInt(userSeedHex);
       
       const tx = await contractWithSigner.revealAndMint(tokenId, userSeed);
       console.log("Reveal transaction sent:", tx.hash);
