@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 
-const GENESIS_CONTRACT_ADDRESS = "0x32b8a68ba95F156FE902008c2f7d4692583Da4bf";
+const GENESIS_CONTRACT_ADDRESS = "0xcBc9c225495B1086EA0eA3574ceB473C1f4b35c9";
 
 const GENESIS_ABI = [
   "function requestMint() external returns (uint256)",
