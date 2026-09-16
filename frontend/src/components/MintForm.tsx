@@ -21,7 +21,6 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
   const [pType, setPType] = useState(defaultType ?? 2);
   const [loading, setLoading] = useState(false);
 
-  // Update state when props from AI Advisor change
   useEffect(() => {
     if (defaultGender !== undefined) setGender(defaultGender);
     if (defaultType !== undefined) setPType(defaultType);
@@ -47,7 +46,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       const contract = getContract(signer);
       const usdc = getUSDCContract(signer);
 
-      const mintPrice = await contract.mintPrice();
+      const mintPrice = await contract.getMintPrice();
       updateToast(toastId, "Checking USDC allowance...", "loading");
 
       const allowance = await usdc.allowance(userAddress, CONTRACT_ADDRESS);
@@ -57,7 +56,6 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
         await tx.wait();
       }
 
-      // STEP 1: Request Mint
       updateToast(toastId, "Step 1/2: Requesting mint...", "loading");
       const txRequest = await contract.requestMint();
       const receiptRequest = await txRequest.wait();
@@ -79,11 +77,9 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
 
       if (tokenId === 0) throw new Error("TokenId not found");
 
-      // Wait for reveal
       updateToast(toastId, "Step 2/2: Waiting for reveal...", "loading");
       await new Promise((resolve) => setTimeout(resolve, 12000));
 
-      // STEP 2: Reveal and Mint
       updateToast(toastId, "Revealing your Scent NFT...", "loading");
       const userSeed = BigInt(Math.floor(Math.random() * 1000000000));
       const txReveal = await contract.revealAndMint(tokenId, userSeed);
