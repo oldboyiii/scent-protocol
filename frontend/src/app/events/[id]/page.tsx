@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { ethers } from "ethers";
 import Link from "next/link";
 
-// Updated to the newly deployed and verified Genesis contract address
 const GENESIS_CONTRACT_ADDRESS = "0x1152E29703313B49BAD9560af64458E24C785E2B";
 
 const GENESIS_ABI = [
@@ -14,6 +13,7 @@ const GENESIS_ABI = [
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
+  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber))",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
 ];
 
@@ -53,8 +53,29 @@ export default function EventDetailPage() {
           const minted = await contract.getWalletMintedCount(address);
           setUserMinted(Number(minted));
           
+          // Если уже минтил — показываем успех
           if (Number(minted) >= maxPerWallet) {
             setStep("revealed");
+            return;
+          }
+
+          // Проверяем, есть ли pending mint для этого пользователя
+          // Перебираем tokenId от 1 до nextTokenId-1
+          const nextTokenId = await contract.getNextTokenId();
+          for (let i = 1; i < Number(nextTokenId); i++) {
+            const pending = await contract.getPendingMint(i);
+            if (pending.minter.toLowerCase() === address.toLowerCase()) {
+              // Найден pending mint для текущего пользователя
+              setTokenId(i);
+              setStep("requested");
+              
+              // Проверяем, прошло ли 5 блоков
+              const currentBlock = await provider.getBlockNumber();
+              const blocksPassed = currentBlock - Number(pending.blockNumber);
+              const secondsToWait = Math.max(0, (5 - blocksPassed) * 2); // ~2 сек на блок
+              setCountdown(secondsToWait);
+              break;
+            }
           }
         }
       } catch (error) {
@@ -114,7 +135,7 @@ export default function EventDetailPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       setTokenId(newTokenId);
       setStep("requested");
-      setCountdown(12); // Wait ~12 seconds for 5 blocks on Arc
+      setCountdown(12);
 
       const countdownTimer = setInterval(() => {
         setCountdown((prev) => {
@@ -149,12 +170,10 @@ export default function EventDetailPage() {
 
       console.log("Calling revealAndMint...");
       
-      // FIXED: Cryptographically secure 32-byte random value for uint256 without overflow
       const randomArray = new Uint8Array(32);
       if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
         window.crypto.getRandomValues(randomArray);
       } else {
-        // Fallback for older environments
         for (let i = 0; i < 32; i++) {
           randomArray[i] = Math.floor(Math.random() * 256);
         }
