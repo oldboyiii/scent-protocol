@@ -17,7 +17,7 @@ contract ScentProtocolGenesis is
 {
     using Strings for uint256;
 
-    // Arc Mainnet Chain ID для безопасности
+    // IMPORTANT: Make sure MetaMask is connected to Arc Mainnet (Chain ID: 5042) before deploying
     uint256 private constant ARC_MAINNET_CHAIN_ID = 5042;
 
     struct Perfume {
@@ -70,7 +70,7 @@ contract ScentProtocolGenesis is
     error ScentProtocol__WrongNetwork();
 
     constructor() ERC721("ScentProtocol Genesis", "SCENTG") Ownable(msg.sender) {
-        require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be deployed on Arc Mainnet");
+        require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be deployed on Arc Mainnet (5042)");
         nextTokenId = 1;
         initializeNotePools();
     }
@@ -128,11 +128,12 @@ contract ScentProtocolGenesis is
         
         Perfume memory perfume = generatePerfume(tokenId, seed, pending.minter);
         
+        // _safeMint will call _update, which automatically adds the token to ownerTokens
         _safeMint(pending.minter, tokenId);
         _setTokenURI(tokenId, string(abi.encodePacked("scents://genesis/", tokenId.toString())));
         
         perfumes[tokenId] = perfume;
-        ownerTokens[pending.minter].push(tokenId);
+        // FIXED: removed duplicate ownerTokens[pending.minter].push(tokenId) — _update already handles it
         walletMintedCount[pending.minter]++;
         
         emit PerfumeCreated(tokenId, pending.minter, perfume.rarity);
@@ -263,6 +264,7 @@ contract ScentProtocolGenesis is
     {
         address from = _ownerOf(tokenId);
         
+        // Remove token from previous owner's array on transfer
         if (from != address(0) && from != to) {
             uint256[] storage tokens = ownerTokens[from];
             for (uint256 i = 0; i < tokens.length; i++) {
@@ -274,8 +276,10 @@ contract ScentProtocolGenesis is
             }
         }
         
+        // Call parent _update (handles _safeMint logic)
         address updated = super._update(to, tokenId, auth);
         
+        // Add token to new owner's array
         if (to != address(0) && to != from) {
             ownerTokens[to].push(tokenId);
         }
