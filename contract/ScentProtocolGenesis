@@ -8,11 +8,11 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract ScentProtocolGenesis is 
-    ERC721, 
-    ERC721URIStorage, 
-    ERC721Burnable, 
-    Ownable2Step, 
+contract ScentProtocolGenesis is
+    ERC721,
+    ERC721URIStorage,
+    ERC721Burnable,
+    Ownable2Step,
     ReentrancyGuard
 {
     using Strings for uint256;
@@ -34,7 +34,7 @@ contract ScentProtocolGenesis is
         address creator;
         bool isGenesis;
     }
-    
+
     struct PendingMint {
         address minter;
         uint256 blockNumber;
@@ -46,28 +46,31 @@ contract ScentProtocolGenesis is
     uint256 public constant MAX_PER_WALLET = 1;
 
     uint256 private nextTokenId;
-    
+
     string[MAX_NOTES] private topNotes;
     string[MAX_NOTES] private heartNotes;
     string[MAX_NOTES] private baseNotes;
     string[MAX_NOTES] private adjectives;
     string[MAX_NOTES] private nouns;
-    
+
     mapping(uint256 => Perfume) public perfumes;
     mapping(uint256 => PendingMint) public pendingMints;
     mapping(address => uint256[]) public ownerTokens;
     mapping(address => uint256) public walletMintedCount;
-    
+
+    // NEW: active pending mint per address (0 = none)
+    mapping(address => uint256) public pendingTokenId;
+
     event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber);
     event PerfumeCreated(uint256 indexed tokenId, address indexed creator, uint8 rarity);
-    
+
     error ScentProtocol__TooEarly();
     error ScentProtocol__NoPendingMint();
     error ScentProtocol__NotAuthorized();
     error ScentProtocol__TokenDoesNotExist();
     error ScentProtocol__MaxSupplyReached();
     error ScentProtocol__MaxPerWalletReached();
-    error ScentProtocol__WrongNetwork();
+    error ScentProtocol__AlreadyPending();
 
     constructor() ERC721("ScentProtocol Genesis", "SCENTG") Ownable(msg.sender) {
         require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be deployed on Arc Mainnet (5042)");
@@ -85,29 +88,32 @@ contract ScentProtocolGenesis is
 
     function requestMint() external nonReentrant returns (uint256 tokenId) {
         require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be on Arc Mainnet");
-        
+
         if (nextTokenId > MAX_SUPPLY) {
             revert ScentProtocol__MaxSupplyReached();
         }
-        
         if (walletMintedCount[msg.sender] >= MAX_PER_WALLET) {
             revert ScentProtocol__MaxPerWalletReached();
         }
-        
+        // NEW: cannot create a second requestMint until the first one is revealed
+        if (pendingTokenId[msg.sender] != 0) {
+            revert ScentProtocol__AlreadyPending();
+        }
+
         tokenId = nextTokenId++;
-        
         pendingMints[tokenId] = PendingMint({
             minter: msg.sender,
             blockNumber: block.number
         });
-        
+        pendingTokenId[msg.sender] = tokenId;
+
         emit MintRequested(tokenId, msg.sender, block.number);
         return tokenId;
     }
 
     function revealAndMint(uint256 tokenId, uint256 userSeed) external nonReentrant {
         PendingMint storage pending = pendingMints[tokenId];
-        
+
         if (pending.minter == address(0)) {
             revert ScentProtocol__NoPendingMint();
         }
@@ -117,7 +123,11 @@ contract ScentProtocolGenesis is
         if (block.number <= pending.blockNumber + REVEAL_BLOCKS) {
             revert ScentProtocol__TooEarly();
         }
-        
+        // Extra guard against race conditions
+        if (walletMintedCount[msg.sender] >= MAX_PER_WALLET) {
+            revert ScentProtocol__MaxPerWalletReached();
+        }
+
         uint256 seed = uint256(keccak256(abi.encodePacked(
             blockhash(block.number - 1),
             block.timestamp,
@@ -125,26 +135,27 @@ contract ScentProtocolGenesis is
             pending.minter,
             tokenId
         )));
-        
+
         Perfume memory perfume = generatePerfume(tokenId, seed, pending.minter);
-        
-        // _safeMint will call _update, which automatically adds the token to ownerTokens
+
+        // _safeMint calls _update, which automatically adds the token to ownerTokens
         _safeMint(pending.minter, tokenId);
         _setTokenURI(tokenId, string(abi.encodePacked("scents://genesis/", tokenId.toString())));
-        
+
         perfumes[tokenId] = perfume;
-        // FIXED: removed duplicate ownerTokens[pending.minter].push(tokenId) — _update already handles it
+        // NOTE: do NOT push to ownerTokens here — _update already handles it
         walletMintedCount[pending.minter]++;
-        
+
         emit PerfumeCreated(tokenId, pending.minter, perfume.rarity);
-        
+
         delete pendingMints[tokenId];
+        delete pendingTokenId[msg.sender];
     }
 
-    function generatePerfume(uint256 tokenId, uint256 seed, address creator) 
-        internal 
-        view 
-        returns (Perfume memory) 
+    function generatePerfume(uint256 tokenId, uint256 seed, address creator)
+        internal
+        view
+        returns (Perfume memory)
     {
         uint8 rarity = determineRarity(seed);
         string[3] memory top = selectUniqueNotes(topNotes, seed, 0);
@@ -153,7 +164,7 @@ contract ScentProtocolGenesis is
         string memory name = generateName(seed);
         uint8 pType = uint8((seed % 4));
         uint8 concentration = getConcentrationForType(pType, seed);
-        
+
         return Perfume({
             tokenId: tokenId,
             name: name,
@@ -178,15 +189,15 @@ contract ScentProtocolGenesis is
         return 0;                // 35% Common
     }
 
-    function selectUniqueNotes(string[MAX_NOTES] storage notes, uint256 seed, uint256 offset) 
-        internal 
-        view 
-        returns (string[3] memory) 
+    function selectUniqueNotes(string[MAX_NOTES] storage notes, uint256 seed, uint256 offset)
+        internal
+        view
+        returns (string[3] memory)
     {
         string[3] memory selected;
         bool[MAX_NOTES] memory used;
         uint256 indicesSeed = uint256(keccak256(abi.encodePacked(seed, offset)));
-        
+
         for (uint256 i = 0; i < 3; i++) {
             uint256 index;
             uint256 attempts = 0;
@@ -198,7 +209,7 @@ contract ScentProtocolGenesis is
                     break;
                 }
             } while (used[index]);
-            
+
             used[index] = true;
             selected[i] = notes[index];
         }
@@ -246,6 +257,10 @@ contract ScentProtocolGenesis is
         return walletMintedCount[wallet];
     }
 
+    function getPendingTokenId(address wallet) external view returns (uint256) {
+        return pendingTokenId[wallet];
+    }
+
     function getRemainingSupply() external view returns (uint256) {
         return MAX_SUPPLY - (nextTokenId - 1);
     }
@@ -257,13 +272,13 @@ contract ScentProtocolGenesis is
         require(success, "Transfer failed");
     }
 
-    function _update(address to, uint256 tokenId, address auth) 
-        internal 
-        override(ERC721) 
-        returns (address) 
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override(ERC721)
+        returns (address)
     {
         address from = _ownerOf(tokenId);
-        
+
         // Remove token from previous owner's array on transfer
         if (from != address(0) && from != to) {
             uint256[] storage tokens = ownerTokens[from];
@@ -275,32 +290,32 @@ contract ScentProtocolGenesis is
                 }
             }
         }
-        
+
         // Call parent _update (handles _safeMint logic)
         address updated = super._update(to, tokenId, auth);
-        
+
         // Add token to new owner's array
         if (to != address(0) && to != from) {
             ownerTokens[to].push(tokenId);
         }
-        
+
         return updated;
     }
 
-    function tokenURI(uint256 tokenId) 
-        public 
-        view 
-        override(ERC721, ERC721URIStorage) 
-        returns (string memory) 
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (string memory)
     {
         return super.tokenURI(tokenId);
     }
 
-    function supportsInterface(bytes4 interfaceId) 
-        public 
-        view 
-        override(ERC721, ERC721URIStorage) 
-        returns (bool) 
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721, ERC721URIStorage)
+        returns (bool)
     {
         return super.supportsInterface(interfaceId);
     }
