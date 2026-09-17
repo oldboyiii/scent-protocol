@@ -176,15 +176,14 @@ export default function CollectionPage() {
 
       try {
         const w = window as any;
-        const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+        const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
         
-        // Get ALL active listings from marketplace V8
+        // Get ALL active listings from marketplace
         let activeTokenIds = new Set<number>();
         try {
           const activeIds: bigint[] = await marketplace.getActiveListings();
           activeIds.forEach(id => activeTokenIds.add(Number(id)));
-          console.log("Active marketplace listings:", Array.from(activeTokenIds));
         } catch (e) {
           console.error("Failed to get active listings:", e);
         }
@@ -197,7 +196,7 @@ export default function CollectionPage() {
           if (w.ethereum) {
             contract = getContract(new ethers.BrowserProvider(w.ethereum));
           } else {
-            contract = getContract(new ethers.JsonRpcProvider("https://rpc.testnet.arc.network"));
+            contract = getContract(new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io"));
           }
 
           const balance = await contract.balanceOf(currentAddress);
@@ -205,7 +204,7 @@ export default function CollectionPage() {
 
           if (balanceNum > 0) {
             let foundCount = 0;
-            const maxId = 100;
+            const maxId = 1000; // Increased to safely cover all possible IDs
 
             for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
               try {
@@ -213,8 +212,18 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
                   
-                  // Check if this token is in marketplace active listings
-                  const isListed = activeTokenIds.has(tokenId);
+                  // FIX: Check if this specific token from THIS specific contract is listed
+                  let isListed = false;
+                  if (activeTokenIds.has(tokenId)) {
+                    try {
+                      const listing = await marketplace.listings(tokenId);
+                      if (listing.active && listing.nftContract.toLowerCase() === NFT_CONTRACT_ADDRESS.toLowerCase()) {
+                        isListed = true;
+                      }
+                    } catch (e) {
+                      console.error("Error checking listing:", e);
+                    }
+                  }
 
                   results.push({
                     tokenId,
@@ -240,7 +249,7 @@ export default function CollectionPage() {
                   foundCount++;
                 }
               } catch (e) {}
-              await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 50));
             }
           }
         } catch (e) {
@@ -263,8 +272,18 @@ export default function CollectionPage() {
                 if (owner.toLowerCase() === currentAddress.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
                   
-                  // Check if this token is in marketplace active listings
-                  const isListed = activeTokenIds.has(tokenId);
+                  // FIX: Check if this specific token from THIS specific contract is listed
+                  let isListed = false;
+                  if (activeTokenIds.has(tokenId)) {
+                    try {
+                      const listing = await marketplace.listings(tokenId);
+                      if (listing.active && listing.nftContract.toLowerCase() === GENESIS_CONTRACT_ADDRESS.toLowerCase()) {
+                        isListed = true;
+                      }
+                    } catch (e) {
+                      console.error("Error checking listing:", e);
+                    }
+                  }
 
                   results.push({
                     tokenId,
@@ -290,7 +309,7 @@ export default function CollectionPage() {
                   foundCount++;
                 }
               } catch (e) {}
-              await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 50));
             }
           }
         } catch (e) {
@@ -316,8 +335,8 @@ export default function CollectionPage() {
 
   const sortedScents = [...filteredScents].sort((a, b) => {
     switch (sortBy) {
-      case "newest": return b.tokenId - a.tokenId;
-      case "oldest": return a.tokenId - b.tokenId;
+      case "newest": return b.timestamp - a.timestamp;
+      case "oldest": return a.timestamp - b.timestamp;
       case "name": return (a.perfume?.name || a.name || "").localeCompare(b.perfume?.name || b.name || "");
       case "rarity": return (b.perfume?.rarity ?? b.rarity ?? 0) - (a.perfume?.rarity ?? a.rarity ?? 0);
       default: return 0;
