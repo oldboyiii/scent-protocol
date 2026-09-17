@@ -7,6 +7,8 @@ import { getContract } from "@/utils/contract";
 
 const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+const CACHE_KEY = "scentprotocol_gallery_cache";
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 const GENESIS_ABI = [
   {
@@ -108,6 +110,22 @@ export default function GalleryPage() {
 
   useEffect(() => {
     async function fetchGallery() {
+      // Try cache first
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_DURATION) {
+            console.log("✅ Loaded from cache:", data.length, "items");
+            setItems(data);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Cache error:", e);
+      }
+
       try {
         const w = window as any;
         const provider = w.ethereum 
@@ -119,88 +137,88 @@ export default function GalleryPage() {
         
         const results: GalleryItem[] = [];
 
-        console.log(" Fetching gallery data...");
+        console.log("🔍 Fetching gallery data...");
         
-        // OPTIMIZATION: Smaller batches + longer delays
-        const batchSize = 20; // Reduced from 50
-        const maxMainId = 300; // Reduced from 500
+        // OPTIMIZATION: Get actual nextTokenId instead of guessing
+        let nextTokenId = 1;
+        try {
+          nextTokenId = Number(await nftContract.getNextTokenId());
+        } catch (e) {
+          nextTokenId = 100; // Fallback
+        }
         
-        // Fetch main collection
-        for (let startId = 1; startId <= maxMainId; startId += batchSize) {
-          const endId = Math.min(startId + batchSize - 1, maxMainId);
-          const batchPromises = [];
-          
-          for (let tokenId = startId; tokenId <= endId; tokenId++) {
-            batchPromises.push(
-              nftContract.getPerfume(tokenId)
-                .then((perfume: any) => {
-                  if (perfume && perfume.name) {
-                    return {
-                      tokenId,
-                      contractAddress: NFT_CONTRACT_ADDRESS,
-                      name: perfume.name,
-                      rarity: Number(perfume.rarity),
-                      gender: Number(perfume.gender),
-                      pType: Number(perfume.pType),
-                      concentration: Number(perfume.concentration),
-                      topNotes: perfume.topNotes ? Array.from(perfume.topNotes).map((n: any) => String(n)) : [],
-                      createdAt: Number(perfume.createdAt),
-                      creator: perfume.creator,
-                    };
-                  }
-                  return null;
-                })
-                .catch(() => null)
-            );
-          }
-          
-          const batchResults = await Promise.all(batchPromises);
-          const validResults = batchResults.filter((item): item is GalleryItem => item !== null);
-          results.push(...validResults);
-          
-          // Longer delay between batches
-          await new Promise(r => setTimeout(r, 300));
+        // Fetch only existing tokens in parallel
+        const mainPromises = [];
+        for (let tokenId = 1; tokenId < nextTokenId; tokenId++) {
+          mainPromises.push(
+            nftContract.getPerfume(tokenId)
+              .then((perfume: any) => {
+                if (perfume && perfume.name) {
+                  return {
+                    tokenId,
+                    contractAddress: NFT_CONTRACT_ADDRESS,
+                    name: perfume.name,
+                    rarity: Number(perfume.rarity),
+                    gender: Number(perfume.gender),
+                    pType: Number(perfume.pType),
+                    concentration: Number(perfume.concentration),
+                    topNotes: perfume.topNotes ? Array.from(perfume.topNotes).map((n: any) => String(n)) : [],
+                    createdAt: Number(perfume.createdAt),
+                    creator: perfume.creator,
+                  };
+                }
+                return null;
+              })
+              .catch(() => null)
+          );
         }
-
-        // Fetch Genesis (smaller batches too)
-        const genesisBatchSize = 20;
-        for (let startId = 1; startId <= 100; startId += genesisBatchSize) {
-          const endId = Math.min(startId + genesisBatchSize - 1, 100);
-          const batchPromises = [];
-          
-          for (let tokenId = startId; tokenId <= endId; tokenId++) {
-            batchPromises.push(
-              genesisContract.getPerfume(tokenId)
-                .then((data: any) => {
-                  if (data && data.name) {
-                    return {
-                      tokenId,
-                      contractAddress: GENESIS_CONTRACT_ADDRESS,
-                      name: data.name,
-                      rarity: Number(data.rarity),
-                      gender: Number(data.gender),
-                      pType: Number(data.pType),
-                      concentration: Number(data.concentration),
-                      topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
-                      createdAt: Number(data.createdAt),
-                      creator: data.creator,
-                    };
-                  }
-                  return null;
-                })
-                .catch(() => null)
-            );
-          }
-          
-          const batchResults = await Promise.all(batchPromises);
-          const validResults = batchResults.filter((item): item is GalleryItem => item !== null);
-          results.push(...validResults);
-          
-          await new Promise(r => setTimeout(r, 300));
+        
+        const mainResults = await Promise.all(mainPromises);
+        const validMain = mainResults.filter((item): item is GalleryItem => item !== null);
+        results.push(...validMain);
+        
+        // Fetch Genesis (always 100 max)
+        const genesisPromises = [];
+        for (let tokenId = 1; tokenId <= 100; tokenId++) {
+          genesisPromises.push(
+            genesisContract.getPerfume(tokenId)
+              .then((data: any) => {
+                if (data && data.name) {
+                  return {
+                    tokenId,
+                    contractAddress: GENESIS_CONTRACT_ADDRESS,
+                    name: data.name,
+                    rarity: Number(data.rarity),
+                    gender: Number(data.gender),
+                    pType: Number(data.pType),
+                    concentration: Number(data.concentration),
+                    topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                    createdAt: Number(data.createdAt),
+                    creator: data.creator,
+                  };
+                }
+                return null;
+              })
+              .catch(() => null)
+          );
         }
+        
+        const genesisResults = await Promise.all(genesisPromises);
+        const validGenesis = genesisResults.filter((item): item is GalleryItem => item !== null);
+        results.push(...validGenesis);
         
         console.log(`✅ Gallery loaded: ${results.length} total items found`);
         setItems(results);
+        
+        // Save to cache
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            data: results,
+            timestamp: Date.now()
+          }));
+        } catch (e) {
+          console.warn("Cache save error:", e);
+        }
       } catch (e) {
         console.error("Gallery fetch error:", e);
       } finally {
