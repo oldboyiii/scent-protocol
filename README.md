@@ -1,6 +1,6 @@
 # ScentProtocol — Digital Perfume House 🧪
 
-ScentProtocol is a digital perfume house where users create unique, AI-generated fragrances. Every formula is minted as an NFT certificate of ownership on the Arc blockchain. Built on Arc.
+ScentProtocol is a digital perfume house where users create unique, AI-generated fragrances. Every formula is minted as an NFT certificate of ownership on the Arc Mainnet blockchain. Built on Arc.
 
 🔗 **Live dApp:** [scent-protocol-pi.vercel.app](https://scent-protocol-pi.vercel.app)
 
@@ -17,14 +17,12 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 
 ---
 
-## 🔗 Live Links
+## 🔗 Live Links (Mainnet)
 
 | Resource | Link |
 |----------|------|
 | **Live dApp** | [scent-protocol-pi.vercel.app](https://scent-protocol-pi.vercel.app) |
-| **Contract (Arc Testnet)** | [`0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1`](https://testnet.arcscan.app/address/0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1) |
-| **USDC (Arc)** | [`0x3600000000000000000000000000000000000000`](https://testnet.arcscan.app/address/0x3600000000000000000000000000000000000000) |
-| **Arc Explorer** | [testnet.arcscan.app](https://testnet.arcscan.app) |
+| **Arc Mainnet Explorer** | [explorer.arc.io](https://explorer.arc.io) |
 
 ---
 
@@ -32,20 +30,22 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 
 | Component | Technology | Where |
 |-----------|-----------|-------|
-| Smart Contract | Solidity 0.8.20 | Arc Testnet |
+| Smart Contracts | Solidity 0.8.20 | Arc Mainnet |
 | Frontend | Next.js 14 + Tailwind + TypeScript | Vercel |
 | AI Description | OpenAI GPT-4o-mini | Vercel Serverless Function |
-| Blockchain RPC | Public Arc endpoint | Via ethers.js in browser |
+| Blockchain RPC | Public Arc Mainnet endpoint | Via ethers.js in browser |
 | Wallet | MetaMask / Rabby | User |
 
 ---
 
-## 📦 Contract Deployment
+##  Contract Deployment (Mainnet Production)
 
 | Contract | Address | Purpose |
 |----------|---------|---------|
-| **ScentProtocol** | `0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1` | Main perfume creation & NFT minting logic |
-| **USDC (Arc)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc Testnet |
+| **ScentProtocolMainnet** | [`0x8d456e033FF7220068CDc1C3F08D6BA6641D103e`](https://explorer.arc.io/address/0x8d456e033FF7220068CDc1C3F08D6BA6641D103e) | Main perfume creation & NFT minting logic |
+| **ScentProtocolMainnetGenesis** | [`0x807dF79Ec16CF51C07e7B522175EB408D6dE247E`](https://explorer.arc.io/address/0x807dF79Ec16CF51C07e7B522175EB408D6dE247E) | Exclusive Genesis collection (100 supply, commit-reveal) |
+| **ScentProtocolMarketplaceMainnet** | [`0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c`](https://explorer.arc.io/address/0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c) | Secondary marketplace for trading Scent NFTs |
+| **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc *(verify exact mainnet address)* |
 
 ---
 
@@ -62,24 +62,37 @@ All contracts below are deployed and verified on Arc Testnet:
 | 4 | **ArcVote** | `0xA3cbE323e108fcF2727E3bf0d5E238aE7b6d0869` | Governance / voting logic |
 | 5 | **ArcLock** | `0x69C545fE8A8D65e7D187FF57127EA432F2C22d3e` | Token vesting & time‑locks |
 | 6 | **FXBlitzScore** | `0x50e206F15556f06B374acDa943a7655602AF6494` | Scoring / gamification engine |
-| 7 | **ScentProtocol** | `0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1` | Base protocol for Scent ecosystem 
+| 7 | **ScentProtocol** | `0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1` | Base protocol for Scent ecosystem |
 | 8 | **ScentMarketplace** | `0x23d2F6655F23D245348ce6Db11e07eab823E6D66` | NFT / asset marketplace for Arc builders |
 | 9 | **ARBounty** | `0x5e3b652F8Ef29d50F32Ae2D69920651d10D0227b` | Bounty / task management |
 | 10 | **ArcAttest** | `0x743d7c6d558bFa735ca9f87059e662CC03452335` | Attestation / verification system |
 | 11 | **ArcInvoice** | `0x62E44bf079Ce2996E933174d7BaC591Da8ade190` | On‑chain invoicing |
 | 12 | **ArcBuilderFactory** | `0x2DBC1e505Ed008AAbC9B52733100078c42a05aF1` | SBT credentials for Arc builders |
 
-> **Note:** All contracts are deployed and verified on [Arc Explorer](https://testnet.arcscan.app).  
-> Source code is available via the Explorer's **Contract** tab.
+---
+
+## 🧪 Testnet (Development Reference)
+
+*The following addresses were used during development and testing on Arc Testnet. They are kept here for developer reference and auditing purposes.*
+
+| Contract | Address | Purpose |
+|----------|---------|---------|
+| **ScentProtocol (Legacy)** | `0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1` | Original testnet deployment |
+| **ScentProtocolV2** | `0x5a8EFf24A69200c9D7F7E80d6b72960c72024b63` | Upgraded protocol with optimizations |
+| **ScentProtocolGenesis** | `0x32b8a68ba95F156FE902008c2f7d4692583Da4bf` | Genesis collection (testnet version) |
+| **ScentMarketplaceV8.1** | `0xC9535FeA781028834fA566D5FDbA6292718d1167` | Marketplace v8.1 with latest features |
+| **USDC (Arc Testnet)** | `0x3600000000000000000000000000000000000000` | Testnet USDC token |
+
+> **Note:** All testnet contracts are deployed and verified on [Arc Testnet Explorer](https://testnet.arcscan.app). Source code is available via the Explorer's **Contract** tab.
 
 ---
 
 ## ⚡ Arc Network Features
 
-- **USDC = gas token** — fees in dollars, predictable
-- **6 decimals** for USDC (not 18!) — important for `approve()` and `mintPrice`
-- **Sub-second finality** — transactions finalize instantly
-- **EVM-compatible** — deploy from Remix works out of the box
+- **USDC = gas token** — fees in dollars, highly predictable
+- **6 decimals** for USDC (not 18!) — important for `approve()` and `mintPrice` calculations
+- **Sub-second finality** — transactions finalize almost instantly
+- **EVM-compatible** — seamless deployment from Remix and standard tooling
 
 ---
 
@@ -87,9 +100,10 @@ All contracts below are deployed and verified on Arc Testnet:
 
 ### Phase 1 — Live ✅
 - [x] On-chain perfume generation with unique formulas
-- [x] ERC-721 NFT minting with USDC gas
+- [x] ERC-721 NFT minting with USDC payment
 - [x] AI-generated poetic descriptions
 - [x] Collection & Gallery pages
+- [x] Genesis Collection (Commit-Reveal mechanism)
 
 ### Phase 2 — AI Agent Integration
 - [ ] Personal AI advisor for scent recommendations
@@ -98,7 +112,7 @@ All contracts below are deployed and verified on Arc Testnet:
 - [ ] Natural language → fragrance pipeline
 
 ### Phase 3 — Nanopayments & Samples
-- [ ] $0.01 scent previews (no NFT)
+- [ ] $0.01 scent previews (no NFT required)
 - [ ] $0.05 note merging & blending
 - [ ] $0.001 governance voting
 - [ ] Subscription 'Scent of the Month'
@@ -113,53 +127,42 @@ All contracts below are deployed and verified on Arc Testnet:
 
 ## 🚀 Quick Start (Frontend)
 
-```bash
-cd frontend
-npm install
-npm run dev
+Open [http://localhost:3000](http://localhost:3000) to see the app.
 
-Open http://localhost:3000 to see the app.
-🔧 Deploy to Vercel
+### 🔧 Deploy to Vercel
+1. Push repository to GitHub
+2. Import project on [vercel.com](https://vercel.com)
+3. Set `frontend` as Root Directory
+4. Add Environment Variables (see below)
+5. Click Deploy
 
-    Push repository to GitHub
+### 🔐 Environment Variables (`.env.local`)
+*Note: These are configured for **Arc Mainnet**.*
 
-    Import project on vercel.com
-
-    Set frontend as Root Directory
-
-    Add Environment Variables from .env.local
-
-    Click Deploy
-
-🔐 Environment Variables
-text
-
-NEXT_PUBLIC_CONTRACT_ADDRESS=0x423DCe4Fd7073b0E33B96354bC706ecc9c3B0bd1
+```env
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x8d456e033FF7220068CDc1C3F08D6BA6641D103e
+NEXT_PUBLIC_GENESIS_ADDRESS=0x807dF79Ec16CF51C07e7B522175EB408D6dE247E
+NEXT_PUBLIC_MARKETPLACE_ADDRESS=0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c
 NEXT_PUBLIC_USDC_ADDRESS=0x3600000000000000000000000000000000000000
-NEXT_PUBLIC_RPC_URL=https://rpc.testnet.arc.network
-NEXT_PUBLIC_CHAIN_ID=5042002
+NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.arc.io
+NEXT_PUBLIC_CHAIN_ID=5042
 OPENAI_API_KEY=sk-...
 
-📁 Repository Structure
-text
-
 ScentProtocol/
-├── frontend/
+── frontend/
 │   ├── app/                  # Next.js App Router
 │   ├── components/           # React components
-│   ├── lib/                  # Contract ABI & utils
-│   └── .env.local.example
+│   ├── context/              # Wallet & Global state
+│   ├── utils/                # Contract ABI & ethers.js utils
+│   ── .env.local.example
 ├── contracts/
-│   └── ScentProtocol.sol     # Main contract
+│   ├── ScentProtocolMainnet.sol      # Main creation logic
+│   ├── ScentProtocolMainnetGenesis.sol # Genesis collection
+│   ── ScentProtocolMarketplace.sol  # Marketplace logic
 ├── README.md
 └── LICENSE
 
-🤝 Contributing
-
-Contributions are welcome!
-Feel free to open issues or submit PRs.
 📄 License
-
 MIT
 
     Built on Arc — fast, cheap, USDC‑powered.
