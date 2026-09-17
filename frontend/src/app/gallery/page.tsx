@@ -110,16 +110,19 @@ export default function GalleryPage() {
     async function fetchGallery() {
       try {
         const w = window as any;
-        const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
+        // FIX 1: Используем Mainnet RPC
+        const provider = w.ethereum 
+          ? new ethers.BrowserProvider(w.ethereum) 
+          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         
         const nftContract = getContract(provider);
         const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
         
         const results: GalleryItem[] = [];
-        const maxId = 100;
 
-        // Fetch ScentProtocol NFTs
-        for (let tokenId = 1; tokenId <= maxId; tokenId++) {
+        // FIX 2: Увеличиваем лимит поиска для основной коллекции до 2000
+        const maxMainId = 2000;
+        for (let tokenId = 1; tokenId <= maxMainId; tokenId++) {
           try {
             const perfume = await nftContract.getPerfume(tokenId);
             if (perfume && perfume.name) {
@@ -137,13 +140,15 @@ export default function GalleryPage() {
               });
             }
           } catch (e) {
-            // Token doesn't exist or error
+            // Token doesn't exist yet or error, ignore
           }
-          await new Promise(r => setTimeout(r, 50));
+          // Небольшая задержка, чтобы не спамить RPC
+          await new Promise(r => setTimeout(r, 30));
         }
 
-        // Fetch Genesis NFTs
-        for (let tokenId = 1; tokenId <= maxId; tokenId++) {
+        // Для Genesis лимит строго 100
+        const maxGenesisId = 100;
+        for (let tokenId = 1; tokenId <= maxGenesisId; tokenId++) {
           try {
             const data = await genesisContract.getPerfume(tokenId);
             if (data && data.name) {
@@ -161,11 +166,12 @@ export default function GalleryPage() {
               });
             }
           } catch (e) {
-            // Token doesn't exist or error
+            // Token doesn't exist yet or error, ignore
           }
-          await new Promise(r => setTimeout(r, 50));
+          await new Promise(r => setTimeout(r, 30));
         }
 
+        console.log(`✅ Gallery loaded: ${results.length} items found`);
         setItems(results);
       } catch (e) {
         console.error("Gallery fetch error:", e);
@@ -177,7 +183,6 @@ export default function GalleryPage() {
     fetchGallery();
   }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -199,9 +204,9 @@ export default function GalleryPage() {
   const sortedItems = [...filteredItems].sort((a, b) => {
     switch (sortBy) {
       case "newest":
-        return b.tokenId - a.tokenId;
+        return b.createdAt - a.createdAt; // FIX 3: Сортировка по реальному времени создания
       case "oldest":
-        return a.tokenId - b.tokenId;
+        return a.createdAt - b.createdAt;
       case "name":
         return a.name.localeCompare(b.name);
       case "rarity":
@@ -246,30 +251,9 @@ export default function GalleryPage() {
           
           {showFilter && (
             <div className="absolute top-full mt-1 left-0 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl min-w-[180px]">
-              <button 
-                onClick={() => { setFilterBy("all"); setShowFilter(false); }} 
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                  filterBy === "all" ? "text-amber-400 bg-white/5" : "text-white/70"
-                }`}
-              >
-                All Collections
-              </button>
-              <button 
-                onClick={() => { setFilterBy("scents"); setShowFilter(false); }} 
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                  filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"
-                }`}
-              >
-                ScentProtocol
-              </button>
-              <button 
-                onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} 
-                className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                  filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"
-                }`}
-              >
-                Genesis
-              </button>
+              <button onClick={() => { setFilterBy("all"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "all" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>All Collections</button>
+              <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
+              <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
             </div>
           )}
         </div>
@@ -293,26 +277,13 @@ export default function GalleryPage() {
           {showSort && (
             <div className="absolute top-full mt-1 left-0 w-full bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl">
               {sortOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    setSortBy(option.value as SortOption);
-                    setShowSort(false);
-                  }}
-                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${
-                    sortBy === option.value ? "text-amber-400 bg-white/5" : "text-white/70"
-                  }`}
-                >
-                  {option.label}
-                </button>
+                <button key={option.value} onClick={() => { setSortBy(option.value as SortOption); setShowSort(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${sortBy === option.value ? "text-amber-400 bg-white/5" : "text-white/70"}`}>{option.label}</button>
               ))}
             </div>
           )}
         </div>
 
-        <span className="text-white/30 text-sm ml-auto">
-          {sortedItems.length} item{sortedItems.length !== 1 ? "s" : ""}
-        </span>
+        <span className="text-white/30 text-sm ml-auto">{sortedItems.length} item{sortedItems.length !== 1 ? "s" : ""}</span>
       </div>
 
       {loading ? (
@@ -323,7 +294,7 @@ export default function GalleryPage() {
         </div>
       ) : sortedItems.length === 0 ? (
         <div className="text-center text-white/40 py-20">
-          <p className="text-lg mb-4">No NFTs found.</p>
+          <p className="text-lg mb-4">No NFTs found in the gallery yet.</p>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -410,9 +381,7 @@ export default function GalleryPage() {
                         <span className="text-white/40 text-xs uppercase tracking-wider">Top Notes</span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {item.topNotes.slice(0, 2).map((n) => (
-                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">
-                              {n}
-                            </span>
+                            <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>
                           ))}
                           {item.topNotes.length > 2 && (
                             <span className="px-2 py-0.5 text-xs text-white/40">+{item.topNotes.length - 2}</span>
