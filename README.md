@@ -98,15 +98,22 @@ All contracts below are deployed and verified on Arc Testnet:
 
 ## 🗺️ Roadmap
 
-### Phase 1 — Live ✅
+### Phase 1 — Live Now ✅
 - [x] On-chain perfume generation with unique formulas
-- [x] ERC-721 NFT minting with USDC payment
+- [x] ERC-721 NFT minting with USDC gas
 - [x] AI-generated poetic descriptions
 - [x] Collection & Gallery pages
-- [x] Genesis Collection (Commit-Reveal mechanism)
 
-### Phase 2 — AI Agent Integration
-- [ ] Personal AI advisor for scent recommendations
+### Phase 1.5 — Marketplace Launch ✅
+- [x] Peer-to-peer NFT trading platform
+- [x] Fixed price & auction listing types
+- [x] Royalty enforcement on secondary sales
+- [x] Rarity-based filtering & search
+
+### Phase 2 — AI Agent & Mainnet 🔄
+- [x] Personal AI advisor for scent recommendations
+- [x] Successful Mainnet deployment
+- [x] Limited Event Editions (Special Occasion Drops)
 - [ ] Auto-minting based on mood & context
 - [ ] Session keys for gasless experience
 - [ ] Natural language → fragrance pipeline
