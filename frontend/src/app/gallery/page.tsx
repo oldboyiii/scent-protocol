@@ -110,7 +110,6 @@ export default function GalleryPage() {
     async function fetchGallery() {
       try {
         const w = window as any;
-        // FIX 1: Используем Mainnet RPC
         const provider = w.ethereum 
           ? new ethers.BrowserProvider(w.ethereum) 
           : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
@@ -120,58 +119,82 @@ export default function GalleryPage() {
         
         const results: GalleryItem[] = [];
 
-        // FIX 2: Увеличиваем лимит поиска для основной коллекции до 2000
-        const maxMainId = 2000;
-        for (let tokenId = 1; tokenId <= maxMainId; tokenId++) {
-          try {
-            const perfume = await nftContract.getPerfume(tokenId);
-            if (perfume && perfume.name) {
-              results.push({
-                tokenId,
-                contractAddress: NFT_CONTRACT_ADDRESS,
-                name: perfume.name,
-                rarity: Number(perfume.rarity),
-                gender: Number(perfume.gender),
-                pType: Number(perfume.pType),
-                concentration: Number(perfume.concentration),
-                topNotes: perfume.topNotes ? Array.from(perfume.topNotes).map((n: any) => String(n)) : [],
-                createdAt: Number(perfume.createdAt),
-                creator: perfume.creator,
-              });
-            }
-          } catch (e) {
-            // Token doesn't exist yet or error, ignore
+        // OPTIMIZATION: Fetch in parallel batches instead of sequentially
+        const batchSize = 50;
+        const maxMainId = 500; // Reasonable limit for main collection
+        
+        console.log("🔍 Fetching gallery data...");
+        
+        // Fetch main collection in batches
+        for (let startId = 1; startId <= maxMainId; startId += batchSize) {
+          const endId = Math.min(startId + batchSize - 1, maxMainId);
+          const batchPromises = [];
+          
+          for (let tokenId = startId; tokenId <= endId; tokenId++) {
+            batchPromises.push(
+              nftContract.getPerfume(tokenId)
+                .then((perfume: any) => {
+                  if (perfume && perfume.name) {
+                    return {
+                      tokenId,
+                      contractAddress: NFT_CONTRACT_ADDRESS,
+                      name: perfume.name,
+                      rarity: Number(perfume.rarity),
+                      gender: Number(perfume.gender),
+                      pType: Number(perfume.pType),
+                      concentration: Number(perfume.concentration),
+                      topNotes: perfume.topNotes ? Array.from(perfume.topNotes).map((n: any) => String(n)) : [],
+                      createdAt: Number(perfume.createdAt),
+                      creator: perfume.creator,
+                    };
+                  }
+                  return null;
+                })
+                .catch(() => null) // Ignore errors for non-existent tokens
+            );
           }
-          // Небольшая задержка, чтобы не спамить RPC
-          await new Promise(r => setTimeout(r, 30));
+          
+          const batchResults = await Promise.all(batchPromises);
+          const validResults = batchResults.filter((item): item is GalleryItem => item !== null);
+          results.push(...validResults);
+          
+          console.log(`📦 Batch ${startId}-${endId}: found ${validResults.length} items`);
+          
+          // Small delay between batches to avoid rate limiting
+          await new Promise(r => setTimeout(r, 100));
         }
 
-        // Для Genesis лимит строго 100
-        const maxGenesisId = 100;
-        for (let tokenId = 1; tokenId <= maxGenesisId; tokenId++) {
-          try {
-            const data = await genesisContract.getPerfume(tokenId);
-            if (data && data.name) {
-              results.push({
-                tokenId,
-                contractAddress: GENESIS_CONTRACT_ADDRESS,
-                name: data.name,
-                rarity: Number(data.rarity),
-                gender: Number(data.gender),
-                pType: Number(data.pType),
-                concentration: Number(data.concentration),
-                topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
-                createdAt: Number(data.createdAt),
-                creator: data.creator,
-              });
-            }
-          } catch (e) {
-            // Token doesn't exist yet or error, ignore
-          }
-          await new Promise(r => setTimeout(r, 30));
+        // Fetch Genesis collection (limited to 100)
+        const genesisPromises = [];
+        for (let tokenId = 1; tokenId <= 100; tokenId++) {
+          genesisPromises.push(
+            genesisContract.getPerfume(tokenId)
+              .then((data: any) => {
+                if (data && data.name) {
+                  return {
+                    tokenId,
+                    contractAddress: GENESIS_CONTRACT_ADDRESS,
+                    name: data.name,
+                    rarity: Number(data.rarity),
+                    gender: Number(data.gender),
+                    pType: Number(data.pType),
+                    concentration: Number(data.concentration),
+                    topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                    createdAt: Number(data.createdAt),
+                    creator: data.creator,
+                  };
+                }
+                return null;
+              })
+              .catch(() => null)
+          );
         }
-
-        console.log(`✅ Gallery loaded: ${results.length} items found`);
+        
+        const genesisResults = await Promise.all(genesisPromises);
+        const validGenesis = genesisResults.filter((item): item is GalleryItem => item !== null);
+        results.push(...validGenesis);
+        
+        console.log(`✅ Gallery loaded: ${results.length} total items found`);
         setItems(results);
       } catch (e) {
         console.error("Gallery fetch error:", e);
@@ -204,7 +227,7 @@ export default function GalleryPage() {
   const sortedItems = [...filteredItems].sort((a, b) => {
     switch (sortBy) {
       case "newest":
-        return b.createdAt - a.createdAt; // FIX 3: Сортировка по реальному времени создания
+        return b.createdAt - a.createdAt;
       case "oldest":
         return a.createdAt - b.createdAt;
       case "name":
@@ -232,7 +255,6 @@ export default function GalleryPage() {
         <p className="text-center text-white/50">All fragrances minted on ScentProtocol.</p>
       </div>
 
-      {/* Filter and Sort Controls */}
       <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
         <div className="relative">
           <button 
