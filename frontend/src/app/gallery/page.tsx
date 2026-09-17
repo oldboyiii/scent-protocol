@@ -119,13 +119,13 @@ export default function GalleryPage() {
         
         const results: GalleryItem[] = [];
 
-        // OPTIMIZATION: Fetch in parallel batches instead of sequentially
-        const batchSize = 50;
-        const maxMainId = 500; // Reasonable limit for main collection
+        console.log(" Fetching gallery data...");
         
-        console.log("🔍 Fetching gallery data...");
+        // OPTIMIZATION: Smaller batches + longer delays
+        const batchSize = 20; // Reduced from 50
+        const maxMainId = 300; // Reduced from 500
         
-        // Fetch main collection in batches
+        // Fetch main collection
         for (let startId = 1; startId <= maxMainId; startId += batchSize) {
           const endId = Math.min(startId + batchSize - 1, maxMainId);
           const batchPromises = [];
@@ -150,7 +150,7 @@ export default function GalleryPage() {
                   }
                   return null;
                 })
-                .catch(() => null) // Ignore errors for non-existent tokens
+                .catch(() => null)
             );
           }
           
@@ -158,41 +158,46 @@ export default function GalleryPage() {
           const validResults = batchResults.filter((item): item is GalleryItem => item !== null);
           results.push(...validResults);
           
-          console.log(`📦 Batch ${startId}-${endId}: found ${validResults.length} items`);
-          
-          // Small delay between batches to avoid rate limiting
-          await new Promise(r => setTimeout(r, 100));
+          // Longer delay between batches
+          await new Promise(r => setTimeout(r, 300));
         }
 
-        // Fetch Genesis collection (limited to 100)
-        const genesisPromises = [];
-        for (let tokenId = 1; tokenId <= 100; tokenId++) {
-          genesisPromises.push(
-            genesisContract.getPerfume(tokenId)
-              .then((data: any) => {
-                if (data && data.name) {
-                  return {
-                    tokenId,
-                    contractAddress: GENESIS_CONTRACT_ADDRESS,
-                    name: data.name,
-                    rarity: Number(data.rarity),
-                    gender: Number(data.gender),
-                    pType: Number(data.pType),
-                    concentration: Number(data.concentration),
-                    topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
-                    createdAt: Number(data.createdAt),
-                    creator: data.creator,
-                  };
-                }
-                return null;
-              })
-              .catch(() => null)
-          );
+        // Fetch Genesis (smaller batches too)
+        const genesisBatchSize = 20;
+        for (let startId = 1; startId <= 100; startId += genesisBatchSize) {
+          const endId = Math.min(startId + genesisBatchSize - 1, 100);
+          const batchPromises = [];
+          
+          for (let tokenId = startId; tokenId <= endId; tokenId++) {
+            batchPromises.push(
+              genesisContract.getPerfume(tokenId)
+                .then((data: any) => {
+                  if (data && data.name) {
+                    return {
+                      tokenId,
+                      contractAddress: GENESIS_CONTRACT_ADDRESS,
+                      name: data.name,
+                      rarity: Number(data.rarity),
+                      gender: Number(data.gender),
+                      pType: Number(data.pType),
+                      concentration: Number(data.concentration),
+                      topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                      createdAt: Number(data.createdAt),
+                      creator: data.creator,
+                    };
+                  }
+                  return null;
+                })
+                .catch(() => null)
+            );
+          }
+          
+          const batchResults = await Promise.all(batchPromises);
+          const validResults = batchResults.filter((item): item is GalleryItem => item !== null);
+          results.push(...validResults);
+          
+          await new Promise(r => setTimeout(r, 300));
         }
-        
-        const genesisResults = await Promise.all(genesisPromises);
-        const validGenesis = genesisResults.filter((item): item is GalleryItem => item !== null);
-        results.push(...validGenesis);
         
         console.log(`✅ Gallery loaded: ${results.length} total items found`);
         setItems(results);
