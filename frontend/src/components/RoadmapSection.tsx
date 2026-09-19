@@ -140,14 +140,27 @@ export default function RoadmapSection() {
         </div>
       </div>
 
-      {/* Contact & Support Section */}
+           {/* Contact & Support Section */}
       <div className="mt-20 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-white/40">
         <p>© 2026 ScentProtocol. All rights reserved.</p>
         
         <div className="flex items-center gap-6">
-          {/* Future Socials Placeholders */}
-          <span className="hover:text-white transition-colors cursor-not-allowed opacity-50 select-none">X</span>
-          <span className="hover:text-white transition-colors cursor-not-allowed opacity-50 select-none">Discord</span>
+          {/* Active X (Twitter) Link */}
+          <a 
+            href="https://x.com/Scent_Protocol" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-white/50 hover:text-white transition-colors group"
+            aria-label="Follow us on X (Twitter)"
+          >
+            <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+            </svg>
+            <span>X</span>
+          </a>
+          
+          {/* Future Discord Placeholder (можно удалить, если не нужен) */}
+          <span className="text-white/30 cursor-not-allowed select-none">Discord</span>
           
           {/* Active Support Email */}
           <a 
@@ -172,6 +185,3 @@ export default function RoadmapSection() {
           </a>
         </div>
       </div>
-    </section>
-  );
-}
