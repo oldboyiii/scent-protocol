@@ -114,7 +114,6 @@ export default function RoadmapSection() {
                   <h3 className="text-lg font-semibold text-white mb-3">{p.title}</h3>
                   <ul className="space-y-1.5">
                     {p.items.map((item, j) => {
-                      // Поддержка как старых строк, так и новых объектов { text, done }
                       const isDone = typeof item === 'object' ? item.done : (p.status === "completed");
                       const itemText = typeof item === 'object' ? item.text : item;
                       
@@ -140,7 +139,7 @@ export default function RoadmapSection() {
         </div>
       </div>
 
-           {/* Contact & Support Section */}
+      {/* Contact & Support Section */}
       <div className="mt-20 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-white/40">
         <p>© 2026 ScentProtocol. All rights reserved.</p>
         
@@ -159,7 +158,7 @@ export default function RoadmapSection() {
             <span>X</span>
           </a>
           
-          {/* Future Discord Placeholder (можно удалить, если не нужен) */}
+          {/* Future Discord Placeholder */}
           <span className="text-white/30 cursor-not-allowed select-none">Discord</span>
           
           {/* Active Support Email */}
@@ -185,3 +184,6 @@ export default function RoadmapSection() {
           </a>
         </div>
       </div>
+    </section>
+  );
+}
