@@ -120,82 +120,74 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
   };
 
   const handleReveal = async () => {
-    if (!tokenId) return;
+  if (!tokenId) return;
 
-    setStep("revealing");
-    setError(null);
-    const toastId = addToast("Step 2/2: Revealing your Scent NFT...", "loading");
+  setStep("revealing");
+  setError(null);
+  const toastId = addToast("Step 2/2: Revealing your Scent NFT...", "loading");
 
+  try {
+    const w = window as any;
+    const provider = new ethers.BrowserProvider(w.ethereum);
+    const signer = await provider.getSigner();
+    const contract = getContract(signer);
+
+    // Debug: check pending mint status
     try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = getContract(signer);
-
-      // SECURE: Generate a cryptographically safe 32-byte hex string for uint256
-      const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
+      const pending = await contract.getPendingMint(tokenId);
+      console.log("Pending mint:", pending);
+      console.log("Current block:", await provider.getBlockNumber());
+      console.log("Pending block:", pending.blockNumber);
       
-      const txReveal = await contract.revealAndMint(tokenId, userSeedHex);
-      await txReveal.wait();
-
-      updateToast(toastId, "Fetching your perfume data...", "loading");
-      const rawPerfume = await contract.getPerfume(tokenId);
-      
-      const perfume: PerfumeData = {
-        name: rawPerfume.name,
-        gender: Number(rawPerfume.gender),
-        pType: Number(rawPerfume.pType),
-        topNotes: Array.from(rawPerfume.topNotes || []).map((n: any) => String(n)),
-        heartNotes: Array.from(rawPerfume.heartNotes || []).map((n: any) => String(n)),
-        baseNotes: Array.from(rawPerfume.baseNotes || []).map((n: any) => String(n)),
-        concentration: Number(rawPerfume.concentration),
-        rarity: Number(rawPerfume.rarity),
-        createdAt: Number(rawPerfume.createdAt),
-        creator: rawPerfume.creator,
-      };
-
-      // PIN TO IPFS: Secure metadata permanently
-      try {
-        updateToast(toastId, "Securing metadata on IPFS...", "loading");
-        const pinResponse = await fetch("/api/pin-metadata", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tokenId,
-            contractAddress: CONTRACT_ADDRESS,
-            perfumeData: perfume,
-          })
-        });
-
-        const pinResult = await pinResponse.json();
-        if (pinResult.success) {
-          console.log("✅ Metadata pinned to IPFS:", pinResult.ipfsUri);
-        } else {
-          console.warn("⚠️ IPFS pinning failed, but NFT is minted:", pinResult.error);
-        }
-      } catch (pinError) {
-        console.error("IPFS pinning error:", pinError);
+      if (pending.minter === "0x0000000000000000000000000000000000000000") {
+        throw new Error("No pending mint found for this tokenId");
       }
-
-      const desc = generateDescription(perfume);
-      onMinted(tokenId, perfume, desc);
-      
-      updateToast(toastId, `Scent #${tokenId} minted and secured successfully!`, "success");
-      setStep("success");
-
-    } catch (err: any) {
-      console.error("Reveal failed:", err);
-      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        setError("Transaction rejected by user.");
-        updateToast(toastId, "Transaction rejected.", "error");
-      } else {
-        setError(err.reason || err.shortMessage || err.message || "Failed to reveal.");
-        updateToast(toastId, err.reason || err.shortMessage || "Failed to reveal.", "error");
+      if (pending.minter.toLowerCase() !== (await signer.getAddress()).toLowerCase()) {
+        throw new Error("You are not the minter of this pending token");
       }
-      setStep("idle");
+    } catch (checkErr) {
+      console.error("Pending check failed:", checkErr);
+      throw checkErr;
     }
-  };
 
+    const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
+    console.log("Calling revealAndMint with:", { tokenId, userSeedHex });
+    
+    const txReveal = await contract.revealAndMint(tokenId, userSeedHex);
+    await txReveal.wait();
+
+    // ... rest of the code
+  } catch (err: any) {
+    console.error("=== REVEAL ERROR DETAILS ===");
+    console.error("Error code:", err.code);
+    console.error("Error reason:", err.reason);
+    console.error("Error shortMessage:", err.shortMessage);
+    console.error("Full error:", err);
+    
+    // Try to decode custom error
+    if (err.data) {
+      try {
+        const decoded = contract.interface.parseError(err.data);
+        console.error("Decoded error:", decoded.name, decoded.args);
+        setError(`Contract error: ${decoded.name}`);
+      } catch {
+        console.error("Could not decode error data");
+      }
+    }
+    
+    if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+      setError("Transaction rejected by user.");
+      updateToast(toastId, "Transaction rejected.", "error");
+    } else if (err.reason) {
+      setError(err.reason);
+      updateToast(toastId, err.reason, "error");
+    } else {
+      setError(err.shortMessage || err.message || "Failed to reveal.");
+      updateToast(toastId, err.shortMessage || "Failed to reveal.", "error");
+    }
+    setStep("idle");
+  }
+};
   const resetForm = () => {
     setStep("idle");
     setTokenId(null);
