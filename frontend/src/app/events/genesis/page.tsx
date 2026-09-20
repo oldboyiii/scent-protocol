@@ -7,7 +7,6 @@ import { useWallet } from "@/context/WalletContext";
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 
-// ДОБАВЛЕНЫ: кастомные ошибки для расшифровки причин реверта
 const GENESIS_ABI = [
   "function requestMint() external returns (uint256)",
   "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
@@ -15,6 +14,7 @@ const GENESIS_ABI = [
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
   "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber))",
+  "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis))",
   "error ScentProtocol__TooEarly()",
   "error ScentProtocol__NoPendingMint()",
   "error ScentProtocol__NotAuthorized()",
@@ -158,7 +158,6 @@ export default function GenesisEventPage() {
       console.log("=== PREPARING REVEAL ===");
       console.log("tokenId:", tokenId, "type:", typeof tokenId);
       
-      // ИСПРАВЛЕНО: самый надежный способ передать uint256 в ethers v6 — hex-строка
       const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
       console.log("userSeedHex:", userSeedHex);
       
@@ -169,10 +168,42 @@ export default function GenesisEventPage() {
       await tx.wait();
       console.log("Reveal confirmed");
 
+      // 🚀 NEW: Fetch fresh perfume data from the contract immediately after mint
+      const perfumeData = await contract.getPerfume(tokenId);
+      
+      // 🚀 NEW: Send data to our API to pin metadata to IPFS
+      console.log("Pinning metadata to IPFS...");
+      const pinResponse = await fetch("/api/pin-metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenId,
+          contractAddress: GENESIS_CONTRACT_ADDRESS,
+          perfumeData: {
+            name: perfumeData.name,
+            rarity: Number(perfumeData.rarity),
+            gender: Number(perfumeData.gender),
+            pType: Number(perfumeData.pType),
+            concentration: Number(perfumeData.concentration),
+            topNotes: Array.from(perfumeData.topNotes || []).map((n: any) => String(n)),
+            heartNotes: Array.from(perfumeData.heartNotes || []).map((n: any) => String(n)),
+            baseNotes: Array.from(perfumeData.baseNotes || []).map((n: any) => String(n)),
+          }
+        })
+      });
+
+      const pinResult = await pinResponse.json();
+      
+      if (pinResult.success) {
+        console.log("✅ Metadata pinned to IPFS:", pinResult.ipfsUri);
+      } else {
+        console.warn("⚠️ IPFS pinning failed, but NFT is minted:", pinResult.error);
+      }
+
       setStep("revealed");
       await fetchContractData(); 
       
-      alert("NFT successfully minted! Check your Collection.");
+      alert("NFT successfully minted and secured on IPFS! Check your Collection.");
 
     } catch (error: any) {
       console.error("=== REVEAL FAILED ===");
@@ -183,7 +214,6 @@ export default function GenesisEventPage() {
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else if (error.reason) {
-        // Теперь мы увидим точную причину, например: "ScentProtocol__TooEarly"
         alert(`Reveal failed: ${error.reason}`);
       } else {
         alert(error.message || "Reveal failed");
