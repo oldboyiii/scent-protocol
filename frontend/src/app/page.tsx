@@ -20,6 +20,7 @@ export default function Home() {
   const [minted, setMinted] = useState<MintedPerfume[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [newlyMinted, setNewlyMinted] = useState<number | null>(null);
+  const [isFadingOut, setIsFadingOut] = useState(false);
   const [advisorGender, setAdvisorGender] = useState<number | null>(null);
   const [advisorType, setAdvisorType] = useState<number | null>(null);
 
@@ -56,9 +57,19 @@ export default function Home() {
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
 
-    // Highlight the newly minted NFT
+    // Show newly minted card with animation
     setNewlyMinted(tokenId);
-    setTimeout(() => setNewlyMinted(null), 3000);
+    setIsFadingOut(false);
+
+    // Start fade-out after 5 seconds
+    setTimeout(() => {
+      setIsFadingOut(true);
+      // Remove after fade-out completes (0.5s)
+      setTimeout(() => {
+        setNewlyMinted(null);
+        setIsFadingOut(false);
+      }, 500);
+    }, 5000);
   };
 
   const handleAdvisorSelect = (gender: number, pType: number) => {
@@ -126,7 +137,13 @@ export default function Home() {
 
       {/* Newly Minted NFT - Animated Reveal */}
       {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted && (
-        <div className="w-full max-w-md px-4 animate-slide-up-fade">
+        <div 
+          className={`w-full max-w-md px-4 transition-all duration-500 ${
+            isFadingOut 
+              ? "opacity-0 translate-y-8 scale-95" 
+              : "opacity-100 translate-y-0 scale-100 animate-bounce-in"
+          }`}
+        >
           <div className="text-center mb-4">
             <h3 className="text-2xl font-bold text-amber-400 mb-2"> New Scent Minted!</h3>
             <p className="text-white/60 text-sm">Your unique fragrance has been created</p>
@@ -174,18 +191,22 @@ export default function Home() {
       </div>
 
       <style>{`
-        @keyframes slide-up-fade {
+        @keyframes bounce-in {
           0% {
             opacity: 0;
-            transform: translateY(50px) scale(0.9);
+            transform: translateY(60px) scale(0.8);
+          }
+          60% {
+            opacity: 1;
+            transform: translateY(-10px) scale(1.05);
           }
           100% {
             opacity: 1;
             transform: translateY(0) scale(1);
           }
         }
-        .animate-slide-up-fade {
-          animation: slide-up-fade 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        .animate-bounce-in {
+          animation: bounce-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
       `}</style>
     </div>
