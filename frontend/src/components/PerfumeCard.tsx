@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PerfumeData } from "@/utils/contract";
+import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP, RARITY_COLORS } from "@/utils/contract";
 
 interface PerfumeCardProps {
   tokenId: number;
@@ -17,10 +17,6 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
-const RARITY = ["Common", "Rare", "Epic", "Legendary"];
-const GENDER = ["Male", "Female", "Unisex"];
-const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
-
 export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight = false }: PerfumeCardProps) {
   const style = RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0];
 
@@ -31,6 +27,7 @@ export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight
           highlight ? "ring-4 ring-amber-400/50 ring-offset-2 ring-offset-slate-900" : ""
         }`}
       >
+        {/* Shimmer effect for highlighted (newly minted) cards */}
         {highlight && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
             background: `linear-gradient(90deg, transparent, ${style.hex}40, transparent)`,
@@ -39,34 +36,97 @@ export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight
           }} />
         )}
 
+        {/* Hover shimmer for regular cards */}
+        {!highlight && (
+          <div 
+            className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+              backgroundSize: "200% 100%",
+              animation: "shimmer 2s linear infinite",
+              padding: "2px",
+              WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
+            }}
+          />
+        )}
+
+        {/* Glass shine overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        <div className="relative flex items-start justify-between mb-4">
+        {/* Header */}
+        <div className="relative flex justify-between items-start mb-4">
           <div>
-            <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Scent #{tokenId}</p>
+            <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{tokenId}</p>
             <h3 className="text-xl font-bold text-white mt-1 group-hover:text-amber-300 transition-colors">
               {perfume.name}
             </h3>
           </div>
           <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
-            {RARITY[perfume.rarity]}
+            {RARITY_MAP[perfume.rarity]}
           </span>
         </div>
 
+        {/* Meta info */}
         <div className="relative flex flex-wrap gap-2 text-xs mb-4">
-          <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">{GENDER[perfume.gender]}</span>
-          <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">{TYPE[perfume.pType]}</span>
-          <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">{perfume.concentration}%</span>
+          <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+            {GENDER_MAP[perfume.gender]}
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+            {TYPE_MAP[perfume.pType]}
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+            {perfume.concentration}%
+          </span>
         </div>
 
+        {/* Notes */}
+        <div className="relative space-y-3 mb-4">
+          <div>
+            <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Top Notes</p>
+            <div className="flex flex-wrap gap-1.5">
+              {perfume.topNotes.map((note, i) => (
+                <span key={i} className="px-2 py-0.5 bg-green-500/20 text-green-300 rounded-md text-xs border border-green-500/30">
+                  {note}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Heart Notes</p>
+            <div className="flex flex-wrap gap-1.5">
+              {perfume.heartNotes.map((note, i) => (
+                <span key={i} className="px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded-md text-xs border border-rose-500/30">
+                  {note}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Base Notes</p>
+            <div className="flex flex-wrap gap-1.5">
+              {perfume.baseNotes.map((note, i) => (
+                <span key={i} className="px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-md text-xs border border-amber-500/30">
+                  {note}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* AI Description */}
         {aiDescription && (
-          <div className="relative text-sm text-white/60 italic border-l-2 border-white/20 pl-3 mb-4">
+          <div className={`relative rounded-lg p-3 text-sm italic border-l-2 mb-4 ${
+            highlight ? 'bg-amber-950/40 border-amber-400/60 text-white/80' : 'bg-black/30 border-white/20 text-white/70'
+          }`}>
             {aiDescription}
           </div>
         )}
 
-        <div className="relative flex items-center justify-between pt-2">
+        {/* Footer */}
+        <div className="relative flex items-center justify-between pt-2 border-t border-white/10">
           <span className="text-sm text-white/50">View Details</span>
           <span className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
         </div>
