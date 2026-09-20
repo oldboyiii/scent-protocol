@@ -104,8 +104,7 @@ export default function NFTDetailPage() {
       try {
         const provider = (typeof window !== "undefined" && (window as any).ethereum)
           ? new ethers.BrowserProvider((window as any).ethereum)
-          : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-
+: new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         // Try Genesis FIRST for token ID #1
         if (id === 1) {
           try {
