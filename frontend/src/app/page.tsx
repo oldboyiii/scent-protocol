@@ -124,54 +124,55 @@ export default function Home() {
         <InfoSection />
       </div>
 
-      {/* Mint Form */}
+      {/* Mint Form OR Newly Minted NFT (mutually exclusive - same place!) */}
       <div id="mint-form" className="w-full max-w-xl px-4 animate-fade-up-delay">
-        <MintForm 
-          onMinted={handleMinted} 
-          defaultGender={advisorGender ?? undefined}
-          defaultType={advisorType ?? undefined}
-        />
-      </div>
-
-      {/* Newly Minted NFT - Appears RIGHT AFTER mint form with smooth animation */}
-      {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted && (
-        <div 
-          className={`w-full max-w-xl px-4 transition-all duration-1000 ease-in-out ${
-            isFadingOut 
-              ? "opacity-0 translate-y-8 scale-95 blur-sm" 
-              : "opacity-100 translate-y-0 scale-100 animate-reveal"
-          }`}
-        >
-          <div className="text-center mb-6">
-            <div className="flex justify-center mb-4">
-              <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
-                <svg 
-                  className="w-12 h-12 text-emerald-400" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2.5} 
-                    d="M5 13l4 4L19 7" 
-                  />
-                </svg>
+        {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted ? (
+          // Show NFT card instead of form
+          <div 
+            className={`transition-all duration-1000 ease-in-out ${
+              isFadingOut 
+                ? "opacity-0 translate-y-8 scale-95 blur-sm" 
+                : "opacity-100 translate-y-0 scale-100 animate-reveal"
+            }`}
+          >
+            <div className="text-center mb-6">
+              <div className="flex justify-center mb-4">
+                <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
+                  <svg 
+                    className="w-12 h-12 text-emerald-400" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2.5} 
+                      d="M5 13l4 4L19 7" 
+                    />
+                  </svg>
+                </div>
               </div>
+              <h3 className="text-3xl font-bold text-emerald-400 mb-2">Mint Successful!</h3>
+              <p className="text-white/60 text-sm">Your unique fragrance has been created and secured on-chain</p>
+              <p className="text-white/40 text-xs mt-2">This card will disappear in 10 seconds</p>
             </div>
-            <h3 className="text-3xl font-bold text-emerald-400 mb-2">Mint Successful!</h3>
-            <p className="text-white/60 text-sm">Your unique fragrance has been created and secured on-chain</p>
-            <p className="text-white/40 text-xs mt-2">This card will disappear in 10 seconds</p>
+            <PerfumeCard
+              tokenId={minted[0].tokenId}
+              perfume={minted[0].perfume}
+              aiDescription={minted[0].description}
+              highlight={true}
+            />
           </div>
-          <PerfumeCard
-            tokenId={minted[0].tokenId}
-            perfume={minted[0].perfume}
-            aiDescription={minted[0].description}
-            highlight={true}
+        ) : (
+          // Show mint form
+          <MintForm 
+            onMinted={handleMinted} 
+            defaultGender={advisorGender ?? undefined}
+            defaultType={advisorType ?? undefined}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* AI Advisor */}
       <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
