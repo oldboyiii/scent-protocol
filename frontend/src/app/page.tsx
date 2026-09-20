@@ -53,23 +53,20 @@ export default function Home() {
     ];
     localStorage.setItem("scent_collection", JSON.stringify(updated));
 
-    // Trigger confetti
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
 
-    // Show newly minted card with animation
     setNewlyMinted(tokenId);
     setIsFadingOut(false);
 
-    // Start fade-out after 5 seconds
+    // Start fade-out after 6 seconds
     setTimeout(() => {
       setIsFadingOut(true);
-      // Remove after fade-out completes (0.5s)
       setTimeout(() => {
         setNewlyMinted(null);
         setIsFadingOut(false);
-      }, 500);
-    }, 5000);
+      }, 800);
+    }, 6000);
   };
 
   const handleAdvisorSelect = (gender: number, pType: number) => {
@@ -135,18 +132,36 @@ export default function Home() {
         />
       </div>
 
-      {/* Newly Minted NFT - Animated Reveal */}
+      {/* Newly Minted NFT - Animated Reveal (placed right after MintForm) */}
       {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted && (
         <div 
-          className={`w-full max-w-md px-4 transition-all duration-500 ${
+          className={`w-full max-w-xl px-4 transition-all duration-700 ease-out ${
             isFadingOut 
-              ? "opacity-0 translate-y-8 scale-95" 
-              : "opacity-100 translate-y-0 scale-100 animate-bounce-in"
+              ? "opacity-0 translate-y-4 scale-95" 
+              : "opacity-100 translate-y-0 scale-100 animate-reveal"
           }`}
         >
-          <div className="text-center mb-4">
-            <h3 className="text-2xl font-bold text-amber-400 mb-2"> New Scent Minted!</h3>
-            <p className="text-white/60 text-sm">Your unique fragrance has been created</p>
+          <div className="text-center mb-6">
+            {/* Green SVG checkmark */}
+            <div className="flex justify-center mb-3">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
+                <svg 
+                  className="w-9 h-9 text-emerald-400" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2.5} 
+                    d="M5 13l4 4L19 7" 
+                  />
+                </svg>
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-emerald-400 mb-1">Mint Successful!</h3>
+            <p className="text-white/60 text-sm">Your unique fragrance has been created and secured on-chain</p>
           </div>
           <PerfumeCard
             tokenId={minted[0].tokenId}
@@ -191,22 +206,18 @@ export default function Home() {
       </div>
 
       <style>{`
-        @keyframes bounce-in {
+        @keyframes reveal {
           0% {
             opacity: 0;
-            transform: translateY(60px) scale(0.8);
-          }
-          60% {
-            opacity: 1;
-            transform: translateY(-10px) scale(1.05);
+            transform: translateY(40px) scale(0.92);
           }
           100% {
             opacity: 1;
             transform: translateY(0) scale(1);
           }
         }
-        .animate-bounce-in {
-          animation: bounce-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        .animate-reveal {
+          animation: reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
       `}</style>
     </div>
