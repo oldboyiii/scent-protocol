@@ -20,7 +20,6 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
   const [gender, setGender] = useState(defaultGender ?? 0);
   const [pType, setPType] = useState(defaultType ?? 2);
   
-  // Step management for the commit-reveal flow
   const [step, setStep] = useState<"idle" | "requesting" | "waiting" | "revealing" | "success">("idle");
   const [tokenId, setTokenId] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
@@ -28,13 +27,11 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
 
   const { addToast, updateToast } = useToast();
 
-  // Update local state if AI advisor pre-fills the form
   useEffect(() => {
     if (defaultGender !== undefined) setGender(defaultGender);
     if (defaultType !== undefined) setPType(defaultType);
   }, [defaultGender, defaultType]);
 
-  // Countdown timer for the reveal phase
   useEffect(() => {
     if (step === "waiting" && countdown > 0) {
       const timer = setInterval(() => {
@@ -83,7 +80,6 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       const txRequest = await contract.requestMint();
       const receiptRequest = await txRequest.wait();
 
-      // Extract tokenId from the MintRequested event
       let newTokenId = 0;
       for (const log of receiptRequest.logs) {
         if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) continue;
@@ -103,7 +99,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
 
       setTokenId(newTokenId);
       setStep("waiting");
-      setCountdown(10); // Wait ~10 seconds (5 blocks) for randomness security
+      setCountdown(10);
       updateToast(toastId, `Step 1 Complete! Reserved Token #${newTokenId}`, "success");
       
     } catch (err: any) {
@@ -132,7 +128,6 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       const signer = await provider.getSigner();
       const contract = getContract(signer);
 
-      // SECURE: Generate a cryptographically safe 32-byte hex string for uint256
       const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
       
       const txReveal = await contract.revealAndMint(tokenId, userSeedHex);
@@ -154,7 +149,6 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
         creator: rawPerfume.creator,
       };
 
-      // PIN TO IPFS: Secure metadata permanently
       try {
         updateToast(toastId, "Securing metadata on IPFS...", "loading");
         const pinResponse = await fetch("/api/pin-metadata", {
@@ -355,7 +349,23 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
 
       {step === "success" && (
         <div className="text-center space-y-4 py-4">
-          <div className="text-5xl mb-2">🎉</div>
+          <div className="flex justify-center mb-2">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
+              <svg 
+                className="w-9 h-9 text-emerald-400" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2.5} 
+                  d="M5 13l4 4L19 7" 
+                />
+              </svg>
+            </div>
+          </div>
           <h3 className="text-xl font-bold text-emerald-400">Successfully Minted!</h3>
           <p className="text-white/60 text-sm">Your NFT is secured on-chain and metadata is pinned to IPFS.</p>
           <button
