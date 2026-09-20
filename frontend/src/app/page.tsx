@@ -56,17 +56,18 @@ export default function Home() {
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
 
+    // Show newly minted card with animation
     setNewlyMinted(tokenId);
     setIsFadingOut(false);
 
-    // Start fade-out after 6 seconds
+    // Auto-hide after 10 seconds with smooth fade-out
     setTimeout(() => {
       setIsFadingOut(true);
       setTimeout(() => {
         setNewlyMinted(null);
         setIsFadingOut(false);
-      }, 800);
-    }, 6000);
+      }, 1000);
+    }, 10000);
   };
 
   const handleAdvisorSelect = (gender: number, pType: number) => {
@@ -132,21 +133,20 @@ export default function Home() {
         />
       </div>
 
-      {/* Newly Minted NFT - Animated Reveal (placed right after MintForm) */}
+      {/* Newly Minted NFT - Appears RIGHT AFTER mint form with smooth animation */}
       {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted && (
         <div 
-          className={`w-full max-w-xl px-4 transition-all duration-700 ease-out ${
+          className={`w-full max-w-xl px-4 transition-all duration-1000 ease-in-out ${
             isFadingOut 
-              ? "opacity-0 translate-y-4 scale-95" 
+              ? "opacity-0 translate-y-8 scale-95 blur-sm" 
               : "opacity-100 translate-y-0 scale-100 animate-reveal"
           }`}
         >
           <div className="text-center mb-6">
-            {/* Green SVG checkmark */}
-            <div className="flex justify-center mb-3">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
                 <svg 
-                  className="w-9 h-9 text-emerald-400" 
+                  className="w-12 h-12 text-emerald-400" 
                   fill="none" 
                   stroke="currentColor" 
                   viewBox="0 0 24 24"
@@ -160,8 +160,9 @@ export default function Home() {
                 </svg>
               </div>
             </div>
-            <h3 className="text-2xl font-bold text-emerald-400 mb-1">Mint Successful!</h3>
+            <h3 className="text-3xl font-bold text-emerald-400 mb-2">Mint Successful!</h3>
             <p className="text-white/60 text-sm">Your unique fragrance has been created and secured on-chain</p>
+            <p className="text-white/40 text-xs mt-2">This card will disappear in 10 seconds</p>
           </div>
           <PerfumeCard
             tokenId={minted[0].tokenId}
@@ -185,7 +186,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* All Minted Cards */}
+      {/* All Minted Cards - Only show if more than 1 mint */}
       {minted.length > 1 && (
         <div className="w-full max-w-md px-4 space-y-4 animate-fade-up-delay">
           <h3 className="text-xl font-bold text-white text-center mb-4">Your Recent Creations</h3>
@@ -209,15 +210,20 @@ export default function Home() {
         @keyframes reveal {
           0% {
             opacity: 0;
-            transform: translateY(40px) scale(0.92);
+            transform: translateY(60px) scale(0.9);
+            filter: blur(10px);
+          }
+          50% {
+            transform: translateY(-10px) scale(1.02);
           }
           100% {
             opacity: 1;
             transform: translateY(0) scale(1);
+            filter: blur(0);
           }
         }
         .animate-reveal {
-          animation: reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+          animation: reveal 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
       `}</style>
     </div>
