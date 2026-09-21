@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import MintForm from "@/components/MintForm";
+import MintReveal from "@/components/MintReveal"; // <-- Добавлен импорт
 import PerfumeCard from "@/components/PerfumeCard";
 import InfoSection from "@/components/InfoSection";
 import Logo from "@/components/Logo";
@@ -56,18 +57,8 @@ export default function Home() {
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
 
-    // Show newly minted card with animation
     setNewlyMinted(tokenId);
     setIsFadingOut(false);
-
-    // Auto-hide after 10 seconds with smooth fade-out
-    setTimeout(() => {
-      setIsFadingOut(true);
-      setTimeout(() => {
-        setNewlyMinted(null);
-        setIsFadingOut(false);
-      }, 1000);
-    }, 10000);
   };
 
   const handleAdvisorSelect = (gender: number, pType: number) => {
@@ -127,45 +118,18 @@ export default function Home() {
       {/* Mint Form OR Newly Minted NFT (mutually exclusive - same place!) */}
       <div id="mint-form" className="w-full max-w-xl px-4 animate-fade-up-delay">
         {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted ? (
-          // Show NFT card instead of form
-          <div 
-            className={`transition-all duration-1000 ease-in-out ${
-              isFadingOut 
-                ? "opacity-0 translate-y-8 scale-95 blur-sm" 
-                : "opacity-100 translate-y-0 scale-100 animate-reveal"
-            }`}
-          >
-            <div className="text-center mb-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
-                  <svg 
-                    className="w-12 h-12 text-emerald-400" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2.5} 
-                      d="M5 13l4 4L19 7" 
-                    />
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-3xl font-bold text-emerald-400 mb-2">Mint Successful!</h3>
-              <p className="text-white/60 text-sm">Your unique fragrance has been created and secured on-chain</p>
-              <p className="text-white/40 text-xs mt-2">This card will disappear in 10 seconds</p>
-            </div>
-            <PerfumeCard
-              tokenId={minted[0].tokenId}
-              perfume={minted[0].perfume}
-              aiDescription={minted[0].description}
-              highlight={true}
-            />
-          </div>
+          // Используем компонент MintReveal с анимацией конверта
+          <MintReveal
+            tokenId={minted[0].tokenId}
+            perfume={minted[0].perfume}
+            description={minted[0].description}
+            onComplete={() => {
+              setNewlyMinted(null);
+              setIsFadingOut(false);
+            }}
+          />
         ) : (
-          // Show mint form
+          // Показываем форму минта
           <MintForm 
             onMinted={handleMinted} 
             defaultGender={advisorGender ?? undefined}
@@ -206,27 +170,6 @@ export default function Home() {
       <div className="w-full animate-fade-up-delay">
         <RoadmapSection />
       </div>
-
-      <style>{`
-        @keyframes reveal {
-          0% {
-            opacity: 0;
-            transform: translateY(60px) scale(0.9);
-            filter: blur(10px);
-          }
-          50% {
-            transform: translateY(-10px) scale(1.02);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-            filter: blur(0);
-          }
-        }
-        .animate-reveal {
-          animation: reveal 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-      `}</style>
     </div>
   );
 }
