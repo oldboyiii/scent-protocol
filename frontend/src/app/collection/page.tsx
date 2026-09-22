@@ -241,7 +241,7 @@ export default function CollectionPage() {
         
         const results: StoredScent[] = [];
 
-        // PART 1: Fetch ScentProtocol NFTs
+        // Part 1: Fetch ScentProtocol NFTs
         try {
           let contract;
           if (w.ethereum) {
@@ -306,7 +306,7 @@ export default function CollectionPage() {
           console.error("ScentProtocol fetch error:", e);
         }
 
-        // PART 2: Fetch Genesis NFTs
+        // Part 2: Fetch Genesis NFTs
         try {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const genesisBalance = await genesisContract.balanceOf(currentAddress);
@@ -365,7 +365,7 @@ export default function CollectionPage() {
           console.error("Genesis fetch error:", e);
         }
 
-        // PART 3: Fetch MFW NFTs
+        // Part 3: Fetch MFW NFTs
         try {
           const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
           const mfwBalance = await mfwContract.balanceOf(currentAddress);
@@ -680,8 +680,12 @@ export default function CollectionPage() {
                       )}
                       {isMFW && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          {/* UPDATED: Replaced lightning bolt with perfume bottle icon */}
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
+                            <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
+                            <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
+                            <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
                           </svg>
                           MFW 2026
                         </span>
