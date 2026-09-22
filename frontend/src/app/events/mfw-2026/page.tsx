@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 
@@ -13,12 +12,13 @@ const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const MFW_ABI = [
   "function requestMint(bytes32 seedCommitment) external returns (uint256)",
   "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
+  "function cancelMint(uint256 tokenId) external",
   "function getMintPrice(address minter) external view returns (uint256)",
   "function isGenesisHolder(address account) external view returns (bool)",
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
-  "function pendingMints(uint256) external view returns (address minter, uint256 blockNumber, uint256 paidAmount, bytes32 seedCommitment)",
+  "function pendingMints(uint256) external view returns (address minter, uint256 timestamp, uint256 paidAmount, bytes32 seedCommitment)",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
 ];
 
@@ -29,7 +29,6 @@ const USDC_ABI = [
 
 export default function MFW2026EventPage() {
   const { address } = useWallet();
-  const router = useRouter();
   const [minting, setMinting] = useState(false);
   const [totalMinted, setTotalMinted] = useState(0);
   const [userMinted, setUserMinted] = useState(0);
@@ -86,32 +85,34 @@ export default function MFW2026EventPage() {
         console.warn("Failed to get user minted:", e);
       }
 
-      // CRITICAL: Check for pending mints
+      // Check for pending mints using TIMESTAMP (not block number!)
       try {
         const nextId = Number(await mfwContract.getNextTokenId());
-        const currentBlock = await provider.getBlockNumber();
+        const currentTimestamp = Math.floor(Date.now() / 1000); // Current time in seconds
         
-        console.log("Checking pending mints. Next ID:", nextId, "Current block:", currentBlock);
+        console.log("Checking pending mints. Next ID:", nextId, "Current timestamp:", currentTimestamp);
         
         // Check last 20 token IDs for pending mints
         for (let i = Math.max(1, nextId - 20); i < nextId; i++) {
           try {
             const pending = await mfwContract.pendingMints(i);
-            console.log("Token", i, "minter:", pending.minter);
+            console.log("Token", i, "minter:", pending.minter, "timestamp:", Number(pending.timestamp));
             
             if (pending.minter.toLowerCase() === address.toLowerCase()) {
               console.log("Found pending mint for token", i);
               setTokenId(i);
               
-              const blocksPassed = currentBlock - Number(pending.blockNumber);
-              console.log("Blocks passed:", blocksPassed);
+              const pendingTimestamp = Number(pending.timestamp);
+              const secondsPassed = currentTimestamp - pendingTimestamp;
+              const REVEAL_MIN_WAIT = 30; // seconds, matches contract
               
-              // Arc has ~0.2s blocks, so 150 blocks = ~30 seconds
-              if (blocksPassed >= 150) {
+              console.log("Seconds passed:", secondsPassed, "Required:", REVEAL_MIN_WAIT);
+              
+              if (secondsPassed >= REVEAL_MIN_WAIT) {
                 setCountdown(0);
                 setStep("requested");
               } else {
-                const secondsLeft = Math.ceil((150 - blocksPassed) * 0.2);
+                const secondsLeft = REVEAL_MIN_WAIT - secondsPassed;
                 setCountdown(secondsLeft);
                 setStep("requested");
               }
@@ -197,7 +198,6 @@ export default function MFW2026EventPage() {
     }
 
     setMinting(true);
-    setStep("requested");
     try {
       const w = window as any;
       const provider = new ethers.BrowserProvider(w.ethereum);
@@ -221,13 +221,12 @@ export default function MFW2026EventPage() {
 
       const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
       setTokenId(newTokenId);
-      setCountdown(30); // 30 seconds wait
+      setCountdown(30);
+      setStep("requested");
 
-      alert("✅ Reservation created! Wait 30 seconds, then click Reveal.");
     } catch (error: any) {
       console.error("Request mint failed:", error);
       alert(error.reason || error.message || "Mint request failed");
-      setStep("idle");
     } finally {
       setMinting(false);
     }
@@ -240,7 +239,6 @@ export default function MFW2026EventPage() {
     }
 
     // If we don't have seedPreimage (page was refreshed), generate a new one
-    // This will create a different perfume but will complete the mint
     const finalSeed = seedPreimage || ethers.hexlify(ethers.randomBytes(32));
 
     setMinting(true);
@@ -266,6 +264,35 @@ export default function MFW2026EventPage() {
       console.error("Reveal failed:", error);
       alert(error.reason || error.shortMessage || error.message || "Reveal failed");
       setStep("requested");
+    } finally {
+      setMinting(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!tokenId) return;
+    if (!confirm("Cancel this pending mint? You will receive a 50% refund (0.5 USDC).")) return;
+
+    setMinting(true);
+    try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
+
+      const tx = await contract.cancelMint(tokenId);
+      await tx.wait();
+
+      alert("Cancelled! 50% refund processed to your wallet.");
+      setTokenId(null);
+      setSeedPreimage("");
+      setStep("idle");
+      setCountdown(0);
+      await fetchContractData();
+      await checkApproval();
+    } catch (error: any) {
+      console.error("Cancel failed:", error);
+      alert(error.reason || error.shortMessage || error.message || "Cancel failed");
     } finally {
       setMinting(false);
     }
@@ -372,13 +399,22 @@ export default function MFW2026EventPage() {
                 </p>
               </div>
 
-              <button
-                onClick={handleReveal}
-                disabled={countdown > 0 || minting}
-                className="w-full px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {minting ? "Revealing..." : "Reveal & Mint NFT"}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleReveal}
+                  disabled={countdown > 0 || minting}
+                  className="flex-1 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {minting ? "Revealing..." : "Reveal & Mint NFT"}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={minting}
+                  className="px-6 py-4 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 font-semibold hover:bg-red-500/30 transition-all disabled:opacity-50"
+                >
+                  Cancel (50% Refund)
+                </button>
+              </div>
             </div>
           ) : step === "revealing" ? (
             <div className="text-center py-8">
@@ -495,11 +531,11 @@ export default function MFW2026EventPage() {
                 <span>Limited-edition digital badge for all minters</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-pink-400 mt-0.5"></span>
+                <span className="text-pink-400 mt-0.5">🎫</span>
                 <span>Priority access to upcoming drops and partnerships</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-pink-400 mt-0.5">🌟</span>
+                <span className="text-pink-400 mt-0.5"></span>
                 <span>Founding member status for future fashion initiatives</span>
               </li>
             </ul>
