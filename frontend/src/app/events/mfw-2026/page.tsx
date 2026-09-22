@@ -190,7 +190,7 @@ export default function MFW2026EventPage() {
       await tx.wait();
 
       if (isGenesisHolder || !hasBadge) {
-        alert("🎉 Mint successful! You received the exclusive MFW 2026 Badge!");
+        alert(" Mint successful! You received the exclusive MFW 2026 Badge!");
       } else {
         alert("NFT successfully minted!");
       }
@@ -230,7 +230,7 @@ export default function MFW2026EventPage() {
             Milan Fashion Week 2026
           </h1>
           <p className="text-xl text-white/60 max-w-2xl mx-auto">
-            Exclusive digital fragrance drop inspired by haute couture
+            A vision for the future of fashion and digital perfumery
           </p>
         </div>
 
@@ -288,12 +288,12 @@ export default function MFW2026EventPage() {
               <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
               </svg>
-              <p className="text-purple-400 font-semibold">Exclusive Digital Badge</p>
+              <p className="text-purple-400 font-semibold">Limited-Edition Digital Badge</p>
             </div>
             <p className="text-white/80 text-sm">
               {hasBadge 
-                ? "You already own the exclusive MFW 2026 digital badge!" 
-                : "Every minter receives an exclusive MFW 2026 digital badge on their profile!"}
+                ? "You already own the MFW 2026 digital badge!" 
+                : "Every minter receives a limited-edition MFW 2026 digital badge on their profile!"}
             </p>
           </div>
 
@@ -345,7 +345,7 @@ export default function MFW2026EventPage() {
                     </p>
                     <p className="text-white/50 text-sm mt-2">
                       {countdown > 0 
-                        ? `⏳ Wait ${countdown} seconds before reveal...`
+                        ? ` Wait ${countdown} seconds before reveal...`
                         : "✅ Ready for reveal!"}
                     </p>
                   </div>
@@ -378,7 +378,7 @@ export default function MFW2026EventPage() {
                     </div>
                   </div>
                   <h3 className="text-xl font-bold text-emerald-400">Successfully Minted!</h3>
-                  <p className="text-white/60 text-sm">Your NFT is secured on-chain and you received the exclusive badge!</p>
+                  <p className="text-white/60 text-sm">Your NFT is secured on-chain and you received the limited-edition badge!</p>
                   <button
                     onClick={() => setStep("idle")}
                     className="mt-4 px-6 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
@@ -409,7 +409,7 @@ export default function MFW2026EventPage() {
             </h3>
             <ul className="space-y-3 text-sm text-white/60">
               <li className="flex items-start gap-2">
-                <span className="text-purple-400 mt-0.5"></span>
+                <span className="text-purple-400 mt-0.5">📅</span>
                 <span><strong>Dates:</strong> September 22-28, 2026</span>
               </li>
               <li className="flex items-start gap-2">
@@ -418,11 +418,11 @@ export default function MFW2026EventPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-purple-400 mt-0.5">💎</span>
-                <span><strong>Price:</strong> 5 USDC (1 USDC for Genesis)</span>
+                <span><strong>Price:</strong> 5 USDC (1 USDC for Genesis holders)</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-purple-400 mt-0.5">🏷️</span>
-                <span><strong>Bonus:</strong> Exclusive Digital Badge for ALL minters</span>
+                <span><strong>Bonus:</strong> Limited-Edition Digital Badge for all minters</span>
               </li>
             </ul>
           </div>
@@ -437,19 +437,19 @@ export default function MFW2026EventPage() {
             <ul className="space-y-3 text-sm text-white/60">
               <li className="flex items-start gap-2">
                 <span className="text-pink-400 mt-0.5">✨</span>
-                <span>Unique AI-generated MFW-inspired fragrance</span>
+                <span>Unique AI-generated fragrance inspired by haute couture</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-pink-400 mt-0.5">️</span>
-                <span>Exclusive digital badge for all attendees</span>
+                <span>Limited-edition digital badge for all minters</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-pink-400 mt-0.5"></span>
-                <span>Priority access to future fashion collaborations</span>
+                <span>Priority access to upcoming drops and partnerships</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-pink-400 mt-0.5"></span>
-                <span>Physical redemption opportunities</span>
+                <span className="text-pink-400 mt-0.5">🌟</span>
+                <span>Founding member status for future fashion initiatives</span>
               </li>
             </ul>
           </div>
@@ -457,12 +457,12 @@ export default function MFW2026EventPage() {
 
         {/* About Section */}
         <div className="glass-card p-8 rounded-2xl border border-white/10">
-          <h2 className="text-2xl font-bold text-white mb-4">About This Event</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">About This Vision</h2>
           <p className="text-white/60 leading-relaxed mb-4">
-            We're partnering with <strong>Milan Fashion Week 2026</strong> for an unprecedented collaboration between haute couture and digital perfumery. This limited edition drop features AI-generated scents that capture the essence of MFW 2026's most iconic moments.
+            ScentProtocol envisions a future where <strong>haute couture and digital perfumery intersect</strong>. Milan Fashion Week 2026 represents our first step toward this vision — a planned collaboration that will bring AI-generated fragrances to the world's most prestigious runway.
           </p>
           <p className="text-white/60 leading-relaxed">
-            Each NFT holder receives exclusive access to future fashion week collaborations, a digital badge displayed on their profile, and priority access to physical redemption opportunities.
+            Each NFT holder becomes a founding member of this initiative, receiving a limited-edition digital badge displayed on their profile, and priority access to upcoming partnerships and drops as they're announced.
           </p>
         </div>
       </div>
