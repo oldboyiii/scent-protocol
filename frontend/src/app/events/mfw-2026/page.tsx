@@ -18,7 +18,6 @@ const MFW_ABI = [
   "function getNextTokenId() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getRemainingSupply() external view returns (uint256)",
-  "function hasBadge(address account) external view returns (bool)",
 ];
 
 const USDC_ABI = [
@@ -36,11 +35,11 @@ export default function MFW2026EventPage() {
   const [mintPrice, setMintPrice] = useState<bigint>(0n);
   const [needsApproval, setNeedsApproval] = useState(false);
   
-  // Состояние для pending mint
+  // Pending mint state
   const [pendingTokenId, setPendingTokenId] = useState<number | null>(null);
   const [seedPreimage, setSeedPreimage] = useState<string>("");
-  const [countdown, setCountdown] = useState(0);
   const [canReveal, setCanReveal] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -57,37 +56,67 @@ export default function MFW2026EventPage() {
         const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
         const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
 
-        // Проверяем Genesis holder
-        const genesisBalance = await genesisContract.balanceOf(address);
-        setIsGenesisHolder(Number(genesisBalance) > 0);
+        // Check Genesis holder
+        try {
+          const genesisBalance = await genesisContract.balanceOf(address);
+          setIsGenesisHolder(Number(genesisBalance) > 0);
+        } catch (e) {
+          console.warn("Failed to check Genesis:", e);
+        }
 
-        // Получаем цену
-        const price = await contract.getMintPrice(address);
-        setMintPrice(price);
+        // Get price
+        try {
+          const price = await contract.getMintPrice(address);
+          setMintPrice(price);
+        } catch (e) {
+          console.warn("Failed to get price:", e);
+        }
 
-        // Общее количество сминченных
-        const remaining = await contract.getRemainingSupply();
-        setTotalMinted(500 - Number(remaining));
+        // Total minted
+        try {
+          const remaining = await contract.getRemainingSupply();
+          setTotalMinted(500 - Number(remaining));
+        } catch (e) {
+          console.warn("Failed to get supply:", e);
+        }
 
-        // Сколько сминтил пользователь
-        const mintedCount = await contract.getWalletMintedCount(address);
-        setUserMinted(Number(mintedCount));
+        // User minted count
+        try {
+          const mintedCount = await contract.getWalletMintedCount(address);
+          setUserMinted(Number(mintedCount));
+        } catch (e) {
+          console.warn("Failed to get user minted:", e);
+        }
 
-        // Проверяем есть ли pending mint
-        const nextId = Number(await contract.getNextTokenId());
-        for (let i = Math.max(1, nextId - 5); i < nextId; i++) {
-          try {
-            const pending = await contract.pendingMints(i);
-            if (pending.minter.toLowerCase() === address.toLowerCase()) {
-              setPendingTokenId(i);
-              const currentBlock = await provider.getBlockNumber();
-              const blocksPassed = currentBlock - Number(pending.blockNumber);
-              const blocksRemaining = Math.max(0, 150 - blocksPassed); // 30 секунд / 0.2с на блок
-              setCountdown(blocksRemaining);
-              setCanReveal(blocksPassed >= 150);
-              break;
+        // Check for pending mints - look at last 10 IDs
+        try {
+          const nextId = Number(await contract.getNextTokenId());
+          const currentBlock = await provider.getBlockNumber();
+          
+          for (let i = Math.max(1, nextId - 10); i < nextId; i++) {
+            try {
+              const pending = await contract.pendingMints(i);
+              if (pending.minter.toLowerCase() === address.toLowerCase()) {
+                setPendingTokenId(i);
+                
+                // Check if 30 seconds have passed (Arc has ~0.2s blocks, so ~150 blocks)
+                const blocksPassed = currentBlock - Number(pending.blockNumber);
+                const canRevealNow = blocksPassed >= 150;
+                setCanReveal(canRevealNow);
+                
+                if (!canRevealNow) {
+                  // Calculate approximate time left (30s - blocksPassed * 0.2s)
+                  const secondsLeft = Math.max(0, 30 - Math.floor(blocksPassed * 0.2));
+                  setTimeLeft(secondsLeft);
+                }
+                break;
+              }
+            } catch (e) {
+              // Token doesn't exist or no pending mint
             }
-          } catch (e) {}
+          }
+        } catch (e) {
+          console.warn("Failed to check pending:", e);
         }
 
       } catch (error) {
@@ -100,17 +129,17 @@ export default function MFW2026EventPage() {
     fetchData();
   }, [address]);
 
-  // Таймер обратного отсчета
+  // Countdown timer
   useEffect(() => {
-    if (countdown > 0 && !canReveal) {
+    if (timeLeft > 0 && !canReveal) {
       const timer = setTimeout(() => {
-        setCountdown(c => c - 1);
+        setTimeLeft(t => t - 1);
       }, 1000);
       return () => clearTimeout(timer);
-    } else if (countdown === 0) {
+    } else if (timeLeft === 0) {
       setCanReveal(true);
     }
-  }, [countdown, canReveal]);
+  }, [timeLeft, canReveal]);
 
   const handleApprove = async () => {
     if (!address) return;
@@ -137,7 +166,7 @@ export default function MFW2026EventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
 
-      // Генерируем seed и сохраняем его
+      // Generate and save seed
       const randomBytes = ethers.randomBytes(32);
       const preimageHex = ethers.hexlify(randomBytes);
       setSeedPreimage(preimageHex);
@@ -146,7 +175,7 @@ export default function MFW2026EventPage() {
       const tx = await contract.requestMint(seedCommitment);
       const receipt = await tx.wait();
 
-      // Находим tokenId из события
+      // Find tokenId from event
       const event = receipt.logs.find((log: any) => {
         try {
           const parsed = contract.interface.parseLog(log);
@@ -158,7 +187,7 @@ export default function MFW2026EventPage() {
         const parsed = contract.interface.parseLog(event);
         const tokenId = Number(parsed?.args[0]);
         setPendingTokenId(tokenId);
-        setCountdown(30);
+        setTimeLeft(30);
         setCanReveal(false);
       }
 
@@ -171,7 +200,10 @@ export default function MFW2026EventPage() {
   };
 
   const handleReveal = async () => {
-    if (!address || pendingTokenId === null || !seedPreimage) return;
+    if (!address || pendingTokenId === null || !seedPreimage) {
+      alert("Missing data. Please refresh the page.");
+      return;
+    }
 
     setMinting(true);
     try {
@@ -188,7 +220,7 @@ export default function MFW2026EventPage() {
       setSeedPreimage("");
       setCanReveal(false);
       
-      // Обновляем данные
+      // Refresh data
       const mintedCount = await contract.getWalletMintedCount(address);
       setUserMinted(Number(mintedCount));
       const remaining = await contract.getRemainingSupply();
@@ -297,7 +329,7 @@ export default function MFW2026EventPage() {
               ) : (
                 <div className="text-center p-4 rounded-xl bg-black/30">
                   <p className="text-white/80 mb-2">⏳ Wait before reveal</p>
-                  <p className="text-3xl font-bold text-purple-400">{countdown}s</p>
+                  <p className="text-3xl font-bold text-purple-400">{timeLeft}s</p>
                 </div>
               )}
             </div>
