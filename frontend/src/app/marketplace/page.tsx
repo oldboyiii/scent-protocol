@@ -9,7 +9,7 @@ import { getContract } from "@/utils/contract";
 const MARKETPLACE_ADDRESS = ethers.getAddress("0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c");
 const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50"; // Added MFW Contract
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const MARKETPLACE_ABI = [
@@ -90,7 +90,7 @@ const MFW_ABI = [
 ];
 
 type SortOption = "priceLow" | "priceHigh" | "rarity" | "newest";
-type CollectionFilter = "all" | "scents" | "genesis" | "mfw"; // Added "mfw"
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw";
 
 interface ListingData {
   tokenId: number;
@@ -152,7 +152,7 @@ export default function MarketplacePage() {
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
       const nftContract = getContract(provider);
       const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-      const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider); // Added MFW contract
+      const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
 
       const activeCount = await marketplace.getActiveCount();
       console.log("Active listings count:", Number(activeCount));
@@ -297,7 +297,7 @@ export default function MarketplacePage() {
   const filteredListings = listings.filter(listing => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return listing.contractAddress === GENESIS_CONTRACT_ADDRESS;
-    if (filterBy === "mfw") return listing.contractAddress === MFW_CONTRACT_ADDRESS; // Added MFW filter
+    if (filterBy === "mfw") return listing.contractAddress === MFW_CONTRACT_ADDRESS;
     return listing.contractAddress === NFT_CONTRACT_ADDRESS;
   });
 
@@ -460,7 +460,7 @@ export default function MarketplacePage() {
           {sortedListings.map((listing) => {
             const rarity = listing.rarity;
             const isGenesis = listing.contractAddress === GENESIS_CONTRACT_ADDRESS;
-            const isMFW = listing.contractAddress === MFW_CONTRACT_ADDRESS; // Added MFW check
+            const isMFW = listing.contractAddress === MFW_CONTRACT_ADDRESS;
             
             // Updated style logic to include MFW
             const style = isMFW 
@@ -478,7 +478,11 @@ export default function MarketplacePage() {
             const isBuying = buyingId === listing.tokenId;
 
             return (
-              <Link key={`${listing.contractAddress}-${listing.tokenId}`} href={`/nft/${listing.tokenId}?from=marketplace`} className="block">
+              <Link 
+                key={`${listing.contractAddress}-${listing.tokenId}`} 
+                href={`/nft/${listing.tokenId}?from=marketplace&contract=${listing.contractAddress}`}
+                className="block"
+              >
                 <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
                   
                   {isGenesis && (
