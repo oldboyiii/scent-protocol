@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { useWallet } from "@/context/WalletContext";
 
-const MFW_CONTRACT_ADDRESS = "0x..."; // Replace with deployed address
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
