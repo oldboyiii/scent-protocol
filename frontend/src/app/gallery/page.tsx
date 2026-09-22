@@ -7,6 +7,7 @@ import { getContract } from "@/utils/contract";
 
 const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50"; // <-- ДОБАВЛЕНО
 const CACHE_KEY = "scentprotocol_gallery_cache";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -38,6 +39,35 @@ const GENESIS_ABI = [
   }
 ];
 
+// <-- ДОБАВЛЕНО: MFW ABI
+const MFW_ABI = [
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "getPerfume",
+    "outputs": [{
+      "components": [
+        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"internalType": "string", "name": "name", "type": "string"},
+        {"internalType": "uint8", "name": "gender", "type": "uint8"},
+        {"internalType": "uint8", "name": "pType", "type": "uint8"},
+        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
+        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
+        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
+        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
+        {"internalType": "address", "name": "creator", "type": "address"},
+        {"internalType": "bool", "name": "hasExclusiveBadge", "type": "bool"}
+      ],
+      "internalType": "struct ScentProtocolMFW2026.Perfume",
+      "name": "",
+      "type": "tuple"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
+
 interface GalleryItem {
   tokenId: number;
   contractAddress: string;
@@ -52,7 +82,7 @@ interface GalleryItem {
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
-type CollectionFilter = "all" | "scents" | "genesis";
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw"; // <-- ДОБАВЛЕНО "mfw"
 
 const RARITY_STYLE: Record<number, { 
   bg: string; 
@@ -96,6 +126,16 @@ const RARITY_STYLE: Record<number, {
   },
 };
 
+// <-- ДОБАВЛЕНО: MFW стиль (единый фиолетовый с постоянным свечением)
+const MFW_STYLE = {
+  bg: "from-purple-900/80 via-indigo-900/70 to-slate-900/80",
+  border: "border-purple-500/50",
+  badge: "bg-purple-500/40 text-purple-100 border-purple-400/60",
+  text: "text-purple-100",
+  glow: "shadow-[0_0_40px_rgba(168,85,247,0.4)] hover:shadow-[0_0_60px_rgba(168,85,247,0.6)]",
+  hex: "#a855f7",
+};
+
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
 const GENDER_ICONS = ["", "♂", "♀", ""];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
@@ -134,6 +174,7 @@ export default function GalleryPage() {
         
         const nftContract = getContract(provider);
         const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+        const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider); // <-- ДОБАВЛЕНО
         
         const results: GalleryItem[] = [];
 
@@ -206,6 +247,36 @@ export default function GalleryPage() {
         const genesisResults = await Promise.all(genesisPromises);
         const validGenesis = genesisResults.filter((item): item is GalleryItem => item !== null);
         results.push(...validGenesis);
+
+        // <-- ДОБАВЛЕНО: Fetch MFW (always 500 max)
+        const mfwPromises = [];
+        for (let tokenId = 1; tokenId <= 500; tokenId++) {
+          mfwPromises.push(
+            mfwContract.getPerfume(tokenId)
+              .then((data: any) => {
+                if (data && data.name) {
+                  return {
+                    tokenId,
+                    contractAddress: MFW_CONTRACT_ADDRESS,
+                    name: data.name,
+                    rarity: Number(data.rarity),
+                    gender: Number(data.gender),
+                    pType: Number(data.pType),
+                    concentration: Number(data.concentration),
+                    topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                    createdAt: Number(data.createdAt),
+                    creator: data.creator,
+                  };
+                }
+                return null;
+              })
+              .catch(() => null)
+          );
+        }
+        
+        const mfwResults = await Promise.all(mfwPromises);
+        const validMFW = mfwResults.filter((item): item is GalleryItem => item !== null);
+        results.push(...validMFW);
         
         console.log(`✅ Gallery loaded: ${results.length} total items found`);
         setItems(results);
@@ -244,6 +315,7 @@ export default function GalleryPage() {
   const filteredItems = items.filter(item => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return item.contractAddress === GENESIS_CONTRACT_ADDRESS;
+    if (filterBy === "mfw") return item.contractAddress === MFW_CONTRACT_ADDRESS; // <-- ДОБАВЛЕНО
     return item.contractAddress === NFT_CONTRACT_ADDRESS;
   });
 
@@ -288,6 +360,7 @@ export default function GalleryPage() {
               {filterBy === "all" && "All Collections"}
               {filterBy === "scents" && "ScentProtocol"}
               {filterBy === "genesis" && "Genesis"}
+              {filterBy === "mfw" && "MFW 2026"} {/* <-- ДОБАВЛЕНО */}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -299,6 +372,7 @@ export default function GalleryPage() {
               <button onClick={() => { setFilterBy("all"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "all" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>All Collections</button>
               <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
               <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
+              <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button> {/* <-- ДОБАВЛЕНО */}
             </div>
           )}
         </div>
@@ -346,16 +420,21 @@ export default function GalleryPage() {
           {sortedItems.map((item) => {
             const rarity = item.rarity;
             const isGenesis = item.contractAddress === GENESIS_CONTRACT_ADDRESS;
-            const style = isGenesis 
-              ? { 
-                  bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
-                  border: "border-amber-400/70", 
-                  badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
-                  text: "text-amber-100",
-                  glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
-                  hex: "#fbbf24"
-                }
-              : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+            const isMFW = item.contractAddress === MFW_CONTRACT_ADDRESS; // <-- ДОБАВЛЕНО
+            
+            // <-- ИЗМЕНЕНО: добавлена поддержка MFW стиля
+            const style = isMFW 
+              ? MFW_STYLE
+              : isGenesis 
+                ? { 
+                    bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
+                    border: "border-amber-400/70", 
+                    badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
+                    text: "text-amber-100",
+                    glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
+                    hex: "#fbbf24"
+                  }
+                : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
               <Link key={`${item.contractAddress}-${item.tokenId}`} href={`/nft/${item.tokenId}`}>
@@ -369,7 +448,15 @@ export default function GalleryPage() {
                     }} />
                   )}
 
-                  {!isGenesis && (
+                  {isMFW && (
+                    <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
+                      background: `linear-gradient(90deg, transparent, rgba(168,85,247,0.3), transparent)`,
+                      backgroundSize: "200% 100%",
+                      animation: "shimmer 2.5s linear infinite",
+                    }} />
+                  )}
+
+                  {!isGenesis && !isMFW && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
                       background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
                       backgroundSize: "200% 100%",
@@ -384,7 +471,7 @@ export default function GalleryPage() {
                   <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                  {!isGenesis && (
+                  {!isGenesis && !isMFW && (
                     <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{
                       background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
                       backgroundSize: "200% 100%",
@@ -396,12 +483,20 @@ export default function GalleryPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-xs text-white/40 uppercase tracking-wider">
-                          {isGenesis ? "Genesis" : "Scent"} #{item.tokenId}
+                          {isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{item.tokenId}
                         </p>
                         {isGenesis && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
                             <img src="/arc-logo.png" alt="Arc" className="w-3 h-3 inline-block" style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }} />
                             Genesis
+                          </span>
+                        )}
+                        {isMFW && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            MFW 2026
                           </span>
                         )}
                       </div>
