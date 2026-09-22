@@ -1,4 +1,3 @@
-// src/components/NFTCard.tsx
 "use client";
 
 import Link from "next/link";
@@ -16,6 +15,7 @@ interface NFTCardProps {
   creator: string;
   createdAt: number;
   isGenesis?: boolean;
+  isMFW?: boolean;
   isListed?: boolean;
   price?: string;
   seller?: string;
@@ -58,6 +58,15 @@ const RARITY_STYLE: Record<number, {
   },
 };
 
+// MFW统一紫色样式
+const MFW_STYLE = {
+  bg: "from-purple-900/80 via-indigo-900/70 to-slate-900/80",
+  border: "border-purple-500/50",
+  badge: "bg-purple-500/40 text-purple-100 border-purple-400/60",
+  glow: "shadow-[0_0_40px_rgba(168,85,247,0.4)] hover:shadow-[0_0_60px_rgba(168,85,247,0.6)]",
+  hex: "#a855f7",
+};
+
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
 const GENDER_ICONS = ["", "♂", "♀"];
 const TYPE_LABELS = ["Parfum", "EDP", "EDT", "EDC"];
@@ -75,17 +84,43 @@ export default function NFTCard({
   creator,
   createdAt,
   isGenesis = false,
+  isMFW = false,
   isListed = false,
   price,
   seller,
 }: NFTCardProps) {
-  const style = RARITY_STYLE[rarity] || RARITY_STYLE[0];
+  // MFW使用统一紫色样式，其他使用 rarity 样式
+  const style = isMFW ? MFW_STYLE : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
   return (
     <Link href={`/nft/${tokenId}`}>
       <div
         className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} transition-all duration-300 hover:-translate-y-2 overflow-hidden cursor-pointer`}
       >
+        {/* MFW Collection Special Effects */}
+        {isMFW && (
+          <>
+            {/* Animated Bottle Watermark */}
+            <div className="absolute inset-0 flex items-start justify-center pointer-events-none opacity-5">
+              <svg className="w-64 h-64 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={0.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+            </div>
+
+            {/* Purple Border Glow Animation */}
+            <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-100 transition-opacity duration-500">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-purple-500/20 animate-pulse" />
+            </div>
+
+            {/* Bottle Icon Animation on Top */}
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 opacity-100 group-hover:opacity-100 transition-all duration-700 drop-shadow-[0_0_15px_rgba(168,85,247,0.8)]">
+               <svg className="w-full h-full text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+               </svg>
+            </div>
+          </>
+        )}
+
         {/* Genesis Collection Special Effects */}
         {isGenesis && (
           <>
@@ -116,31 +151,38 @@ export default function NFTCard({
           </>
         )}
 
-        {/* Standard Shimmer Effect */}
-        <div
-          className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-          style={{
-            background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
-            backgroundSize: "200% 100%",
-            animation: "shimmer 2s linear infinite",
-          }}
-        />
+        {/* Standard Shimmer Effect (only for non-MFW/non-Genesis) */}
+        {!isMFW && !isGenesis && (
+          <div
+            className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+              backgroundSize: "200% 100%",
+              animation: "shimmer 2s linear infinite",
+            }}
+          />
+        )}
 
         {/* Top Gradient Line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {/* Header with Genesis Badge & Arc Logo */}
+        {/* Header with MFW Bottle Badge & Genesis Arc Logo */}
         <div className="relative flex items-start justify-between mb-4">
-          <div>
-            <p className="text-xs text-white/40 uppercase tracking-wider">
-              Scent #{tokenId}
-            </p>
-            <h3 className="text-xl font-bold text-white mt-1 truncate max-w-[200px]">
-              {name}
-            </h3>
-          </div>
-          
           <div className="flex items-center gap-2">
+            {/* MFW Bottle Badge */}
+            {isMFW && (
+              <div className="relative group/mfw" title="MFW 2026 Exclusive">
+                <div className="w-7 h-7 rounded-full bg-purple-500/30 border border-purple-400/60 flex items-center justify-center drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]">
+                  <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                  </svg>
+                </div>
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/90 text-purple-300 text-[10px] rounded opacity-0 group-hover/mfw:opacity-100 transition-opacity whitespace-nowrap z-10">
+                  MFW 2026 Exclusive
+                </div>
+              </div>
+            )}
+            
             {/* Arc Logo for Genesis */}
             {isGenesis && (
               <div className="relative group/arc" title="Built on Arc">
@@ -153,12 +195,35 @@ export default function NFTCard({
               </div>
             )}
             
-            {/* Rarity Badge */}
-            <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
-              {RARITY_LABELS[rarity]}
-            </span>
+            <div>
+              <p className="text-xs text-white/40 uppercase tracking-wider">
+                Scent #{tokenId}
+              </p>
+              <h3 className="text-xl font-bold text-white mt-1 truncate max-w-[200px]">
+                {name}
+              </h3>
+            </div>
           </div>
+          
+          {/* Rarity Badge */}
+          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+            {RARITY_LABELS[rarity]}
+          </span>
         </div>
+
+        {/* MFW Badge */}
+        {isMFW && (
+          <div className="relative mb-4">
+            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-purple-500/20 border border-purple-500/40">
+              <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-xs font-bold text-purple-300 uppercase tracking-wider">
+                MFW 2026 Exclusive
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Genesis Badge */}
         {isGenesis && (
@@ -242,9 +307,9 @@ export default function NFTCard({
           </div>
         </div>
 
-        {/* Bottom Arc Decoration */}
-        {isGenesis && (
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+        {/* Bottom Decoration */}
+        {(isGenesis || isMFW) && (
+          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-${isMFW ? 'purple' : 'amber'}-500/50 to-transparent`} />
         )}
       </div>
 
