@@ -38,7 +38,6 @@ const GENESIS_ABI = [
   }
 ];
 
-// ADDED: MFW ABI
 const MFW_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -87,7 +86,6 @@ const GENESIS_STYLE = {
   hex: "#fbbf24",
 };
 
-// ADDED: MFW Style
 const MFW_STYLE = {
   bg: "from-purple-900/90 via-indigo-900/80 to-purple-950/90",
   border: "border-purple-500/50",
@@ -96,6 +94,20 @@ const MFW_STYLE = {
   glow: "shadow-[0_0_80px_rgba(168,85,247,0.5),0_0_120px_rgba(168,85,247,0.3)]",
   hex: "#a855f7",
 };
+
+// Small perfume bottle icon (replaces lightning bolt)
+const MFWBottleIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Cap */}
+    <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
+    {/* Neck */}
+    <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
+    {/* Body */}
+    <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
+    {/* Inner highlight */}
+    <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+  </svg>
+);
 
 function generateDescription(perfume: any): string {
   const genderLabel = GENDER[perfume.gender];
@@ -152,10 +164,9 @@ export default function NFTDetailPage() {
 
         let found = false;
 
-        // 1. STRICT CHECK: If URL has contract parameter, try that FIRST
         if (contractParam?.toLowerCase() === MFW_CONTRACT_ADDRESS.toLowerCase()) {
           try {
-            console.log("🎯 Trying MFW contract for token", id);
+            console.log(" Trying MFW contract for token", id);
             const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
             const data = await mfwContract.getPerfume(id);
             if (data && data.name) {
@@ -207,11 +218,9 @@ export default function NFTDetailPage() {
           }
         }
 
-        // 2. FALLBACK: If no contract param or not found, try old logic
         if (!found) {
           console.log("🔄 Falling back to auto-detect logic...");
           
-          // Try Genesis FIRST for token ID #1 (legacy behavior)
           if (id === 1) {
             try {
               console.log("🎯 Trying Genesis FIRST for token #1...");
@@ -240,7 +249,6 @@ export default function NFTDetailPage() {
             }
           }
 
-          // Try ScentProtocol
           if (!found) {
             try {
               console.log("Trying ScentProtocol for token", id);
@@ -258,7 +266,6 @@ export default function NFTDetailPage() {
             }
           }
 
-          // Try Genesis for other IDs
           if (!found && id !== 1) {
             try {
               const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
@@ -331,7 +338,6 @@ export default function NFTDetailPage() {
 
   const description = generateDescription(perfume);
   
-  // ADDED: Dynamic style and color selection
   const labelColor = isGenesis ? 'text-amber-300/80' : isMFW ? 'text-purple-300/80' : 'text-white/40';
   const descBg = isGenesis ? 'bg-amber-950/40 border-amber-400/60' : isMFW ? 'bg-purple-950/40 border-purple-400/60' : 'bg-black/30 border-white/10';
   const style = isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
@@ -347,7 +353,6 @@ export default function NFTDetailPage() {
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
-        {/* CONSTANT SHIMMER: For BOTH Genesis and MFW */}
         {(isGenesis || isMFW) && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
             background: `linear-gradient(90deg, transparent, rgba(${isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`,
@@ -356,7 +361,6 @@ export default function NFTDetailPage() {
           }} />
         )}
 
-        {/* HOVER SHIMMER #1: EXACT from your old working code for regular NFTs */}
         {!isGenesis && !isMFW && (
           <div 
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -372,13 +376,9 @@ export default function NFTDetailPage() {
           />
         )}
 
-        {/* Glass shine */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-
-        {/* Top glow line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {/* HOVER SHIMMER #2: EXACT from your old working code for regular NFTs */}
         {!isGenesis && !isMFW && (
           <div 
             className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
@@ -404,9 +404,7 @@ export default function NFTDetailPage() {
               )}
               {isMFW && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+                  <MFWBottleIcon className="w-3 h-3" />
                   MFW 2026
                 </span>
               )}
@@ -479,37 +477,11 @@ export default function NFTDetailPage() {
           )}
           {isMFW && (
             <p className="text-purple-300 font-bold mt-2 flex items-center gap-2">
-              <svg className="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ filter: "drop-shadow(0 0 6px rgba(168,85,247,0.6))" }}>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+              <MFWBottleIcon className="w-5 h-5" />
               Milan Fashion Week 2026 Exclusive
             </p>
           )}
         </div>
-
-        {/* ADDED: MFW Perfume Bottle Visual */}
-        {isMFW && (
-          <div className="mt-8 mb-6 flex justify-center">
-            <div className="relative w-32 h-48">
-              {/* Bottle Body */}
-              <div className="absolute inset-0 bg-gradient-to-b from-purple-400/30 via-purple-600/20 to-purple-800/30 rounded-t-[3rem] rounded-b-2xl border border-purple-400/50 backdrop-blur-md shadow-[0_0_40px_rgba(168,85,247,0.4)] flex items-center justify-center">
-                {/* Cap */}
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-16 h-10 bg-gradient-to-r from-amber-400 to-amber-600 rounded-t-lg shadow-[0_0_20px_rgba(245,158,11,0.6)]"></div>
-                
-                {/* Neck */}
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-8 h-5 bg-purple-400/20 border-x border-t border-purple-300/40 backdrop-blur-sm"></div>
-                
-                {/* Inner Glow */}
-                <div className="w-20 h-20 bg-purple-500/20 rounded-full blur-xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
-              </div>
-              
-              {/* Floating Particles */}
-              <div className="absolute top-1/3 -right-6 w-2 h-2 bg-purple-400 rounded-full animate-ping opacity-70"></div>
-              <div className="absolute bottom-1/4 -left-8 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse delay-700 opacity-70"></div>
-              <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-white/40 rounded-full animate-pulse delay-300"></div>
-            </div>
-          </div>
-        )}
 
         <div className="relative mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
           <Link href={`/nft/${id - 1}`} className={`text-sm text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>
