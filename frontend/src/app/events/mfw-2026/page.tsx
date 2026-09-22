@@ -1,268 +1,471 @@
-function EventCard({ event }: { event: EventItem }) {
-  const progress = (event.minted / event.totalSupply) * 100;
-  const isMFW = event.id === "milan-fashion-week";
+"use client";
 
-  // MFW Card - Purple with bottle, description, and particles
-  if (isMFW) {
-    return (
-      <Link href={`/events/${event.id}`}>
-        <div className="group relative rounded-3xl overflow-hidden border border-purple-500/30 bg-gradient-to-br from-slate-900/90 via-indigo-950/50 to-slate-900/90 hover:border-purple-400/60 hover:shadow-[0_0_40px_rgba(168,85,247,0.1)] transition-all duration-300 cursor-pointer">
-          
-          {/* Animated particles */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {[...Array(25)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-1 h-1 bg-purple-400/40 rounded-full animate-pulse"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  animationDelay: `${Math.random() * 3}s`,
-                  animationDuration: `${2 + Math.random() * 3}s`,
-                }}
-              />
-            ))}
-          </div>
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ethers } from "ethers";
+import { useWallet } from "@/context/WalletContext";
 
-          {/* Top glow line */}
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
+const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
-          <div className="relative p-8 md:p-10 flex flex-col md:flex-row gap-10 items-center">
-            
-            {/* Left Column: Content */}
-            <div className="flex-1 w-full order-2 md:order-1">
-              {/* Badges */}
-              <div className="flex flex-wrap items-center gap-3 mb-6">
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                  Live Now
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-purple-500/20 text-purple-300 border-purple-500/40 flex items-center gap-1.5">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                  </svg>
-                  Exclusive Drop
-                </span>
-                {event.partner && (
-                  <span className="text-xs text-white/40">{event.partner}</span>
-                )}
-              </div>
+const MFW_ABI = [
+  "function requestMint(bytes32 seedCommitment) external returns (uint256)",
+  "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
+  "function getMintPrice(address minter) external view returns (uint256)",
+  "function isGenesisHolder(address account) external view returns (bool)",
+  "function getRemainingSupply() external view returns (uint256)",
+  "function getWalletMintedCount(address wallet) external view returns (uint256)",
+  "function getNextTokenId() external view returns (uint256)",
+  "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool hasExclusiveBadge))",
+  "function hasBadge(address account) external view returns (bool)",
+  "event PerfumeMinted(uint256 indexed tokenId, address indexed creator, uint256 price)",
+  "event BadgeAwarded(address indexed recipient)",
+  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
+];
 
-              {/* Title */}
-              <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-pink-400 to-amber-400 group-hover:from-purple-200 group-hover:via-pink-300 group-hover:to-amber-300 mb-4 transition-colors">
-                {event.name}
-              </h2>
+const USDC_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
+];
 
-              {/* Description */}
-              <p className="text-white/60 text-base max-w-2xl mb-4">
-                {event.description}
-              </p>
+export default function MFW2026EventPage() {
+  const { address } = useWallet();
+  const router = useRouter();
+  const [minting, setMinting] = useState(false);
+  const [totalMinted, setTotalMinted] = useState(0);
+  const [userMinted, setUserMinted] = useState(0);
+  const [isGenesisHolder, setIsGenesisHolder] = useState(false);
+  const [hasBadge, setHasBadge] = useState(false);
+  const [mintPrice, setMintPrice] = useState<bigint>(0n);
+  const [needsApproval, setNeedsApproval] = useState(false);
+  const [tokenId, setTokenId] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const [step, setStep] = useState<"idle" | "requested" | "revealing" | "success">("idle");
 
-              {/* Long description */}
-              {event.longDescription && (
-                <p className="text-white/50 text-sm max-w-2xl leading-relaxed border-l-2 border-purple-500/30 pl-4 mb-6">
-                  {event.longDescription}
-                </p>
-              )}
+  const maxSupply = 500;
+  const maxPerWallet = 3;
 
-              {/* Key Facts Grid */}
-              {event.keyFacts && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                  {event.keyFacts.map((fact, i) => (
-                    <div key={i} className="p-3 rounded-xl bg-black/30 border border-purple-500/20">
-                      <p className="text-xs text-white/40 uppercase tracking-wider mb-1">
-                        {fact.label}
-                      </p>
-                      <p className="text-base font-bold text-purple-400">
-                        {fact.value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
+  const fetchContractData = async () => {
+    if (!address) return;
+    try {
+      const w = window as any;
+      if (!w.ethereum) return;
+      
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
+      const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
 
-              {/* Progress Bar */}
-              <div className="mb-6">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-white/60">Minted</span>
-                  <span className="text-white/60">
-                    {event.minted} / {event.totalSupply}
-                  </span>
-                </div>
-                <div className="h-3 bg-black/30 rounded-full overflow-hidden border border-white/10">
-                  <div
-                    className="h-full bg-gradient-to-r from-purple-400 via-pink-500 to-amber-500 shadow-[0_0_10px_rgba(168,85,247,0.5)] transition-all duration-500"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-white/40 mt-2">
-                  {progress.toFixed(1)}% minted
-                </p>
-              </div>
-
-              {/* Footer Price & CTA */}
-              <div className="flex items-center justify-between pt-6 border-t border-white/10">
-                <div>
-                  <p className="text-xs text-white/40 uppercase mb-1">Price</p>
-                  <p className="text-2xl font-bold text-white">
-                    {event.price}{" "}
-                    <span className="text-lg text-emerald-400">USDC</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-purple-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span>Mint Now</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Perfume Bottle */}
-            <div className="w-full md:w-72 flex-shrink-0 order-1 md:order-2">
-              <div className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-purple-500/30 bg-gradient-to-b from-purple-900/20 to-black/80 group-hover:border-purple-400/60 transition-all duration-500 shadow-2xl shadow-purple-900/20">
-                
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
-                  
-                  {/* Cap */}
-                  <div className="w-16 h-8 bg-gradient-to-r from-amber-400 to-amber-600 rounded-t-lg shadow-[0_0_20px_rgba(245,158,11,0.6)] mb-1 relative z-10"></div>
-                  
-                  {/* Neck */}
-                  <div className="w-8 h-6 bg-purple-400/20 border-x border-t border-purple-300/40 backdrop-blur-sm -mt-1 relative z-10"></div>
-                  
-                  {/* Body */}
-                  <div className="w-32 h-40 bg-gradient-to-t from-purple-600/30 via-purple-500/10 to-transparent rounded-t-[3rem] border border-purple-400/30 backdrop-blur-md -mt-1 relative z-10 flex items-center justify-center">
-                     <div className="w-20 h-20 bg-purple-500/20 rounded-full blur-xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
-                  </div>
-
-                  {/* Floating Particles */}
-                  <div className="absolute top-1/3 -right-4 w-2 h-2 bg-purple-400 rounded-full animate-ping opacity-70"></div>
-                  <div className="absolute bottom-1/4 -left-6 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse delay-700 opacity-70"></div>
-                  <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-white/40 rounded-full animate-pulse delay-300"></div>
-                </div>
-                
-                <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-                   <p className="text-xs text-purple-300 font-mono text-center tracking-widest uppercase mb-1">Live Now</p>
-                   <p className="text-[10px] text-white/40 text-center">MFW 2026 Edition</p>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </Link>
-    );
-  }
-
-  // Genesis Card - Orange style (unchanged)
-  return (
-    <Link href={`/events/${event.id}`}>
-      <div className="group relative rounded-3xl overflow-hidden border-2 border-amber-500/50 bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-orange-950/40 hover:border-amber-400/80 hover:shadow-[0_0_60px_rgba(245,158,11,0.15)] transition-all duration-300 cursor-pointer">
+      try {
+        const genesisBalance = await genesisContract.balanceOf(address);
+        setIsGenesisHolder(Number(genesisBalance) > 0);
         
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(25)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-amber-400/40 rounded-full animate-pulse"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${2 + Math.random() * 3}s`,
-              }}
-            />
-          ))}
+        try {
+          const userHasBadge = await mfwContract.hasBadge(address);
+          setHasBadge(userHasBadge);
+        } catch {}
+      } catch {}
+
+      try {
+        const price = await mfwContract.getMintPrice(address);
+        setMintPrice(price);
+      } catch {}
+
+      const remaining = await mfwContract.getRemainingSupply();
+      setTotalMinted(maxSupply - Number(remaining));
+
+      const mintedCount = await mfwContract.getWalletMintedCount(address);
+      setUserMinted(Number(mintedCount));
+      
+    } catch (error) {
+      console.error("Failed to fetch contract data:", error);
+    }
+  };
+
+  const checkApproval = async () => {
+    if (!address || mintPrice === 0n) return;
+    try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+      
+      const allowance = await usdcContract.allowance(address, MFW_CONTRACT_ADDRESS);
+      setNeedsApproval(allowance < mintPrice);
+    } catch (error) {
+      console.error("Approval check failed:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchContractData();
+  }, [address]);
+
+  useEffect(() => {
+    if (mintPrice > 0n) checkApproval();
+  }, [mintPrice, address]);
+
+  const handleApprove = async () => {
+    if (!address) return;
+    try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+      
+      const tx = await usdcContract.approve(MFW_CONTRACT_ADDRESS, mintPrice * BigInt(100));
+      await tx.wait();
+      setNeedsApproval(false);
+    } catch (error: any) {
+      console.error("Approval failed:", error);
+      alert("Approval failed: " + (error.reason || error.message));
+    }
+  };
+
+  const handleRequestMint = async () => {
+    if (!address) {
+      alert("Please connect your wallet first");
+      return;
+    }
+    if (needsApproval) {
+      alert("Please approve USDC first");
+      return;
+    }
+
+    setMinting(true);
+    setStep("requested");
+    try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
+
+      const seedCommitment = ethers.keccak256(ethers.randomBytes(32));
+      const tx = await contract.requestMint(seedCommitment);
+      const receipt = await tx.wait();
+
+      const mintEvent = receipt.logs
+        .map((log: any) => {
+          try { return contract.interface.parseLog(log); } catch { return null; }
+        })
+        .find((e: any) => e?.name === "MintRequested");
+
+      const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
+      setTokenId(newTokenId);
+      setCountdown(10);
+
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (error: any) {
+      console.error("Request mint failed:", error);
+      alert(error.reason || error.message || "Mint request failed");
+      setStep("idle");
+    } finally {
+      setMinting(false);
+    }
+  };
+
+  const handleReveal = async () => {
+    if (!address || tokenId === null) return;
+
+    setMinting(true);
+    setStep("revealing");
+    try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
+
+      const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
+      const tx = await contract.revealAndMint(tokenId, userSeedHex);
+      await tx.wait();
+
+      if (isGenesisHolder || !hasBadge) {
+        alert("🎉 Mint successful! You received the exclusive MFW 2026 Badge!");
+      } else {
+        alert("NFT successfully minted!");
+      }
+
+      setStep("success");
+      await fetchContractData();
+      await checkApproval();
+
+    } catch (error: any) {
+      console.error("Reveal failed:", error);
+      alert(error.reason || error.shortMessage || error.message || "Reveal failed");
+      setStep("idle");
+    } finally {
+      setMinting(false);
+    }
+  };
+
+  const progress = (totalMinted / maxSupply) * 100;
+  const priceInUSDC = Number(mintPrice) / 1e6;
+
+  return (
+    <div className="min-h-screen py-20 px-4">
+      <div className="max-w-4xl mx-auto">
+        <Link href="/events" className="inline-flex items-center gap-2 text-white/50 hover:text-amber-400 mb-12 transition-colors text-sm">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Events
+        </Link>
+
+        {/* Header */}
+        <div className="text-center mb-12">
+          <span className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 text-xs font-semibold uppercase tracking-wider border border-purple-500/30 mb-6">
+            Live Now • Sep 22-28, 2026
+          </span>
+          <h1 className="text-5xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 mb-4">
+            Milan Fashion Week 2026
+          </h1>
+          <p className="text-xl text-white/60 max-w-2xl mx-auto">
+            Exclusive digital fragrance drop inspired by haute couture
+          </p>
         </div>
 
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-
-        <div className="relative p-8 md:p-10">
-          <div className="mb-8">
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                Live Now
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-amber-500/20 text-amber-300 border-amber-500/40 flex items-center gap-1.5">
-                <svg viewBox="0 0 24 16" className="w-4 h-2.5">
-                  <path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none" />
-                </svg>
-                Mainnet Launch
-              </span>
-              {event.partner && (
-                <span className="text-xs text-white/40">{event.partner}</span>
-              )}
-            </div>
-
-            <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-orange-500 group-hover:from-amber-100 group-hover:via-amber-300 group-hover:to-orange-400 mb-4 transition-colors">
-              {event.name}
-            </h2>
-
-            <p className="text-white/60 text-base max-w-3xl mb-4">
-              {event.description}
-            </p>
-
-            {event.longDescription && (
-              <p className="text-white/50 text-sm max-w-3xl leading-relaxed border-l-2 border-amber-500/30 pl-4">
-                {event.longDescription}
-              </p>
-            )}
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold text-purple-400">{totalMinted}</p>
+            <p className="text-xs text-white/40 uppercase">Minted</p>
           </div>
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold text-amber-400">{maxSupply}</p>
+            <p className="text-xs text-white/40 uppercase">Total Supply</p>
+          </div>
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold text-pink-400">{maxPerWallet}</p>
+            <p className="text-xs text-white/40 uppercase">Per Wallet</p>
+          </div>
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold text-emerald-400">{priceInUSDC} USDC</p>
+            <p className="text-xs text-white/40 uppercase">Price</p>
+          </div>
+        </div>
 
-          {event.keyFacts && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-              {event.keyFacts.map((fact, i) => (
-                <div key={i} className="p-3 rounded-xl bg-black/30 border border-amber-500/20">
-                  <p className="text-xs text-white/40 uppercase tracking-wider mb-1">
-                    {fact.label}
-                  </p>
-                  <p className="text-base font-bold text-amber-400">
-                    {fact.value}
-                  </p>
-                </div>
-              ))}
+        {/* Progress Bar */}
+        <div className="mb-12">
+          <div className="h-2 bg-white/5 rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-center text-xs text-white/40">
+            {progress.toFixed(1)}% minted
+          </p>
+        </div>
+
+        {/* Mint Card */}
+        <div className="glass-card p-8 rounded-2xl border border-white/10 mb-12">
+          {isGenesisHolder && (
+            <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
+              <div className="flex items-center gap-3 mb-2">
+                <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                <p className="text-amber-400 font-semibold">Genesis Holder Benefit</p>
+              </div>
+              <p className="text-white/80 text-sm">
+                You qualify for the discounted price of <span className="font-bold text-emerald-400">1 USDC</span>.
+              </p>
             </div>
           )}
 
-          <div className="mb-8">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-white/60">Minted</span>
-              <span className="text-white/60">
-                {event.minted} / {event.totalSupply}
-              </span>
+          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30">
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+              </svg>
+              <p className="text-purple-400 font-semibold">Exclusive Digital Badge</p>
             </div>
-            <div className="h-3 bg-black/30 rounded-full overflow-hidden border border-white/10">
-              <div
-                className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 shadow-[0_0_10px_rgba(245,158,11,0.5)] transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-xs text-white/40 mt-2">
-              {progress.toFixed(1)}% minted
+            <p className="text-white/80 text-sm">
+              {hasBadge 
+                ? "You already own the exclusive MFW 2026 digital badge!" 
+                : "Every minter receives an exclusive MFW 2026 digital badge on their profile!"}
             </p>
           </div>
 
-          <div className="flex items-center justify-between pt-6 border-t border-white/10">
-            <div>
-              <p className="text-xs text-white/40 uppercase mb-1">Price</p>
-              <p className="text-2xl font-bold text-white">
-                {event.price === "0" ? (
-                  <span className="text-emerald-400">Free Mint</span>
-                ) : (
-                  <>
-                    {event.price}{" "}
-                    <span className="text-lg text-emerald-400">USDC</span>
-                  </>
-                )}
+          {userMinted < maxPerWallet ? (
+            <>
+              {step === "idle" && (
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Mint Price</p>
+                    <p className="text-4xl font-bold text-emerald-400">
+                      {priceInUSDC} USDC
+                    </p>
+                    {isGenesisHolder && (
+                      <p className="text-sm text-white/50 mt-1">
+                        Genesis discount applied (regular: 5 USDC)
+                      </p>
+                    )}
+                    <p className="text-sm text-white/50 mt-2">
+                      You minted: {userMinted}/{maxPerWallet}
+                    </p>
+                  </div>
+
+                  {needsApproval ? (
+                    <button
+                      onClick={handleApprove}
+                      disabled={minting}
+                      className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold shadow-lg hover:shadow-blue-500/40 hover:scale-105 transition-all disabled:opacity-50"
+                    >
+                      {minting ? "Processing..." : "Approve USDC"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleRequestMint}
+                      disabled={minting}
+                      className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                      {minting ? "Requesting..." : "Request Mint"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {step === "requested" && tokenId !== null && (
+                <div className="space-y-6">
+                  <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-6">
+                    <p className="text-emerald-400 font-semibold mb-2">✅ Step 1 Complete!</p>
+                    <p className="text-white/80">
+                      Your tokenId: <span className="font-mono text-amber-400">#{tokenId}</span>
+                    </p>
+                    <p className="text-white/50 text-sm mt-2">
+                      {countdown > 0 
+                        ? `⏳ Wait ${countdown} seconds before reveal...`
+                        : "✅ Ready for reveal!"}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleReveal}
+                    disabled={countdown > 0 || minting}
+                    className="w-full px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  >
+                    {minting ? "Revealing..." : "Reveal & Mint NFT"}
+                  </button>
+                </div>
+              )}
+
+              {step === "revealing" && (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+                  <p className="text-white/80 font-medium">Revealing your unique formula...</p>
+                  <p className="text-white/40 text-xs mt-1">Please confirm in your wallet</p>
+                </div>
+              )}
+
+              {step === "success" && (
+                <div className="text-center space-y-4 py-4">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
+                      <svg className="w-9 h-9 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-emerald-400">Successfully Minted!</h3>
+                  <p className="text-white/60 text-sm">Your NFT is secured on-chain and you received the exclusive badge!</p>
+                  <button
+                    onClick={() => setStep("idle")}
+                    className="mt-4 px-6 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+                  >
+                    Mint Another
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center p-6 rounded-xl bg-white/5 border border-white/10">
+              <p className="text-white font-semibold mb-2">Max Limit Reached</p>
+              <p className="text-white/60 text-sm">
+                You've already minted {userMinted}/{maxPerWallet} NFTs
               </p>
             </div>
-            <div className="flex items-center gap-2 text-amber-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-              <span>Mint Now</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          )}
+        </div>
+
+        {/* Event Details */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+          <div className="glass-card p-6 rounded-xl">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-            </div>
+              Event Details
+            </h3>
+            <ul className="space-y-3 text-sm text-white/60">
+              <li className="flex items-start gap-2">
+                <span className="text-purple-400 mt-0.5"></span>
+                <span><strong>Dates:</strong> September 22-28, 2026</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-400 mt-0.5">🎨</span>
+                <span><strong>Supply:</strong> 500 NFTs</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-400 mt-0.5">💎</span>
+                <span><strong>Price:</strong> 5 USDC (1 USDC for Genesis)</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-400 mt-0.5">🏷️</span>
+                <span><strong>Bonus:</strong> Exclusive Digital Badge for ALL minters</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="glass-card p-6 rounded-xl">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              What You Get
+            </h3>
+            <ul className="space-y-3 text-sm text-white/60">
+              <li className="flex items-start gap-2">
+                <span className="text-pink-400 mt-0.5">✨</span>
+                <span>Unique AI-generated MFW-inspired fragrance</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-pink-400 mt-0.5">️</span>
+                <span>Exclusive digital badge for all attendees</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-pink-400 mt-0.5"></span>
+                <span>Priority access to future fashion collaborations</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-pink-400 mt-0.5"></span>
+                <span>Physical redemption opportunities</span>
+              </li>
+            </ul>
           </div>
         </div>
+
+        {/* About Section */}
+        <div className="glass-card p-8 rounded-2xl border border-white/10">
+          <h2 className="text-2xl font-bold text-white mb-4">About This Event</h2>
+          <p className="text-white/60 leading-relaxed mb-4">
+            We're partnering with <strong>Milan Fashion Week 2026</strong> for an unprecedented collaboration between haute couture and digital perfumery. This limited edition drop features AI-generated scents that capture the essence of MFW 2026's most iconic moments.
+          </p>
+          <p className="text-white/60 leading-relaxed">
+            Each NFT holder receives exclusive access to future fashion week collaborations, a digital badge displayed on their profile, and priority access to physical redemption opportunities.
+          </p>
+        </div>
       </div>
-    </Link>
+    </div>
   );
 }
