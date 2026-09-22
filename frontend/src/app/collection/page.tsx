@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
-import { useWallet } from "@/context/WalletContext";
+import { useWallet } from "@/context/WalletContext";   
 import ShareCard from "@/components/ShareCard";
 
 const MARKETPLACE_ADDRESS = ethers.getAddress("0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c");
 const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50"; //
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
 
 const MARKETPLACE_ABI = [
   "function list(address nftContract, uint256 tokenId, uint256 price)",
@@ -71,7 +71,6 @@ const GENESIS_ABI = [
   }
 ];
 
-// <-- ДОБАВЛЕНО: MFW ABI
 const MFW_ABI = [
   {
     "inputs": [{"internalType": "address", "name": "owner", "type": "address"}],
@@ -137,7 +136,7 @@ interface StoredScent {
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
-type CollectionFilter = "all" | "scents" | "genesis" | "mfw"; // <-- ДОБАВЛЕНО "mfw"
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw";
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -150,7 +149,6 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
-// <-- ДОБАВЛЕНО: MFW стиль
 const MFW_STYLE = {
   bg: "from-purple-900/80 via-indigo-900/70 to-slate-900/80",
   border: "border-purple-500/50",
@@ -367,7 +365,7 @@ export default function CollectionPage() {
           console.error("Genesis fetch error:", e);
         }
 
-        // PART 3: Fetch MFW NFTs <-- ДОБАВЛЕНО
+        // PART 3: Fetch MFW NFTs
         try {
           const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
           const mfwBalance = await mfwContract.balanceOf(currentAddress);
@@ -439,7 +437,7 @@ export default function CollectionPage() {
   const filteredScents = scents.filter(s => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return s.contractAddress === GENESIS_CONTRACT_ADDRESS;
-    if (filterBy === "mfw") return s.contractAddress === MFW_CONTRACT_ADDRESS; // <-- ДОБАВЛЕНО
+    if (filterBy === "mfw") return s.contractAddress === MFW_CONTRACT_ADDRESS;
     if (filterBy === "scents") return s.contractAddress === NFT_CONTRACT_ADDRESS;
     return true;
   });
@@ -605,9 +603,8 @@ export default function CollectionPage() {
             const perfume = hasFullData ? s.perfume! : null;
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
             const isGenesis = s.contractAddress === GENESIS_CONTRACT_ADDRESS;
-            const isMFW = s.contractAddress === MFW_CONTRACT_ADDRESS; // <-- ДОБАВЛЕНО
+            const isMFW = s.contractAddress === MFW_CONTRACT_ADDRESS;
             
-            // <-- ИЗМЕНЕНО: добавлена поддержка MFW стиля
             const style = isMFW 
               ? MFW_STYLE
               : isGenesis 
@@ -734,7 +731,12 @@ export default function CollectionPage() {
                     </div>
 
                     <div className="relative flex items-center justify-between pt-2 gap-2">
-                      <Link href={`/nft/${s.tokenId}?from=collection`} className="text-sm text-white/50 hover:text-white transition-colors">View Details →</Link>
+                      <Link 
+                        href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}`} 
+                        className="text-sm text-white/50 hover:text-white transition-colors"
+                      >
+                        View Details →
+                      </Link>
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                         {s.isListed ? (
@@ -761,7 +763,12 @@ export default function CollectionPage() {
                     <p>Legacy entry — full details not available.</p>
                     <p className="text-xs mt-1">Minted: {new Date(s.timestamp).toLocaleString()}</p>
                     <div className="flex items-center justify-between pt-4">
-                      <Link href={`/nft/${s.tokenId}?from=collection`} className="text-sm text-white/50 hover:text-white transition-colors">View Details →</Link>
+                      <Link 
+                        href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}`} 
+                        className="text-sm text-white/50 hover:text-white transition-colors"
+                      >
+                        View Details →
+                      </Link>
                     </div>
                   </div>
                 )}
@@ -775,7 +782,7 @@ export default function CollectionPage() {
         const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
         const isGenesisModal = currentScent?.contractAddress === GENESIS_CONTRACT_ADDRESS;
-        const isMFWModal = currentScent?.contractAddress === MFW_CONTRACT_ADDRESS; // <-- ДОБАВЛЕНО
+        const isMFWModal = currentScent?.contractAddress === MFW_CONTRACT_ADDRESS;
         const style = isMFWModal
           ? MFW_STYLE
           : isGenesisModal
