@@ -45,6 +45,7 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 | **ScentProtocolMainnet** | [`0x8d456e033FF7220068CDc1C3F08D6BA6641D103e`](https://explorer.arc.io/address/0x8d456e033FF7220068CDc1C3F08D6BA6641D103e) | Main perfume creation & NFT minting logic |
 | **ScentProtocolMainnetGenesis** | [`0x807dF79Ec16CF51C07e7B522175EB408D6dE247E`](https://explorer.arc.io/address/0x807dF79Ec16CF51C07e7B522175EB408D6dE247E) | Exclusive Genesis collection (100 supply, commit-reveal) |
 | **ScentProtocolMarketplaceMainnet** | [`0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c`](https://explorer.arc.io/address/0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c) | Secondary marketplace for trading Scent NFTs |
+| **ScentProtocolMFW2026** | [`0xBcF87E80C18CF5d0D8769703fDb891A16D279B50`](https://explorer.arc.io/address/0xBcF87E80C18CF5d0D8769703fDb891A16D279B50) | Milan Fashion Week 2026 exclusive drop (500 supply, 5 USDC / 1 USDC for Genesis) |
 | **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc *(verify exact mainnet address)* |
 
 ---
@@ -150,6 +151,7 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 NEXT_PUBLIC_CONTRACT_ADDRESS=0x8d456e033FF7220068CDc1C3F08D6BA6641D103e
 NEXT_PUBLIC_GENESIS_ADDRESS=0x807dF79Ec16CF51C07e7B522175EB408D6dE247E
 NEXT_PUBLIC_MARKETPLACE_ADDRESS=0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c
+NEXT_PUBLIC_MARKETPLACE_ADDRESS=0xBcF87E80C18CF5d0D8769703fDb891A16D279B50
 NEXT_PUBLIC_USDC_ADDRESS=0x3600000000000000000000000000000000000000
 NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.arc.io
 NEXT_PUBLIC_CHAIN_ID=5042
@@ -165,6 +167,7 @@ ScentProtocol/
 ├── contracts/
 │   ├── ScentProtocolMainnet.sol      # Main creation logic
 │   ├── ScentProtocolMainnetGenesis.sol # Genesis collection
+│   ├── ScentProtocolMFW2026.sol # Milan Fashion Week 2026
 │   ── ScentProtocolMarketplace.sol  # Marketplace logic
 ├── README.md
 └── LICENSE
