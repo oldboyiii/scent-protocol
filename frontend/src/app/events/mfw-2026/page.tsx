@@ -43,6 +43,9 @@ export default function MFW2026EventPage() {
   const [tokenId, setTokenId] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [step, setStep] = useState<"idle" | "requested" | "revealing" | "success">("idle");
+  
+  // NEW: Store the original seed preimage to use in reveal
+  const [seedPreimage, setSeedPreimage] = useState<string>("");
 
   const maxSupply = 500;
   const maxPerWallet = 3;
@@ -141,7 +144,14 @@ export default function MFW2026EventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
 
-      const seedCommitment = ethers.keccak256(ethers.randomBytes(32));
+      // 1. Generate random seed preimage and SAVE IT
+      const randomBytes = ethers.randomBytes(32);
+      const preimageHex = ethers.hexlify(randomBytes);
+      setSeedPreimage(preimageHex);
+
+      // 2. Hash it to create the commitment
+      const seedCommitment = ethers.keccak256(randomBytes);
+      
       const tx = await contract.requestMint(seedCommitment);
       const receipt = await tx.wait();
 
@@ -153,7 +163,9 @@ export default function MFW2026EventPage() {
 
       const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
       setTokenId(newTokenId);
-      setCountdown(10);
+      
+      // 3. Set countdown to 30 seconds to match REVEAL_MIN_WAIT in the smart contract
+      setCountdown(30);
 
       const timer = setInterval(() => {
         setCountdown((prev) => {
@@ -175,7 +187,10 @@ export default function MFW2026EventPage() {
   };
 
   const handleReveal = async () => {
-    if (!address || tokenId === null) return;
+    if (!address || tokenId === null || !seedPreimage) {
+      console.error("Missing data for reveal");
+      return;
+    }
 
     setMinting(true);
     setStep("revealing");
@@ -185,12 +200,12 @@ export default function MFW2026EventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
 
-      const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
-      const tx = await contract.revealAndMint(tokenId, userSeedHex);
+      // 4. Use the EXACT SAME seedPreimage that was committed earlier
+      const tx = await contract.revealAndMint(tokenId, seedPreimage);
       await tx.wait();
 
       if (isGenesisHolder || !hasBadge) {
-        alert(" Mint successful! You received the exclusive MFW 2026 Badge!");
+        alert("🎉 Mint successful! You received the exclusive MFW 2026 Badge!");
       } else {
         alert("NFT successfully minted!");
       }
@@ -345,7 +360,7 @@ export default function MFW2026EventPage() {
                     </p>
                     <p className="text-white/50 text-sm mt-2">
                       {countdown > 0 
-                        ? ` Wait ${countdown} seconds before reveal...`
+                        ? `⏳ Wait ${countdown} seconds before reveal...`
                         : "✅ Ready for reveal!"}
                     </p>
                   </div>
@@ -440,11 +455,11 @@ export default function MFW2026EventPage() {
                 <span>Unique AI-generated fragrance inspired by haute couture</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-pink-400 mt-0.5">️</span>
+                <span className="text-pink-400 mt-0.5">🎖️</span>
                 <span>Limited-edition digital badge for all minters</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-pink-400 mt-0.5"></span>
+                <span className="text-pink-400 mt-0.5">🎫</span>
                 <span>Priority access to upcoming drops and partnerships</span>
               </li>
               <li className="flex items-start gap-2">
