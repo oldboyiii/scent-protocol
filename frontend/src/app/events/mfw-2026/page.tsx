@@ -18,10 +18,7 @@ const MFW_ABI = [
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
-  "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool hasExclusiveBadge))",
   "function pendingMints(uint256) external view returns (address minter, uint256 blockNumber, uint256 paidAmount, bytes32 seedCommitment)",
-  "event PerfumeMinted(uint256 indexed tokenId, address indexed creator, uint256 price)",
-  "event BadgeAwarded(address indexed recipient)",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
 ];
 
@@ -57,6 +54,7 @@ export default function MFW2026EventPage() {
       const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
       const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
 
+      // Check Genesis holder
       try {
         const genesisBalance = await genesisContract.balanceOf(address);
         setIsGenesisHolder(Number(genesisBalance) > 0);
@@ -64,6 +62,7 @@ export default function MFW2026EventPage() {
         console.warn("Failed to check Genesis:", e);
       }
 
+      // Get price
       try {
         const price = await mfwContract.getMintPrice(address);
         setMintPrice(price);
@@ -71,6 +70,7 @@ export default function MFW2026EventPage() {
         console.warn("Failed to get price:", e);
       }
 
+      // Total minted
       try {
         const remaining = await mfwContract.getRemainingSupply();
         setTotalMinted(maxSupply - Number(remaining));
@@ -78,6 +78,7 @@ export default function MFW2026EventPage() {
         console.warn("Failed to get supply:", e);
       }
 
+      // User minted count
       try {
         const mintedCount = await mfwContract.getWalletMintedCount(address);
         setUserMinted(Number(mintedCount));
@@ -85,33 +86,43 @@ export default function MFW2026EventPage() {
         console.warn("Failed to get user minted:", e);
       }
 
-      // Check for pending mints
+      // CRITICAL: Check for pending mints
       try {
         const nextId = Number(await mfwContract.getNextTokenId());
         const currentBlock = await provider.getBlockNumber();
         
-        for (let i = Math.max(1, nextId - 10); i < nextId; i++) {
+        console.log("Checking pending mints. Next ID:", nextId, "Current block:", currentBlock);
+        
+        // Check last 20 token IDs for pending mints
+        for (let i = Math.max(1, nextId - 20); i < nextId; i++) {
           try {
             const pending = await mfwContract.pendingMints(i);
+            console.log("Token", i, "minter:", pending.minter);
+            
             if (pending.minter.toLowerCase() === address.toLowerCase()) {
+              console.log("Found pending mint for token", i);
               setTokenId(i);
+              
               const blocksPassed = currentBlock - Number(pending.blockNumber);
+              console.log("Blocks passed:", blocksPassed);
+              
               // Arc has ~0.2s blocks, so 150 blocks = ~30 seconds
-              const blocksNeeded = 150;
-              if (blocksPassed >= blocksNeeded) {
+              if (blocksPassed >= 150) {
                 setCountdown(0);
+                setStep("requested");
               } else {
-                const secondsLeft = Math.ceil((blocksNeeded - blocksPassed) * 0.2);
+                const secondsLeft = Math.ceil((150 - blocksPassed) * 0.2);
                 setCountdown(secondsLeft);
+                setStep("requested");
               }
               break;
             }
           } catch (e) {
-            // Token doesn't exist yet
+            // Token doesn't exist yet or no pending mint
           }
         }
       } catch (e) {
-        console.warn("Failed to check pending:", e);
+        console.error("Failed to check pending:", e);
       }
       
     } catch (error) {
@@ -212,6 +223,7 @@ export default function MFW2026EventPage() {
       setTokenId(newTokenId);
       setCountdown(30); // 30 seconds wait
 
+      alert("✅ Reservation created! Wait 30 seconds, then click Reveal.");
     } catch (error: any) {
       console.error("Request mint failed:", error);
       alert(error.reason || error.message || "Mint request failed");
@@ -222,10 +234,14 @@ export default function MFW2026EventPage() {
   };
 
   const handleReveal = async () => {
-    if (!address || tokenId === null || !seedPreimage) {
-      alert("Missing data. Please refresh the page and try again.");
+    if (!address || tokenId === null) {
+      alert("Missing token ID. Please refresh the page.");
       return;
     }
+
+    // If we don't have seedPreimage (page was refreshed), generate a new one
+    // This will create a different perfume but will complete the mint
+    const finalSeed = seedPreimage || ethers.hexlify(ethers.randomBytes(32));
 
     setMinting(true);
     setStep("revealing");
@@ -235,21 +251,21 @@ export default function MFW2026EventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
 
-      // Use the SAME seed preimage that was committed
-      const tx = await contract.revealAndMint(tokenId, seedPreimage);
+      const tx = await contract.revealAndMint(tokenId, finalSeed);
       await tx.wait();
 
       alert("🎉 Mint successful! You received the exclusive MFW 2026 Badge!");
 
       setStep("success");
       setSeedPreimage("");
+      setTokenId(null);
       await fetchContractData();
       await checkApproval();
 
     } catch (error: any) {
       console.error("Reveal failed:", error);
       alert(error.reason || error.shortMessage || error.message || "Reveal failed");
-      setStep("idle");
+      setStep("requested");
     } finally {
       setMinting(false);
     }
@@ -475,11 +491,11 @@ export default function MFW2026EventPage() {
                 <span>Unique AI-generated fragrance inspired by haute couture</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-pink-400 mt-0.5">🎖️</span>
+                <span className="text-pink-400 mt-0.5">️</span>
                 <span>Limited-edition digital badge for all minters</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-pink-400 mt-0.5">🎫</span>
+                <span className="text-pink-400 mt-0.5"></span>
                 <span>Priority access to upcoming drops and partnerships</span>
               </li>
               <li className="flex items-start gap-2">
