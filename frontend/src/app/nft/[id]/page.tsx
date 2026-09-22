@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation"; // Added useSearchParams
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50"; // ADDED
 
 const GENESIS_ABI = [
   {
@@ -37,6 +38,35 @@ const GENESIS_ABI = [
   }
 ];
 
+// ADDED: MFW ABI
+const MFW_ABI = [
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "getPerfume",
+    "outputs": [{
+      "components": [
+        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"internalType": "string", "name": "name", "type": "string"},
+        {"internalType": "uint8", "name": "gender", "type": "uint8"},
+        {"internalType": "uint8", "name": "pType", "type": "uint8"},
+        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
+        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
+        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
+        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
+        {"internalType": "address", "name": "creator", "type": "address"},
+        {"internalType": "bool", "name": "hasExclusiveBadge", "type": "bool"}
+      ],
+      "internalType": "struct ScentProtocolMFW2026.Perfume",
+      "name": "",
+      "type": "tuple"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
+
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
@@ -55,6 +85,16 @@ const GENESIS_STYLE = {
   text: "text-amber-100",
   glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
   hex: "#fbbf24",
+};
+
+// ADDED: MFW Style
+const MFW_STYLE = {
+  bg: "from-purple-900/90 via-indigo-900/80 to-purple-950/90",
+  border: "border-purple-500/50",
+  badge: "bg-purple-500/50 text-purple-50 border-purple-400/80",
+  text: "text-purple-100",
+  glow: "shadow-[0_0_80px_rgba(168,85,247,0.5),0_0_120px_rgba(168,85,247,0.3)]",
+  hex: "#a855f7",
 };
 
 function generateDescription(perfume: any): string {
@@ -87,10 +127,14 @@ function generateDescription(perfume: any): string {
 
 export default function NFTDetailPage() {
   const params = useParams();
-  const router = useRouter(); // Added router for dynamic back navigation
+  const router = useRouter();
+  const searchParams = useSearchParams(); // ADDED
+  const contractParam = searchParams.get("contract"); // ADDED
+  
   const id = Number(params.id);
   const [perfume, setPerfume] = useState<any>(null);
   const [isGenesis, setIsGenesis] = useState(false);
+  const [isMFW, setIsMFW] = useState(false); // ADDED
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,14 +148,42 @@ export default function NFTDetailPage() {
       try {
         const provider = (typeof window !== "undefined" && (window as any).ethereum)
           ? new ethers.BrowserProvider((window as any).ethereum)
-: new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
-        // Try Genesis FIRST for token ID #1
-        if (id === 1) {
+          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+
+        let found = false;
+
+        // 1. STRICT CHECK: If URL has contract parameter, try that FIRST
+        if (contractParam?.toLowerCase() === MFW_CONTRACT_ADDRESS.toLowerCase()) {
           try {
-            console.log("🎯 Trying Genesis FIRST for token #1...");
+            console.log("🎯 Trying MFW contract for token", id);
+            const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
+            const data = await mfwContract.getPerfume(id);
+            if (data && data.name) {
+              console.log("✅ MFW found:", data.name);
+              setPerfume({
+                name: data.name,
+                gender: Number(data.gender),
+                pType: Number(data.pType),
+                topNotes: Array.from(data.topNotes || []) as string[],
+                heartNotes: Array.from(data.heartNotes || []) as string[],
+                baseNotes: Array.from(data.baseNotes || []) as string[],
+                concentration: Number(data.concentration),
+                rarity: Number(data.rarity),
+                createdAt: Number(data.createdAt),
+                creator: data.creator,
+              });
+              setIsMFW(true);
+              setIsGenesis(false);
+              found = true;
+            }
+          } catch (e) {
+            console.log("MFW not found or error:", e);
+          }
+        } else if (contractParam?.toLowerCase() === GENESIS_CONTRACT_ADDRESS.toLowerCase()) {
+          try {
+            console.log("🎯 Trying Genesis contract for token", id);
             const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
             const data = await genesisContract.getPerfume(id);
-            
             if (data && data.name) {
               console.log("✅ Genesis found:", data.name);
               setPerfume({
@@ -127,62 +199,98 @@ export default function NFTDetailPage() {
                 creator: data.creator,
               });
               setIsGenesis(true);
-              setLoading(false);
-              return;
+              setIsMFW(false);
+              found = true;
             }
           } catch (e) {
-            console.log("Genesis not found, trying ScentProtocol...");
+            console.log("Genesis not found or error:", e);
           }
         }
 
-        // Try ScentProtocol
-        try {
-          console.log("Trying ScentProtocol for token", id);
-          const contract = getContract(provider);
-          const data = await contract.getPerfume(id);
+        // 2. FALLBACK: If no contract param or not found, try old logic
+        if (!found) {
+          console.log("🔄 Falling back to auto-detect logic...");
           
-          if (data && data.name) {
-            console.log("✅ ScentProtocol found:", data.name);
-            setPerfume(data);
-            setIsGenesis(false);
-            setLoading(false);
-            return;
-          }
-        } catch (e) {
-          console.log("ScentProtocol error, trying Genesis...");
-        }
-
-        // Try Genesis for other IDs
-        if (id !== 1) {
-          try {
-            const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-            const data = await genesisContract.getPerfume(id);
-            
-            if (data && data.name) {
-              console.log("✅ Genesis found:", data.name);
-              setPerfume({
-                name: data.name,
-                gender: Number(data.gender),
-                pType: Number(data.pType),
-                topNotes: Array.from(data.topNotes || []) as string[],
-                heartNotes: Array.from(data.heartNotes || []) as string[],
-                baseNotes: Array.from(data.baseNotes || []) as string[],
-                concentration: Number(data.concentration),
-                rarity: Number(data.rarity),
-                createdAt: Number(data.createdAt),
-                creator: data.creator,
-              });
-              setIsGenesis(true);
-              setLoading(false);
-              return;
+          // Try Genesis FIRST for token ID #1 (legacy behavior)
+          if (id === 1) {
+            try {
+              console.log("🎯 Trying Genesis FIRST for token #1...");
+              const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+              const data = await genesisContract.getPerfume(id);
+              if (data && data.name) {
+                console.log("✅ Genesis found:", data.name);
+                setPerfume({
+                  name: data.name,
+                  gender: Number(data.gender),
+                  pType: Number(data.pType),
+                  topNotes: Array.from(data.topNotes || []) as string[],
+                  heartNotes: Array.from(data.heartNotes || []) as string[],
+                  baseNotes: Array.from(data.baseNotes || []) as string[],
+                  concentration: Number(data.concentration),
+                  rarity: Number(data.rarity),
+                  createdAt: Number(data.createdAt),
+                  creator: data.creator,
+                });
+                setIsGenesis(true);
+                setIsMFW(false);
+                found = true;
+              }
+            } catch (e) {
+              console.log("Genesis not found, trying ScentProtocol...");
             }
-          } catch (e) {
-            console.log("Genesis not found either");
+          }
+
+          // Try ScentProtocol
+          if (!found) {
+            try {
+              console.log("Trying ScentProtocol for token", id);
+              const contract = getContract(provider);
+              const data = await contract.getPerfume(id);
+              if (data && data.name) {
+                console.log("✅ ScentProtocol found:", data.name);
+                setPerfume(data);
+                setIsGenesis(false);
+                setIsMFW(false);
+                found = true;
+              }
+            } catch (e) {
+              console.log("ScentProtocol error, trying Genesis...");
+            }
+          }
+
+          // Try Genesis for other IDs
+          if (!found && id !== 1) {
+            try {
+              const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+              const data = await genesisContract.getPerfume(id);
+              if (data && data.name) {
+                console.log("✅ Genesis found:", data.name);
+                setPerfume({
+                  name: data.name,
+                  gender: Number(data.gender),
+                  pType: Number(data.pType),
+                  topNotes: Array.from(data.topNotes || []) as string[],
+                  heartNotes: Array.from(data.heartNotes || []) as string[],
+                  baseNotes: Array.from(data.baseNotes || []) as string[],
+                  concentration: Number(data.concentration),
+                  rarity: Number(data.rarity),
+                  createdAt: Number(data.createdAt),
+                  creator: data.creator,
+                });
+                setIsGenesis(true);
+                setIsMFW(false);
+                found = true;
+              }
+            } catch (e) {
+              console.log("Genesis not found either");
+            }
           }
         }
 
-        setError("Token not found in any contract");
-        setPerfume(null);
+        if (!found) {
+          setError("Token not found in any contract");
+          setPerfume(null);
+        }
       } catch (e) {
         console.error("Global fetch error:", e);
         setError("Failed to fetch data");
@@ -193,7 +301,7 @@ export default function NFTDetailPage() {
     }
     
     fetch();
-  }, [id]);
+  }, [id, contractParam]);
 
   if (loading) {
     return (
@@ -222,7 +330,11 @@ export default function NFTDetailPage() {
   }
 
   const description = generateDescription(perfume);
-  const style = isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]);
+  
+  // ADDED: Dynamic style and color selection
+  const labelColor = isGenesis ? 'text-amber-300/80' : isMFW ? 'text-purple-300/80' : 'text-white/40';
+  const descBg = isGenesis ? 'bg-amber-950/40 border-amber-400/60' : isMFW ? 'bg-purple-950/40 border-purple-400/60' : 'bg-black/30 border-white/10';
+  const style = isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8 relative z-10">
@@ -235,17 +347,17 @@ export default function NFTDetailPage() {
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
-        {/* CONSTANT SHIMMER: ONLY for Genesis */}
-        {isGenesis && (
+        {/* CONSTANT SHIMMER: For BOTH Genesis and MFW */}
+        {(isGenesis || isMFW) && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
-            background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
+            background: `linear-gradient(90deg, transparent, rgba(${isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`,
             backgroundSize: "200% 100%",
             animation: "shimmer 2.5s linear infinite",
           }} />
         )}
 
         {/* HOVER SHIMMER #1: EXACT from your old working code for regular NFTs */}
-        {!isGenesis && (
+        {!isGenesis && !isMFW && (
           <div 
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
             style={{
@@ -267,7 +379,7 @@ export default function NFTDetailPage() {
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
         {/* HOVER SHIMMER #2: EXACT from your old working code for regular NFTs */}
-        {!isGenesis && (
+        {!isGenesis && !isMFW && (
           <div 
             className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
             style={{
@@ -282,12 +394,20 @@ export default function NFTDetailPage() {
           <div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <p className="text-xs text-white/40 uppercase tracking-wider">
-                {isGenesis ? "GENESIS" : "SCENT"} #{id}
+                {isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
               </p>
               {isGenesis && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
                   <svg viewBox="0 0 24 16" className="w-3 h-2"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
                   Genesis
+                </span>
+              )}
+              {isMFW && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  MFW 2026
                 </span>
               )}
             </div>
@@ -308,7 +428,7 @@ export default function NFTDetailPage() {
 
         <div className="relative space-y-4 mb-6">
           <div>
-            <span className={`text-xs uppercase tracking-wider ${isGenesis ? 'text-amber-300/80' : 'text-white/40'}`}>Top Notes</span>
+            <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Top Notes</span>
             <div className="flex flex-wrap gap-2 mt-2">
               {perfume.topNotes.map((n: string) => (
                 <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-amber-200 text-sm border border-amber-500/30">
@@ -318,7 +438,7 @@ export default function NFTDetailPage() {
             </div>
           </div>
           <div>
-            <span className={`text-xs uppercase tracking-wider ${isGenesis ? 'text-amber-300/80' : 'text-white/40'}`}>Heart Notes</span>
+            <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Heart Notes</span>
             <div className="flex flex-wrap gap-2 mt-2">
               {perfume.heartNotes.map((n: string) => (
                 <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-rose-200 text-sm border border-rose-500/30">
@@ -328,7 +448,7 @@ export default function NFTDetailPage() {
             </div>
           </div>
           <div>
-            <span className={`text-xs uppercase tracking-wider ${isGenesis ? 'text-amber-300/80' : 'text-white/40'}`}>Base Notes</span>
+            <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Base Notes</span>
             <div className="flex flex-wrap gap-2 mt-2">
               {perfume.baseNotes.map((n: string) => (
                 <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-emerald-200 text-sm border border-emerald-500/30">
@@ -339,7 +459,7 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
-        <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-6 ${isGenesis ? 'bg-amber-950/40 border-amber-400/60' : 'bg-black/30 border-white/10'}`}>
+        <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-6 ${descBg}`}>
           {description}
         </div>
 
@@ -355,6 +475,14 @@ export default function NFTDetailPage() {
                 style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }}
               />
               Arc Mainnet Genesis Collection
+            </p>
+          )}
+          {isMFW && (
+            <p className="text-purple-300 font-bold mt-2 flex items-center gap-2">
+              <svg className="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ filter: "drop-shadow(0 0 6px rgba(168,85,247,0.6))" }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Milan Fashion Week 2026 Exclusive
             </p>
           )}
         </div>
