@@ -123,11 +123,14 @@ export default function Navbar() {
                   </div>
                 )}
                 
-                {/* MFW 2026 Badge */}
+                {/* MFW 2026 Badge - Perfume Bottle Icon */}
                 {hasMFWBadge && (
                   <div className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/50" title="MFW 2026 Badge">
-                    <svg className="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    <svg className="w-3 h-3 text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
+                      <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
+                      <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
+                      <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
                     </svg>
                   </div>
                 )}
