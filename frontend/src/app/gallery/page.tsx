@@ -7,7 +7,7 @@ import { getContract } from "@/utils/contract";
 
 const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50"; //
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
 const CACHE_KEY = "scentprotocol_gallery_cache";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -39,7 +39,7 @@ const GENESIS_ABI = [
   }
 ];
 
-// <-- ДОБАВЛЕНО: MFW ABI
+// ADDED: MFW ABI
 const MFW_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -82,7 +82,7 @@ interface GalleryItem {
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
-type CollectionFilter = "all" | "scents" | "genesis" | "mfw"; // <-- ДОБАВЛЕНО "mfw"
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw"; // ADDED "mfw"
 
 const RARITY_STYLE: Record<number, { 
   bg: string; 
@@ -126,7 +126,7 @@ const RARITY_STYLE: Record<number, {
   },
 };
 
-// <-- ДОБАВЛЕНО: MFW стиль (единый фиолетовый с постоянным свечением)
+// ADDED: MFW style (unified purple with constant glow)
 const MFW_STYLE = {
   bg: "from-purple-900/80 via-indigo-900/70 to-slate-900/80",
   border: "border-purple-500/50",
@@ -174,7 +174,7 @@ export default function GalleryPage() {
         
         const nftContract = getContract(provider);
         const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-        const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider); // <-- ДОБАВЛЕНО
+        const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider); // ADDED
         
         const results: GalleryItem[] = [];
 
@@ -248,7 +248,7 @@ export default function GalleryPage() {
         const validGenesis = genesisResults.filter((item): item is GalleryItem => item !== null);
         results.push(...validGenesis);
 
-        // <-- ДОБАВЛЕНО: Fetch MFW (always 500 max)
+        // ADDED: Fetch MFW (always 500 max)
         const mfwPromises = [];
         for (let tokenId = 1; tokenId <= 500; tokenId++) {
           mfwPromises.push(
@@ -315,7 +315,7 @@ export default function GalleryPage() {
   const filteredItems = items.filter(item => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return item.contractAddress === GENESIS_CONTRACT_ADDRESS;
-    if (filterBy === "mfw") return item.contractAddress === MFW_CONTRACT_ADDRESS; // <-- ДОБАВЛЕНО
+    if (filterBy === "mfw") return item.contractAddress === MFW_CONTRACT_ADDRESS; // ADDED
     return item.contractAddress === NFT_CONTRACT_ADDRESS;
   });
 
@@ -360,7 +360,7 @@ export default function GalleryPage() {
               {filterBy === "all" && "All Collections"}
               {filterBy === "scents" && "ScentProtocol"}
               {filterBy === "genesis" && "Genesis"}
-              {filterBy === "mfw" && "MFW 2026"} {/* <-- ДОБАВЛЕНО */}
+              {filterBy === "mfw" && "MFW 2026"}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -372,7 +372,7 @@ export default function GalleryPage() {
               <button onClick={() => { setFilterBy("all"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "all" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>All Collections</button>
               <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
               <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
-              <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button> {/* <-- ДОБАВЛЕНО */}
+              <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button>
             </div>
           )}
         </div>
@@ -420,9 +420,9 @@ export default function GalleryPage() {
           {sortedItems.map((item) => {
             const rarity = item.rarity;
             const isGenesis = item.contractAddress === GENESIS_CONTRACT_ADDRESS;
-            const isMFW = item.contractAddress === MFW_CONTRACT_ADDRESS; // <-- ДОБАВЛЕНО
+            const isMFW = item.contractAddress === MFW_CONTRACT_ADDRESS; // ADDED
             
-            // <-- ИЗМЕНЕНО: добавлена поддержка MFW стиля
+            // MODIFIED: added support for MFW style
             const style = isMFW 
               ? MFW_STYLE
               : isGenesis 
@@ -437,7 +437,11 @@ export default function GalleryPage() {
                 : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
-              <Link key={`${item.contractAddress}-${item.tokenId}`} href={`/nft/${item.tokenId}`}>
+              // CRITICAL FIX: Added ?contract=${item.contractAddress} to the href
+              <Link 
+                key={`${item.contractAddress}-${item.tokenId}`} 
+                href={`/nft/${item.tokenId}?contract=${item.contractAddress}`}
+              >
                 <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
                   
                   {isGenesis && (
