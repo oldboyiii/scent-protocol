@@ -51,7 +51,7 @@ const INITIAL_EVENTS: EventItem[] = [
     ],
   },
   {
-    id: "milan-fashion-week",
+    id: "mfw-2026",
     name: "Milan Fashion Week Exclusive",
     description: "Limited edition digital fragrance drop during MFW 2026.",
     longDescription:
@@ -97,7 +97,7 @@ export default function EventsPage() {
           if (event.id === "genesis") {
             return { ...event, minted: genesisMinted };
           }
-          if (event.id === "milan-fashion-week") {
+          if (event.id === "mfw-2026") {
             return { ...event, minted: mfwMinted };
           }
           return event;
@@ -111,8 +111,8 @@ export default function EventsPage() {
   }, []);
 
   const filteredEvents = events.filter((e) => {
-    if (activeTab === "live") return e.status === "live" && !e.id.includes("milan");
-    if (activeTab === "mfw") return e.id.includes("milan");
+    if (activeTab === "live") return e.status === "live" && e.id !== "mfw-2026";
+    if (activeTab === "mfw") return e.id === "mfw-2026";
     if (activeTab === "upcoming") return e.status === "upcoming";
     if (activeTab === "ended") return e.status === "ended";
     return false;
@@ -142,9 +142,9 @@ export default function EventsPage() {
           }`}
         >
           Live
-          {events.filter((e) => e.status === "live" && !e.id.includes("milan")).length > 0 && (
+          {events.filter((e) => e.status === "live" && e.id !== "mfw-2026").length > 0 && (
             <span className="ml-2 px-2 py-0.5 rounded-full bg-white/20 text-xs">
-              {events.filter((e) => e.status === "live" && !e.id.includes("milan")).length}
+              {events.filter((e) => e.status === "live" && e.id !== "mfw-2026").length}
             </span>
           )}
         </button>
@@ -205,7 +205,7 @@ export default function EventsPage() {
 
 function EventCard({ event }: { event: EventItem }) {
   const progress = (event.minted / event.totalSupply) * 100;
-  const isMFW = event.id === "milan-fashion-week";
+  const isMFW = event.id === "mfw-2026";
 
   // MFW Card - Purple with bottle, description, and Live status
   if (isMFW) {
