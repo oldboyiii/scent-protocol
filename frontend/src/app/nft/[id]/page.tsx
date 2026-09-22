@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation"; // Added useSearchParams
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50"; // ADDED
+const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
 
 const GENESIS_ABI = [
   {
@@ -128,13 +128,13 @@ function generateDescription(perfume: any): string {
 export default function NFTDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams(); // ADDED
-  const contractParam = searchParams.get("contract"); // ADDED
+  const searchParams = useSearchParams();
+  const contractParam = searchParams.get("contract");
   
   const id = Number(params.id);
   const [perfume, setPerfume] = useState<any>(null);
   const [isGenesis, setIsGenesis] = useState(false);
-  const [isMFW, setIsMFW] = useState(false); // ADDED
+  const [isMFW, setIsMFW] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -486,6 +486,30 @@ export default function NFTDetailPage() {
             </p>
           )}
         </div>
+
+        {/* ADDED: MFW Perfume Bottle Visual */}
+        {isMFW && (
+          <div className="mt-8 mb-6 flex justify-center">
+            <div className="relative w-32 h-48">
+              {/* Bottle Body */}
+              <div className="absolute inset-0 bg-gradient-to-b from-purple-400/30 via-purple-600/20 to-purple-800/30 rounded-t-[3rem] rounded-b-2xl border border-purple-400/50 backdrop-blur-md shadow-[0_0_40px_rgba(168,85,247,0.4)] flex items-center justify-center">
+                {/* Cap */}
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-16 h-10 bg-gradient-to-r from-amber-400 to-amber-600 rounded-t-lg shadow-[0_0_20px_rgba(245,158,11,0.6)]"></div>
+                
+                {/* Neck */}
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-8 h-5 bg-purple-400/20 border-x border-t border-purple-300/40 backdrop-blur-sm"></div>
+                
+                {/* Inner Glow */}
+                <div className="w-20 h-20 bg-purple-500/20 rounded-full blur-xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+              </div>
+              
+              {/* Floating Particles */}
+              <div className="absolute top-1/3 -right-6 w-2 h-2 bg-purple-400 rounded-full animate-ping opacity-70"></div>
+              <div className="absolute bottom-1/4 -left-8 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse delay-700 opacity-70"></div>
+              <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-white/40 rounded-full animate-pulse delay-300"></div>
+            </div>
+          </div>
+        )}
 
         <div className="relative mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
           <Link href={`/nft/${id - 1}`} className={`text-sm text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>
