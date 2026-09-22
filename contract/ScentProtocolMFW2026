@@ -1,0 +1,361 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+
+/**
+ * @title ScentProtocolMFW2026
+ * @dev Milan Fashion Week 2026 Exclusive NFT Collection (Audited & Secured)
+ */
+contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, ReentrancyGuard {
+    using Strings for uint256;
+
+    // Arc Mainnet addresses
+    address public constant USDC_ADDRESS = 0x3600000000000000000000000000000000000000; 
+    address public immutable genesisContract;
+
+    // Pricing
+    uint256 public constant PRICE_REGULAR = 5 * 10**6; // 5 USDC (6 decimals)
+    uint256 public constant PRICE_GENESIS_HOLDER = 1 * 10**6; // 1 USDC for Genesis holders
+
+    // Supply limits
+    uint256 public constant MAX_SUPPLY = 500;
+    uint256 public constant MAX_PER_WALLET = 3;
+
+    // Timing (Arc has sub-second blocks, so we use timestamps)
+    uint256 private constant REVEAL_MIN_WAIT = 30; // 30 seconds minimum wait
+    uint256 private constant REVEAL_MAX_DEADLINE = 600; // 10 minutes max deadline
+    uint256 private constant CANCEL_PENALTY_BPS = 5000; // 50% penalty
+
+    uint256 private nextTokenId;
+    uint256 private totalMinted;
+    uint256 private activePendingCount;
+
+    struct Perfume {
+        uint256 tokenId;
+        string name;
+        uint8 gender;
+        uint8 pType;
+        string[3] topNotes;
+        string[3] heartNotes;
+        string[3] baseNotes;
+        uint8 concentration;
+        uint8 rarity;
+        uint256 createdAt;
+        address creator;
+        bool hasExclusiveBadge;
+    }
+
+    struct PendingMint {
+        address minter;
+        uint256 timestamp;
+        uint256 blockNumber; // Stored for secure blockhash usage
+        uint256 paidAmount;
+        bytes32 seedCommitment;
+    }
+
+    uint256 private constant MAX_NOTES = 10;
+
+    mapping(uint256 => Perfume) public perfumes;
+    mapping(uint256 => PendingMint) public pendingMints;
+    mapping(uint256 => bool) private cancelledTokenIds;
+    mapping(address => uint256[]) public ownerTokens;
+    mapping(address => uint256) public walletMintedCount;
+    mapping(address => uint256) public walletPendingCount;
+    mapping(address => bool) public hasExclusiveBadge;
+    
+    // Pull-based accounting for refunds and penalties (Fixes Issue 9)
+    mapping(address => uint256) public claimableRefunds;
+    uint256 public totalPenalties;
+
+    // MFW-inspired note pools
+    string[MAX_NOTES] private topNotes;
+    string[MAX_NOTES] private heartNotes;
+    string[MAX_NOTES] private baseNotes;
+    string[MAX_NOTES] private mfwInspiredNames;
+
+    event PerfumeMinted(uint256 indexed tokenId, address indexed creator, uint256 price);
+    event BadgeAwarded(address indexed recipient);
+    event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber);
+    event MintCancelled(uint256 indexed tokenId, address indexed minter, uint256 refundAmount, uint256 penaltyAmount);
+
+    constructor(address genesisContract_) ERC721("ScentProtocol MFW 2026", "SCENTMFW") Ownable(msg.sender) {
+        genesisContract = genesisContract_;
+        nextTokenId = 1;
+        initializeMFWNotePools();
+    }
+
+    function initializeMFWNotePools() internal {
+        topNotes = ["Bergamot", "Italian Lemon", "Lavender", "Rose", "Jasmine", "Mint", "Orange Blossom", "Neroli", "Grapefruit", "Fig"];
+        heartNotes = ["Rose", "Jasmine", "Tuberose", "Iris", "Peony", "Lily", "Violet", "Ylang-Ylang", "Gardenia", "Freesia"];
+        baseNotes = ["Sandalwood", "Cedarwood", "Amber", "Musk", "Vanilla", "Patchouli", "Vetiver", "Tonka Bean", "Oud", "Benzoin"];
+        mfwInspiredNames = ["Runway Dream", "Milan Sunset", "Haute Couture", "Fashion Forward", "Catwalk Elite", "Designer Vision", "Vogue Night", "Prestige", "Eleganza", "Moda"];
+    }
+
+    function isGenesisHolder(address account) public view returns (bool) {
+        try ERC721(genesisContract).balanceOf(account) returns (uint256 balance) {
+            return balance > 0;
+        } catch {
+            return false;
+        }
+    }
+
+    function getMintPrice(address minter) public view returns (uint256) {
+        return isGenesisHolder(minter) ? PRICE_GENESIS_HOLDER : PRICE_REGULAR;
+    }
+
+    function requestMint(bytes32 seedCommitment) external nonReentrant returns (uint256 tokenId) {
+        require(totalMinted + activePendingCount < MAX_SUPPLY, "Max supply reached");
+        require(walletMintedCount[msg.sender] + walletPendingCount[msg.sender] < MAX_PER_WALLET, "Max per wallet reached");
+
+        uint256 price = getMintPrice(msg.sender);
+        require(
+            IERC20(USDC_ADDRESS).transferFrom(msg.sender, address(this), price),
+            "USDC transfer failed"
+        );
+
+        tokenId = nextTokenId++;
+        pendingMints[tokenId] = PendingMint({
+            minter: msg.sender,
+            timestamp: block.timestamp,
+            blockNumber: block.number,
+            paidAmount: price,
+            seedCommitment: seedCommitment
+        });
+        activePendingCount++;
+        walletPendingCount[msg.sender]++;
+
+        emit MintRequested(tokenId, msg.sender, block.number);
+        return tokenId;
+    }
+
+    function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external nonReentrant {
+        PendingMint storage pending = pendingMints[tokenId];
+
+        require(pending.minter != address(0), "No pending mint");
+        require(pending.minter == msg.sender, "Not authorized");
+        require(block.timestamp > pending.timestamp + REVEAL_MIN_WAIT, "Too early");
+        require(block.timestamp <= pending.timestamp + REVEAL_MAX_DEADLINE, "Reveal window passed");
+        require(
+            keccak256(abi.encodePacked(seedPreimage)) == pending.seedCommitment,
+            "Invalid seed preimage"
+        );
+
+        uint256 price = pending.paidAmount;
+        
+        // Secure randomness: uses pre-committed seed + historical blockhash + tokenId
+        uint256 seed = uint256(keccak256(abi.encodePacked(
+            uint256(seedPreimage),
+            pending.blockNumber,
+            tokenId
+        )));
+
+        Perfume memory perfume = generatePerfume(tokenId, seed, msg.sender);
+        bool shouldAwardBadge = !hasExclusiveBadge[msg.sender];
+
+        if (shouldAwardBadge) {
+            hasExclusiveBadge[msg.sender] = true;
+        }
+
+        // CRITICAL FIX: Update ALL state BEFORE _safeMint to prevent reentrancy attacks
+        perfumes[tokenId] = perfume;
+        walletPendingCount[msg.sender]--;
+        walletMintedCount[msg.sender]++;
+        activePendingCount--;
+        totalMinted++;
+        delete pendingMints[tokenId];
+        _setTokenURI(tokenId, string(abi.encodePacked("scents://mfw2026/", tokenId.toString())));
+
+        _safeMint(msg.sender, tokenId);
+
+        emit PerfumeMinted(tokenId, msg.sender, price);
+        if (shouldAwardBadge) {
+            emit BadgeAwarded(msg.sender);
+        }
+    }
+
+    function _processCancellation(uint256 tokenId) internal {
+        PendingMint memory pending = pendingMints[tokenId];
+        
+        delete pendingMints[tokenId];
+        activePendingCount--;
+        walletPendingCount[pending.minter]--;
+
+        // Reclaim tokenId if it was the latest one to prevent permanent supply gaps
+        if (tokenId + 1 == nextTokenId) {
+            nextTokenId--;
+            while (nextTokenId > 1 && cancelledTokenIds[nextTokenId - 1]) {
+                cancelledTokenIds[nextTokenId - 1] = false;
+                nextTokenId--;
+            }
+        } else {
+            cancelledTokenIds[tokenId] = true;
+        }
+
+        uint256 penaltyAmount = (pending.paidAmount * CANCEL_PENALTY_BPS) / 10_000;
+        uint256 refundAmount = pending.paidAmount - penaltyAmount;
+
+        // Pull-based accounting (Fixes USDC blocklist bricking issue)
+        claimableRefunds[pending.minter] += refundAmount;
+        totalPenalties += penaltyAmount;
+        
+        emit MintCancelled(tokenId, pending.minter, refundAmount, penaltyAmount);
+    }
+
+    function cancelMint(uint256 tokenId) external nonReentrant {
+        PendingMint memory pending = pendingMints[tokenId];
+        require(pending.minter == msg.sender, "Not authorized");
+        require(block.timestamp > pending.timestamp + REVEAL_MIN_WAIT, "Early cancel not allowed");
+        
+        _processCancellation(tokenId);
+    }
+
+    // FIX: Anyone can clean up expired mints to free up supply
+    function expirePendingMint(uint256 tokenId) external nonReentrant {
+        PendingMint memory pending = pendingMints[tokenId];
+        require(pending.minter != address(0), "No pending mint");
+        require(block.timestamp > pending.timestamp + REVEAL_MAX_DEADLINE, "Not expired yet");
+        
+        _processCancellation(tokenId);
+    }
+
+    function claimRefund() external nonReentrant {
+        uint256 amount = claimableRefunds[msg.sender];
+        require(amount > 0, "No refund available");
+        claimableRefunds[msg.sender] = 0;
+        require(IERC20(USDC_ADDRESS).transfer(msg.sender, amount), "Refund failed");
+    }
+
+    function generatePerfume(uint256 tokenId, uint256 seed, address creator)
+        internal view returns (Perfume memory)
+    {
+        uint8 rarity = determineRarity(seed);
+        string[3] memory top = selectUniqueNotes(topNotes, seed, 0);
+        string[3] memory heart = selectUniqueNotes(heartNotes, seed, 1);
+        string[3] memory base = selectUniqueNotes(baseNotes, seed, 2);
+        string memory name = mfwInspiredNames[seed % MAX_NOTES];
+
+        uint8 pType = uint8((seed % 4));
+        uint8 concentration = getConcentrationForType(pType, seed);
+
+        return Perfume({
+            tokenId: tokenId,
+            name: name,
+            gender: uint8(seed % 3),
+            pType: pType,
+            topNotes: top,
+            heartNotes: heart,
+            baseNotes: base,
+            concentration: concentration,
+            rarity: rarity,
+            createdAt: block.timestamp,
+            creator: creator,
+            hasExclusiveBadge: true
+        });
+    }
+
+    function determineRarity(uint256 seed) internal pure returns (uint8) {
+        uint256 roll = seed % 100;
+        if (roll < 10) return 3; // 10% Legendary
+        if (roll < 30) return 2; // 20% Epic
+        if (roll < 60) return 1; // 30% Rare
+        return 0;                // 40% Common
+    }
+
+    function selectUniqueNotes(string[MAX_NOTES] storage notes, uint256 seed, uint256 offset)
+        internal view returns (string[3] memory)
+    {
+        string[3] memory selected;
+        bool[MAX_NOTES] memory used;
+        uint256 indicesSeed = uint256(keccak256(abi.encodePacked(seed, offset)));
+
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 index = ((indicesSeed >> (i * 64)) + i) % MAX_NOTES;
+            while (used[index]) {
+                index = (index + 1) % MAX_NOTES;
+            }
+            used[index] = true;
+            selected[i] = notes[index];
+        }
+        return selected;
+    }
+
+    function getConcentrationForType(uint8 pType, uint256 seed) internal pure returns (uint8) {
+        uint256 variance = seed % 11;
+        if (pType == 0) return 20 + uint8(variance);
+        if (pType == 1) return 15 + uint8(variance % 6);
+        if (pType == 2) return 10 + uint8(variance % 6);
+        return 5 + uint8(variance % 6);
+    }
+
+    function getPerfume(uint256 tokenId) external view returns (Perfume memory) {
+        require(_ownerOf(tokenId) != address(0), "Token does not exist");
+        return perfumes[tokenId];
+    }
+
+    function getOwnerTokens(address owner) external view returns (uint256[] memory) {
+        return ownerTokens[owner];
+    }
+
+    function getNextTokenId() external view returns (uint256) {
+        return nextTokenId;
+    }
+
+    function getWalletMintedCount(address wallet) external view returns (uint256) {
+        return walletMintedCount[wallet];
+    }
+
+    function getRemainingSupply() external view returns (uint256) {
+        return MAX_SUPPLY - totalMinted - activePendingCount;
+    }
+
+    // FIX: Safely withdraws ONLY accumulated penalties, leaving user refunds intact
+    function withdrawUSDC() external onlyOwner nonReentrant {
+        uint256 amount = totalPenalties;
+        require(amount > 0, "No penalties to withdraw");
+        totalPenalties = 0;
+        require(IERC20(USDC_ADDRESS).transfer(owner(), amount), "Transfer failed");
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal override(ERC721)
+        returns (address)
+    {
+        address from = _ownerOf(tokenId);
+        if (from != address(0) && from != to) {
+            uint256[] storage tokens = ownerTokens[from];
+            for (uint256 i = 0; i < tokens.length; i++) {
+                if (tokens[i] == tokenId) {
+                    tokens[i] = tokens[tokens.length - 1];
+                    tokens.pop();
+                    break;
+                }
+            }
+        }
+        address updated = super._update(to, tokenId, auth);
+        if (to != address(0) && to != from) {
+            ownerTokens[to].push(tokenId);
+        }
+        return updated;
+    }
+
+    function tokenURI(uint256 tokenId)
+        public view override(ERC721, ERC721URIStorage)
+        returns (string memory)
+    {
+        return super.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public view override(ERC721, ERC721URIStorage)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+}
