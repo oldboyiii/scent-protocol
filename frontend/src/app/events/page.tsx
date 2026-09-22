@@ -207,37 +207,71 @@ function EventCard({ event }: { event: EventItem }) {
   const progress = (event.minted / event.totalSupply) * 100;
   const isMFW = event.id === "milan-fashion-week";
 
-  // MFW Card - Purple with bottle
+  // MFW Card - Purple with bottle, description, and Live status
   if (isMFW) {
     return (
       <Link href={`/events/${event.id}`}>
         <div className="group relative rounded-3xl overflow-hidden border border-purple-500/30 bg-gradient-to-br from-slate-900/90 via-indigo-950/50 to-slate-900/90 hover:border-purple-400/60 hover:shadow-[0_0_40px_rgba(168,85,247,0.1)] transition-all duration-300 cursor-pointer">
           
+          {/* Animated particles */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[...Array(25)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-1 h-1 bg-purple-400/40 rounded-full animate-pulse"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 3}s`,
+                  animationDuration: `${2 + Math.random() * 3}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Top glow line */}
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
 
           <div className="relative p-8 md:p-10 flex flex-col md:flex-row gap-10 items-center">
             
             {/* Left Column: Content */}
             <div className="flex-1 w-full order-2 md:order-1">
+              {/* Badges */}
               <div className="flex flex-wrap items-center gap-3 mb-6">
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-purple-500/20 text-purple-300 border-purple-500/30">
-                  Coming Soon
+                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                  Live Now
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-purple-500/20 text-purple-300 border-purple-500/40 flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                  Exclusive Drop
                 </span>
                 {event.partner && (
                   <span className="text-xs text-white/40">{event.partner}</span>
                 )}
               </div>
 
-              <h2 className="text-3xl md:text-4xl font-bold text-white group-hover:text-purple-300 mb-4 transition-colors">
+              {/* Title with gradient */}
+              <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-pink-400 to-amber-400 group-hover:from-purple-200 group-hover:via-pink-300 group-hover:to-amber-300 mb-4 transition-colors">
                 {event.name}
               </h2>
 
-              <p className="text-white/60 text-base max-w-2xl mb-6">
+              {/* Description */}
+              <p className="text-white/60 text-base max-w-2xl mb-4">
                 {event.description}
               </p>
 
+              {/* Long description with purple border */}
+              {event.longDescription && (
+                <p className="text-white/50 text-sm max-w-2xl leading-relaxed border-l-2 border-purple-500/30 pl-4 mb-6">
+                  {event.longDescription}
+                </p>
+              )}
+
+              {/* Key Facts Grid */}
               {event.keyFacts && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                   {event.keyFacts.map((fact, i) => (
                     <div key={i} className="p-3 rounded-xl bg-black/30 border border-purple-500/20">
                       <p className="text-xs text-white/40 uppercase tracking-wider mb-1">
@@ -251,6 +285,26 @@ function EventCard({ event }: { event: EventItem }) {
                 </div>
               )}
 
+              {/* Progress Bar */}
+              <div className="mb-6">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-white/60">Minted</span>
+                  <span className="text-white/60">
+                    {event.minted} / {event.totalSupply}
+                  </span>
+                </div>
+                <div className="h-3 bg-black/30 rounded-full overflow-hidden border border-white/10">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-400 via-pink-500 to-amber-500 shadow-[0_0_10px_rgba(168,85,247,0.5)] transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-white/40 mt-2">
+                  {progress.toFixed(1)}% minted
+                </p>
+              </div>
+
+              {/* Footer Price & CTA */}
               <div className="flex items-center justify-between pt-6 border-t border-white/10">
                 <div>
                   <p className="text-xs text-white/40 uppercase mb-1">Price</p>
@@ -260,7 +314,7 @@ function EventCard({ event }: { event: EventItem }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-purple-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span>View Details</span>
+                  <span>Mint Now</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -292,7 +346,7 @@ function EventCard({ event }: { event: EventItem }) {
                 </div>
                 
                 <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-                   <p className="text-xs text-purple-300 font-mono text-center tracking-widest uppercase mb-1">Coming Soon</p>
+                   <p className="text-xs text-emerald-400 font-mono text-center tracking-widest uppercase mb-1">Live Now</p>
                    <p className="text-[10px] text-white/40 text-center">MFW 2026 Edition</p>
                 </div>
               </div>
