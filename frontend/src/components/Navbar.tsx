@@ -14,8 +14,9 @@ const GENESIS_ABI = [
   "function balanceOf(address owner) external view returns (uint256)"
 ];
 
+// Используем стандартный balanceOf вместо hasBadge для надёжности
 const MFW_ABI = [
-  "function hasBadge(address account) external view returns (bool)"
+  "function balanceOf(address owner) external view returns (uint256)"
 ];
 
 export default function Navbar() {
@@ -53,19 +54,19 @@ export default function Navbar() {
           const balance = await genesisContract.balanceOf(address);
           setHasGenesisBadge(Number(balance) > 0);
         } catch (error) {
-          console.error("Failed to check Genesis badge:", error);
+          console.warn("Failed to check Genesis badge:", error);
         }
 
-        // Check MFW Badge
+        // Check MFW Badge (by checking balance instead of hasBadge)
         try {
           const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
-          const hasBadge = await mfwContract.hasBadge(address);
-          setHasMFWBadge(hasBadge);
+          const balance = await mfwContract.balanceOf(address);
+          setHasMFWBadge(Number(balance) > 0);
         } catch (error) {
-          console.error("Failed to check MFW badge:", error);
+          console.warn("Failed to check MFW badge:", error);
         }
       } catch (error) {
-        console.error("Badge check error:", error);
+        console.warn("Badge check error:", error);
       }
     }
 
@@ -125,7 +126,7 @@ export default function Navbar() {
                 
                 {/* MFW 2026 Badge - Perfume Bottle Icon */}
                 {hasMFWBadge && (
-                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/50" title="MFW 2026 Badge">
+                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/50" title="MFW 2026 Holder">
                     <svg className="w-3 h-3 text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
                       <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
