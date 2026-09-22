@@ -51,27 +51,26 @@ const INITIAL_EVENTS: EventItem[] = [
     ],
   },
   {
-    {
-  id: "mfw-2026",
-  name: "Milan Fashion Week 2026",
-  description: "A vision for the future of fashion and digital perfumery.",
-  longDescription:
-    "ScentProtocol envisions a future where high fashion and digital perfumery intersect. Milan Fashion Week 2026 represents our first step toward this vision — a planned collaboration that will bring AI-generated fragrances to the world's most prestigious runway. Holders will receive a limited-edition digital badge and priority access to upcoming partnerships and drops.",
-  totalSupply: 500,
-  minted: 0,
-  price: "5",
-  startDate: "2026-09-22",
-  endDate: "2026-09-28",
-  status: "live",
-  partner: "ScentProtocol × MFW 2026 (Planned)",
-  isLaunch: false,
-  keyFacts: [
-    { label: "Dates", value: "Sep 22-28, 2026" },
-    { label: "Supply", value: "500 NFTs" },
-    { label: "Price", value: "5 USDC" },
-    { label: "Bonus", value: "Limited-Edition Badge" },
-  ],
-},
+    id: "mfw-2026",
+    name: "Milan Fashion Week 2026",
+    description: "A vision for the future of fashion and digital perfumery.",
+    longDescription:
+      "ScentProtocol envisions a future where high fashion and digital perfumery intersect. Milan Fashion Week 2026 represents our first step toward this vision — a planned collaboration that will bring AI-generated fragrances to the world's most prestigious runway. Holders will receive a limited-edition digital badge and priority access to upcoming partnerships and drops.",
+    totalSupply: 500,
+    minted: 0,
+    price: "5",
+    startDate: "2026-09-22",
+    endDate: "2026-09-28",
+    status: "live",
+    partner: "ScentProtocol × MFW 2026 (Planned)",
+    isLaunch: false,
+    keyFacts: [
+      { label: "Dates", value: "Sep 22-28, 2026" },
+      { label: "Supply", value: "500 NFTs" },
+      { label: "Price", value: "5 USDC" },
+      { label: "Bonus", value: "Limited-Edition Badge" },
+    ],
+  },
 ];
 
 export default function EventsPage() {
@@ -208,13 +207,11 @@ function EventCard({ event }: { event: EventItem }) {
   const progress = (event.minted / event.totalSupply) * 100;
   const isMFW = event.id === "mfw-2026";
 
-  // MFW Card - Purple with bottle, description, and Live status
   if (isMFW) {
     return (
       <Link href={`/events/${event.id}`}>
         <div className="group relative rounded-3xl overflow-hidden border border-purple-500/30 bg-gradient-to-br from-slate-900/90 via-indigo-950/50 to-slate-900/90 hover:border-purple-400/60 hover:shadow-[0_0_40px_rgba(168,85,247,0.1)] transition-all duration-300 cursor-pointer">
           
-          {/* Animated particles */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {[...Array(25)].map((_, i) => (
               <div
@@ -230,47 +227,40 @@ function EventCard({ event }: { event: EventItem }) {
             ))}
           </div>
 
-          {/* Top glow line */}
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
 
           <div className="relative p-8 md:p-10 flex flex-col md:flex-row gap-10 items-center">
             
-            {/* Left Column: Content */}
             <div className="flex-1 w-full order-2 md:order-1">
-              {/* Badges */}
               <div className="flex flex-wrap items-center gap-3 mb-6">
                 <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
                   Live Now
                 </span>
                 <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-purple-500/20 text-purple-300 border-purple-500/40 flex items-center gap-1.5">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  Exclusive Drop
+                  Vision Drop
                 </span>
                 {event.partner && (
                   <span className="text-xs text-white/40">{event.partner}</span>
                 )}
               </div>
 
-              {/* Title with gradient */}
               <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-pink-400 to-amber-400 group-hover:from-purple-200 group-hover:via-pink-300 group-hover:to-amber-300 mb-4 transition-colors">
                 {event.name}
               </h2>
 
-              {/* Description */}
               <p className="text-white/60 text-base max-w-2xl mb-4">
                 {event.description}
               </p>
 
-              {/* Long description with purple border */}
               {event.longDescription && (
                 <p className="text-white/50 text-sm max-w-2xl leading-relaxed border-l-2 border-purple-500/30 pl-4 mb-6">
                   {event.longDescription}
                 </p>
               )}
 
-              {/* Key Facts Grid */}
               {event.keyFacts && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                   {event.keyFacts.map((fact, i) => (
@@ -286,7 +276,6 @@ function EventCard({ event }: { event: EventItem }) {
                 </div>
               )}
 
-              {/* Progress Bar */}
               <div className="mb-6">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-white/60">Minted</span>
@@ -305,7 +294,6 @@ function EventCard({ event }: { event: EventItem }) {
                 </p>
               </div>
 
-              {/* Footer Price & CTA */}
               <div className="flex items-center justify-between pt-6 border-t border-white/10">
                 <div>
                   <p className="text-xs text-white/40 uppercase mb-1">Price</p>
@@ -323,24 +311,19 @@ function EventCard({ event }: { event: EventItem }) {
               </div>
             </div>
 
-            {/* Right Column: Perfume Bottle */}
             <div className="w-full md:w-72 flex-shrink-0 order-1 md:order-2">
               <div className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-purple-500/30 bg-gradient-to-b from-purple-900/20 to-black/80 group-hover:border-purple-400/60 transition-all duration-500 shadow-2xl shadow-purple-900/20">
                 
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
                   
-                  {/* Cap */}
                   <div className="w-16 h-8 bg-gradient-to-r from-amber-400 to-amber-600 rounded-t-lg shadow-[0_0_20px_rgba(245,158,11,0.6)] mb-1 relative z-10"></div>
                   
-                  {/* Neck */}
                   <div className="w-8 h-6 bg-purple-400/20 border-x border-t border-purple-300/40 backdrop-blur-sm -mt-1 relative z-10"></div>
                   
-                  {/* Body */}
                   <div className="w-32 h-40 bg-gradient-to-t from-purple-600/30 via-purple-500/10 to-transparent rounded-t-[3rem] border border-purple-400/30 backdrop-blur-md -mt-1 relative z-10 flex items-center justify-center">
                      <div className="w-20 h-20 bg-purple-500/20 rounded-full blur-xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
                   </div>
 
-                  {/* Floating Particles */}
                   <div className="absolute top-1/3 -right-4 w-2 h-2 bg-purple-400 rounded-full animate-ping opacity-70"></div>
                   <div className="absolute bottom-1/4 -left-6 w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse delay-700 opacity-70"></div>
                   <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-white/40 rounded-full animate-pulse delay-300"></div>
@@ -359,7 +342,6 @@ function EventCard({ event }: { event: EventItem }) {
     );
   }
 
-  // Genesis Card - Orange style
   return (
     <Link href={`/events/${event.id}`}>
       <div className="group relative rounded-3xl overflow-hidden border-2 border-amber-500/50 bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-orange-950/40 hover:border-amber-400/80 hover:shadow-[0_0_60px_rgba(245,158,11,0.15)] transition-all duration-300 cursor-pointer">
