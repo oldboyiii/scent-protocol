@@ -51,26 +51,27 @@ const INITIAL_EVENTS: EventItem[] = [
     ],
   },
   {
-    id: "mfw-2026",
-    name: "Milan Fashion Week Exclusive",
-    description: "Limited edition digital fragrance drop during MFW 2026.",
-    longDescription:
-      "An exclusive collaboration bridging high fashion and digital perfumery. Mint a unique NFT fragrance inspired by the runway trends of Milan Fashion Week. Holders receive an exclusive digital badge and priority access to future platform features.",
-    totalSupply: 500,
-    minted: 0,
-    price: "5",
-    startDate: "2026-09-22",
-    endDate: "2026-09-28",
-    status: "live",
-    partner: "ScentProtocol × MFW 2026",
-    isLaunch: false,
-    keyFacts: [
-      { label: "Dates", value: "Sep 22-28, 2026" },
-      { label: "Supply", value: "500 NFTs" },
-      { label: "Price", value: "5 USDC" },
-      { label: "Bonus", value: "Exclusive Digital Badge" },
-    ],
-  },
+    {
+  id: "mfw-2026",
+  name: "Milan Fashion Week 2026",
+  description: "A vision for the future of fashion and digital perfumery.",
+  longDescription:
+    "ScentProtocol envisions a future where high fashion and digital perfumery intersect. Milan Fashion Week 2026 represents our first step toward this vision — a planned collaboration that will bring AI-generated fragrances to the world's most prestigious runway. Holders will receive a limited-edition digital badge and priority access to upcoming partnerships and drops.",
+  totalSupply: 500,
+  minted: 0,
+  price: "5",
+  startDate: "2026-09-22",
+  endDate: "2026-09-28",
+  status: "live",
+  partner: "ScentProtocol × MFW 2026 (Planned)",
+  isLaunch: false,
+  keyFacts: [
+    { label: "Dates", value: "Sep 22-28, 2026" },
+    { label: "Supply", value: "500 NFTs" },
+    { label: "Price", value: "5 USDC" },
+    { label: "Bonus", value: "Limited-Edition Badge" },
+  ],
+},
 ];
 
 export default function EventsPage() {
