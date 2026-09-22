@@ -14,7 +14,7 @@ const GENESIS_ABI = [
   "function balanceOf(address owner) external view returns (uint256)"
 ];
 
-// Используем стандартный balanceOf вместо hasBadge для надёжности
+// Use standard balanceOf instead of hasBadge for reliability
 const MFW_ABI = [
   "function balanceOf(address owner) external view returns (uint256)"
 ];
