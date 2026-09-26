@@ -52,11 +52,11 @@ const phases = [
     title: "Phygital & Living NFTs",
     status: "upcoming",
     items: [
-      "Partnerships with luxury perfume houses & fashion brands",
-      "Physical Redemption: Top rarity holders claim real perfume samples",
       "Dynamic Environment Scents: NFTs adapt to seasons via Oracles",
+      "Physical Redemption: Top rarity holders claim real perfume samples",
       "Avatar scent status & wearable fragrance in virtual worlds",
       "Cross-platform NFT interoperability",
+      "Partnerships with luxury perfume houses & fashion brands",
     ],
   },
 ];
