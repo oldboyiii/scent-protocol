@@ -21,13 +21,15 @@ const MFW_ABI = [
 
 // Helper function to get human-readable network name
 const getNetworkName = (chainId: number, networkName: string): string => {
-  // Fallback to chainId mapping if network name is generic (like "unknown")
+  // First check if network name from provider contains "arc"
   if (networkName.toLowerCase().includes("arc")) return "Arc Network";
   
+  // Map chainId to network name
   switch (chainId) {
     case 1: return "Ethereum Mainnet";
     case 11155111: return "Sepolia Testnet";
-    case 1234: return "Arc Network"; // TODO: Replace 1234 with the exact Arc Mainnet Chain ID if different
+    case 5042: return "Arc Network"; // ✅ Correct Arc Mainnet Chain ID
+    case 5043: return "Arc Testnet"; // Arc Testnet (if exists)
     default: return `Chain ${chainId}`;
   }
 };
