@@ -19,10 +19,24 @@ const MFW_ABI = [
   "function balanceOf(address owner) external view returns (uint256)"
 ];
 
+// Helper function to get human-readable network name
+const getNetworkName = (chainId: number, networkName: string): string => {
+  // Fallback to chainId mapping if network name is generic (like "unknown")
+  if (networkName.toLowerCase().includes("arc")) return "Arc Network";
+  
+  switch (chainId) {
+    case 1: return "Ethereum Mainnet";
+    case 11155111: return "Sepolia Testnet";
+    case 1234: return "Arc Network"; // TODO: Replace 1234 with the exact Arc Mainnet Chain ID if different
+    default: return `Chain ${chainId}`;
+  }
+};
+
 export default function Navbar() {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [hasGenesisBadge, setHasGenesisBadge] = useState(false);
   const [hasMFWBadge, setHasMFWBadge] = useState(false);
+  const [networkName, setNetworkName] = useState<string>("Unknown");
   
   const { address } = useWallet();
 
@@ -33,12 +47,13 @@ export default function Navbar() {
 
   const isConnected = !!address;
 
-  // Check for badges when wallet is connected
+  // Check for badges and network when wallet is connected
   useEffect(() => {
-    async function checkBadges() {
+    async function checkWalletInfo() {
       if (!address) {
         setHasGenesisBadge(false);
         setHasMFWBadge(false);
+        setNetworkName("Unknown");
         return;
       }
 
@@ -48,7 +63,12 @@ export default function Navbar() {
         
         const provider = new ethers.BrowserProvider(w.ethereum);
         
-        // Check Genesis NFT
+        // 1. Get Network Information
+        const network = await provider.getNetwork();
+        const chainId = Number(network.chainId);
+        setNetworkName(getNetworkName(chainId, network.name as string));
+
+        // 2. Check Genesis NFT
         try {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const balance = await genesisContract.balanceOf(address);
@@ -57,7 +77,7 @@ export default function Navbar() {
           console.warn("Failed to check Genesis badge:", error);
         }
 
-        // Check MFW Badge (by checking balance instead of hasBadge)
+        // 3. Check MFW Badge (by checking balance)
         try {
           const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
           const balance = await mfwContract.balanceOf(address);
@@ -66,11 +86,27 @@ export default function Navbar() {
           console.warn("Failed to check MFW badge:", error);
         }
       } catch (error) {
-        console.warn("Badge check error:", error);
+        console.warn("Wallet info check error:", error);
       }
     }
 
-    checkBadges();
+    checkWalletInfo();
+
+    // Listen for network changes in MetaMask
+    const handleChainChanged = () => {
+      window.location.reload(); // Recommended by MetaMask docs when chain changes
+    };
+
+    const w = window as any;
+    if (w.ethereum) {
+      w.ethereum.on("chainChanged", handleChainChanged);
+    }
+
+    return () => {
+      if (w.ethereum) {
+        w.ethereum.removeListener("chainChanged", handleChainChanged);
+      }
+    };
   }, [address]);
 
   return (
@@ -108,16 +144,16 @@ export default function Navbar() {
             </Link>
           </nav>
 
-          {/* RIGHT: Dynamic Wallet Button with Badges */}
+          {/* RIGHT: Dynamic Wallet Button with Badges and Network */}
           <div className="flex-shrink-0 flex items-center gap-3">
             {isConnected ? (
               <button 
                 onClick={() => setIsWalletModalOpen(true)} 
-                className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-medium text-white hover:bg-white/10 transition-all flex items-center gap-2"
+                className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm font-medium text-white hover:bg-white/10 transition-all flex items-center gap-3"
               >
                 {/* Genesis Badge */}
                 {hasGenesisBadge && (
-                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/50" title="Genesis Holder">
+                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/50 shrink-0" title="Genesis Holder">
                     <svg viewBox="0 0 24 16" className="w-3 h-2 text-amber-400">
                       <path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none" />
                     </svg>
@@ -126,7 +162,7 @@ export default function Navbar() {
                 
                 {/* MFW 2026 Badge - Perfume Bottle Icon */}
                 {hasMFWBadge && (
-                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/50" title="MFW 2026 Holder">
+                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/50 shrink-0" title="MFW 2026 Holder">
                     <svg className="w-3 h-3 text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
                       <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
@@ -136,8 +172,16 @@ export default function Navbar() {
                   </div>
                 )}
                 
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                {formatAddress(address)}
+                {/* Network Name and Address */}
+                <div className="flex flex-col items-end leading-tight">
+                  <span className="text-[10px] text-emerald-400 font-semibold tracking-wide uppercase">
+                    {networkName}
+                  </span>
+                  <span className="text-sm font-medium text-white flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {formatAddress(address)}
+                  </span>
+                </div>
               </button>
             ) : (
               <button 
