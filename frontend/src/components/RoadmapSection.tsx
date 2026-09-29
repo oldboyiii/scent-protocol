@@ -59,6 +59,18 @@ const phases = [
       "Partnerships with luxury perfume houses & fashion brands",
     ],
   },
+  {
+    phase: "Phase 5",
+    title: "Cross-Chain Expansion & CCTP",
+    status: "upcoming",
+    items: [
+      "Arc Mainnet as foundational Layer-1 with native USDC for all gas fees",
+      "Standard EVM smart contracts for minting and trading digital asset NFTs",
+      "CCTP (Cross-Chain Transfer Protocol) integration for seamless multi-chain onboarding",
+      "Web2.5 creator onboarding from Ethereum, Base, and Arbitrum",
+      "Unified liquidity across chains — zero fragmentation",
+    ],
+  },
 ];
 
 export default function RoadmapSection() {
@@ -115,7 +127,7 @@ export default function RoadmapSection() {
                       )}
                     </div>
                     <h3 className={`text-lg font-semibold text-white mb-3 ${isLeftSide ? "md:text-right" : "md:text-left"}`}>{p.title}</h3>
-                    <ul className={`space-y-1.5 text-left`}>
+                    <ul className="space-y-1.5 text-left">
                       {p.items.map((item, j) => {
                         const isDone = typeof item === 'object' ? item.done : (p.status === "completed");
                         const itemText = typeof item === 'object' ? item.text : item;
