@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import MintForm from "@/components/MintForm";
-import MintReveal from "@/components/MintReveal"; // <-- Добавлен импорт
+import MintReveal from "@/components/MintReveal"; // <-- Added import for the reveal animation
 import PerfumeCard from "@/components/PerfumeCard";
 import InfoSection from "@/components/InfoSection";
 import Logo from "@/components/Logo";
@@ -11,6 +11,7 @@ import AIAdvisor from "@/components/AIAdvisor";
 import RoadmapSection from "@/components/RoadmapSection";
 import { PerfumeData } from "@/utils/contract";
 
+// Interface defining the structure of a newly minted perfume in the local session state
 interface MintedPerfume {
   tokenId: number;
   perfume: PerfumeData;
@@ -18,17 +19,25 @@ interface MintedPerfume {
 }
 
 export default function Home() {
+  // State to store all perfumes minted during the current user session
   const [minted, setMinted] = useState<MintedPerfume[]>([]);
+  // State to trigger the confetti animation on a successful mint
   const [showConfetti, setShowConfetti] = useState(false);
+  // State to hold the token ID of the most recently minted perfume to display the reveal animation
   const [newlyMinted, setNewlyMinted] = useState<number | null>(null);
+  // State to handle the fade-out transition of the reveal card
   const [isFadingOut, setIsFadingOut] = useState(false);
+  // States to hold the user's fragrance preferences selected from the AI Advisor
   const [advisorGender, setAdvisorGender] = useState<number | null>(null);
   const [advisorType, setAdvisorType] = useState<number | null>(null);
 
+  // Callback function triggered when a new perfume is successfully minted
   const handleMinted = (tokenId: number, perfume: PerfumeData, desc: string) => {
+    // 1. Add the new perfume to the beginning of the local session state array
     const newMint: MintedPerfume = { tokenId, perfume, description: desc };
     setMinted((prev) => [newMint, ...prev]);
 
+    // 2. Update local storage to persist the user's collection across page reloads
     const existing = JSON.parse(localStorage.getItem("scent_collection") || "[]");
     const updated = [
       {
@@ -50,28 +59,35 @@ export default function Home() {
         },
         description: desc,
       },
+      // Filter out any existing entry with the same tokenId to prevent duplicates
       ...existing.filter((s: any) => s.tokenId !== tokenId),
     ];
     localStorage.setItem("scent_collection", JSON.stringify(updated));
 
+    // 3. Trigger confetti animation for 5 seconds
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
 
+    // 4. Set the newly minted ID to display the reveal animation instead of the mint form
     setNewlyMinted(tokenId);
     setIsFadingOut(false);
   };
 
+  // Callback function triggered when the user selects preferences in the AI Advisor
   const handleAdvisorSelect = (gender: number, pType: number) => {
+    // Update the state with the selected preferences
     setAdvisorGender(gender);
     setAdvisorType(pType);
+    // Smoothly scroll the user down to the Mint Form section
     document.getElementById("mint-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   return (
     <div className="flex flex-col items-center gap-16 pb-20 w-full">
+      {/* Confetti animation component, controlled by the showConfetti state */}
       <Confetti active={showConfetti} />
 
-      {/* Header */}
+      {/* Header Section: Contains the Logo and project branding */}
       <div className="w-full max-w-4xl px-4 animate-fade-up">
         <div className="glass-card flex items-center justify-between px-6 py-4">
           <Logo size={36} />
@@ -84,7 +100,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Hero Section */}
+      {/* Hero Section: Main title, description, and key network features */}
       <section className="text-center max-w-3xl mx-auto px-4 animate-fade-up pt-4">
         <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-8 pb-4 leading-none">
           Digital Perfume House
@@ -110,15 +126,15 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Info Section */}
+      {/* Info Section: Additional details about the project */}
       <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
         <InfoSection />
       </div>
 
-      {/* Mint Form OR Newly Minted NFT (mutually exclusive - same place!) */}
+      {/* Conditional Rendering: Shows the Mint Reveal animation for the newest mint, otherwise shows the Mint Form */}
       <div id="mint-form" className="w-full max-w-xl px-4 animate-fade-up-delay">
         {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted ? (
-          // Используем компонент MintReveal с анимацией конверта
+          // Display the envelope reveal animation for the most recently minted NFT
           <MintReveal
             tokenId={minted[0].tokenId}
             perfume={minted[0].perfume}
@@ -129,7 +145,7 @@ export default function Home() {
             }}
           />
         ) : (
-          // Показываем форму минта
+          // Display the standard minting form
           <MintForm 
             onMinted={handleMinted} 
             defaultGender={advisorGender ?? undefined}
@@ -138,7 +154,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* AI Advisor */}
+      {/* AI Advisor Section: Helps users choose their fragrance profile */}
       <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold text-white mb-2">Not sure what to create?</h2>
@@ -151,7 +167,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* All Minted Cards - Only show if more than 1 mint */}
+      {/* Recent Creations Section: Displays a list of previously minted perfumes in the current session (if more than one) */}
       {minted.length > 1 && (
         <div className="w-full max-w-md px-4 space-y-4 animate-fade-up-delay">
           <h3 className="text-xl font-bold text-white text-center mb-4">Your Recent Creations</h3>
@@ -166,7 +182,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Roadmap */}
+      {/* Roadmap Section: Displays the project's future development phases */}
       <div className="w-full animate-fade-up-delay">
         <RoadmapSection />
       </div>
