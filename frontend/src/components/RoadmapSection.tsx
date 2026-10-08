@@ -31,7 +31,7 @@ const phases = [
       { text: "Personal AI advisor for scent recommendations", done: true },
       { text: "Successful Mainnet deployment", done: true },
       { text: "Limited Event Editions (Special Occasion Drops)", done: true },
-      { text: "Auto-minting based on mood & context", done: false },
+      { text: "Auto-minting based on mood & context", done: true }, // <-- ОТМЕЧЕНО КАК ВЫПОЛНЕННОЕ
       { text: "Session keys for gasless experience", done: false },
       { text: "Natural language → fragrance pipeline", done: false },
     ],
