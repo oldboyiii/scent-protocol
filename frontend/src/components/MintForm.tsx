@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useToast } from "@/components/ToastProvider";
+import { MintContext } from "@/components/AIAdvisor"; // Import MintContext interface
 import {
   getContract,
   getUSDCContract,
@@ -10,15 +11,16 @@ import {
   PerfumeData,
 } from "@/utils/contract";
 
+// Updated interface: replaces defaultGender/defaultType with advisorContext
 interface MintFormProps {
-  onMinted: (tokenId: number, perfume: PerfumeData, desc: string) => void;
-  defaultGender?: number;
-  defaultType?: number;
+  onMinted: (tokenId: number, perfume: PerfumeData, desc: string, mood?: string) => void;
+  advisorContext?: MintContext; // Optional: full context from AI Advisor (mood, notes, seedString)
 }
 
-export default function MintForm({ onMinted, defaultGender, defaultType }: MintFormProps) {
-  const [gender, setGender] = useState(defaultGender ?? 0);
-  const [pType, setPType] = useState(defaultType ?? 2);
+export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
+  // Initialize gender and pType from advisorContext if available, otherwise use defaults
+  const [gender, setGender] = useState(advisorContext?.gender ?? 0);
+  const [pType, setPType] = useState(advisorContext?.pType ?? 2);
   
   const [step, setStep] = useState<"idle" | "requesting" | "waiting" | "revealing" | "success">("idle");
   const [tokenId, setTokenId] = useState<number | null>(null);
@@ -27,11 +29,15 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
 
   const { addToast, updateToast } = useToast();
 
+  // Update local state when advisorContext changes (e.g., user selects new scenario)
   useEffect(() => {
-    if (defaultGender !== undefined) setGender(defaultGender);
-    if (defaultType !== undefined) setPType(defaultType);
-  }, [defaultGender, defaultType]);
+    if (advisorContext) {
+      setGender(advisorContext.gender);
+      setPType(advisorContext.pType);
+    }
+  }, [advisorContext]);
 
+  // Countdown timer for the commit-reveal delay
   useEffect(() => {
     if (step === "waiting" && countdown > 0) {
       const timer = setInterval(() => {
@@ -47,6 +53,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
     }
   }, [step, countdown]);
 
+  // Step 1: Request mint (commits to minting, reserves tokenId)
   const handleRequestMint = async () => {
     const w = window as any;
     if (!w.ethereum) {
@@ -80,6 +87,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       const txRequest = await contract.requestMint();
       const receiptRequest = await txRequest.wait();
 
+      // Parse transaction logs to find the new tokenId
       let newTokenId = 0;
       for (const log of receiptRequest.logs) {
         if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) continue;
@@ -115,6 +123,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
     }
   };
 
+  // Step 2: Reveal and mint (generates the perfume using seedPreimage)
   const handleReveal = async () => {
     if (!tokenId) return;
 
@@ -128,7 +137,10 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       const signer = await provider.getSigner();
       const contract = getContract(signer);
 
-      const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
+      // CRITICAL: Use deterministic seed from advisorContext instead of random bytes
+      // This ensures the on-chain generated perfume matches the AI-selected mood/notes
+      const seedString = advisorContext?.seedString || `${Date.now()}-${Math.random()}`;
+      const userSeedHex = ethers.id(seedString); // keccak256 hash for the smart contract
       
       const txReveal = await contract.revealAndMint(tokenId, userSeedHex);
       await txReveal.wait();
@@ -149,6 +161,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
         creator: rawPerfume.creator,
       };
 
+      // Pin metadata to IPFS for decentralized storage
       try {
         updateToast(toastId, "Securing metadata on IPFS...", "loading");
         const pinResponse = await fetch("/api/pin-metadata", {
@@ -172,7 +185,8 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
       }
 
       const desc = generateDescription(perfume);
-      onMinted(tokenId, perfume, desc);
+      // Pass mood from advisorContext to onMinted for localStorage persistence
+      onMinted(tokenId, perfume, desc, advisorContext?.mood);
       
       updateToast(toastId, `Scent #${tokenId} minted and secured successfully!`, "success");
       setStep("success");
@@ -197,6 +211,7 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
     setError(null);
   };
 
+  // Generates a poetic description based on perfume data
   function generateDescription(perfume: PerfumeData): string {
     const genderText = ["unisex", "masculine", "feminine"][perfume.gender] || "unisex";
     const typeText = ["Parfum", "Eau de Parfum", "Eau de Toilette", "Eau de Cologne"][perfume.pType] || "fragrance";
@@ -242,6 +257,21 @@ export default function MintForm({ onMinted, defaultGender, defaultType }: MintF
   return (
     <div className="glass-card p-8 max-w-xl w-full">
       <h2 className="text-2xl font-bold mb-6 text-center">Create Your Scent</h2>
+
+      {/* Display selected mood/context from AI Advisor if available */}
+      {advisorContext?.mood && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+          <p className="text-xs text-amber-300 font-medium mb-1">AI Advisor Context</p>
+          <p className="text-sm text-white/80">
+            Mood: <span className="font-semibold text-white">"{advisorContext.mood}"</span>
+          </p>
+          {advisorContext.topNotes && advisorContext.topNotes.length > 0 && (
+            <p className="text-xs text-white/60 mt-1">
+              Suggested notes: {advisorContext.topNotes.join(", ")} • {advisorContext.heartNotes?.join(", ")} • {advisorContext.baseNotes?.join(", ")}
+            </p>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
