@@ -7,11 +7,16 @@ import { useState } from "react";
 export interface MintContext {
   gender: number;
   pType: number;
-  mood?: string; // Optional: present in Deep Mode, or scenario name in Quick Mode
+  mood?: string;
   topNotes?: string[];
   heartNotes?: string[];
   baseNotes?: string[];
-  seedString: string; // Always required for deterministic on-chain minting
+  seedString: string;
+  // UI fields for the Result Card
+  vibe?: string;
+  archetype?: string;
+  dnaColors?: string[];
+  reason?: string;
 }
 
 interface KnowledgeEntry {
@@ -56,6 +61,12 @@ const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
   artist: { pType: 0, intensity: 2, tags: ["creative", "unusual", "inspiring", "unique"], notes: { top: ["Absinthe"], heart: ["Violet", "Iris"], base: ["Incense", "Amber"] }, archetype: "The Artist" },
 };
 
+const CREATIVE_DESCRIPTIONS: Record<number, Record<number, string>> = {
+  0: { 0: "A unisex elixir of pure sophistication.", 1: "Unisex elegance captured in liquid form.", 2: "A versatile masterpiece transcending boundaries.", 3: "Bold and boundary-breaking." },
+  1: { 0: "Masculine power distilled — commanding yet refined.", 1: "The modern gentleman's signature.", 2: "A symphony of strength and subtlety.", 3: "Unapologetically masculine." },
+  2: { 0: "Feminine grace in every note.", 1: "The essence of elegance and worth.", 2: "A bouquet of confidence and charm.", 3: "Radiant femininity." }
+};
+
 const TYPE_NAMES = ["Parfum", "Eau de Parfum", "Eau de Toilette", "Eau de Cologne"];
 const GENDER_NAMES = ["Unisex", "Male", "Female"];
 
@@ -79,43 +90,63 @@ interface AIAdvisorProps {
 }
 
 export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
-  // Tab state: 'quick' (legacy) or 'deep' (new mood analysis)
   const [mode, setMode] = useState<'quick' | 'deep'>('quick');
-  
   const [input, setInput] = useState("");
   const [selectedGender, setSelectedGender] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  
+  // NEW: State to hold the analyzed result for Deep Mode before applying
+  const [deepSuggestion, setDeepSuggestion] = useState<MintContext | null>(null);
 
-  // Helper to generate a unique seed string for the smart contract
   const generateSeedString = (baseMood: string): string => {
     return `${baseMood.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   };
 
-  // Handler for Quick Pick mode (Legacy scenarios)
+  const getCreativeDescription = (gender: number, pType: number): string => {
+    if (gender in CREATIVE_DESCRIPTIONS && pType in CREATIVE_DESCRIPTIONS[gender]) {
+      return CREATIVE_DESCRIPTIONS[gender][pType];
+    }
+    return "";
+  };
+
+  const generateDNAColors = (notes: { top?: string[]; heart?: string[]; base?: string[] }): string[] => {
+    const allNotes = [...(notes.top || []), ...(notes.heart || []), ...(notes.base || [])];
+    const colors: string[] = [];
+    
+    allNotes.forEach(note => {
+      const color = NOTE_COLORS[note] || NOTE_COLORS[note.split(" ")[0]];
+      if (color) colors.push(color);
+    });
+
+    while (colors.length < 8) {
+      colors.push("#6366f1");
+    }
+    
+    return colors.slice(0, 8);
+  };
+
+  // Quick Mode: Instant apply (keeps the fast UX for scenarios)
   const handleQuickPick = (scenarioTags: string) => {
     setLoading(true);
     setTimeout(() => {
       const lower = scenarioTags.toLowerCase();
       let gender = selectedGender;
-      let pType = 2; // Default
-      let archetype = "The Explorer";
+      let pType = 2;
       let notes: { top?: string[]; heart?: string[]; base?: string[] } = {};
 
-      // Simple keyword matching for quick scenarios
       for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
         if (lower.includes(keyword)) {
           if (data.gender !== undefined) gender = data.gender;
           pType = data.pType !== undefined ? data.pType : pType;
-          if (data.archetype) archetype = data.archetype;
           notes = data.notes;
-          break; // Take the first best match for quick mode
+          break;
         }
       }
 
       const context: MintContext = {
         gender,
         pType,
-        mood: scenarioTags, // e.g., "summer beach"
+        mood: scenarioTags,
         topNotes: notes.top || ["Bergamot"],
         heartNotes: notes.heart || ["Floral"],
         baseNotes: notes.base || ["Musk"],
@@ -124,13 +155,14 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
 
       onSelect(context);
       setLoading(false);
-    }, 400); // Faster delay for quick mode
+    }, 400);
   };
 
-  // Handler for Deep Mood Analysis mode (New feature)
+  // Deep Mode: Analyze and SHOW THE RESULT CARD (restored feature!)
   const analyzeDeepMood = () => {
     if (!input.trim()) return;
     setLoading(true);
+    setDeepSuggestion(null); // Clear previous result
 
     setTimeout(() => {
       const lower = input.toLowerCase();
@@ -159,20 +191,33 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
       const topNotes = matchedNotes.top ? [...new Set(matchedNotes.top)].slice(0, 3) : ["Bergamot", "Citrus"];
       const heartNotes = matchedNotes.heart ? [...new Set(matchedNotes.heart)].slice(0, 3) : ["Floral"];
       const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
+      
+      const vibe = uniqueTags.length > 0 ? uniqueTags.join(", ") : "unique and mysterious";
+      const dnaColors = generateDNAColors(matchedNotes);
 
-      const context: MintContext = {
+      let reason = matchedTags.length === 0 
+        ? `Your vibe is intriguing! Sensing something ${vibe}.`
+        : `A fascinating blend of ${uniqueTags.slice(0, 2).join(" & ")}.`;
+      
+      const creativeDesc = getCreativeDescription(gender, pType);
+      if (creativeDesc) reason += ` ${creativeDesc}`;
+
+      // Save to state to render the Result Card
+      setDeepSuggestion({
         gender,
         pType,
-        mood: input, // The exact user input
+        mood: input,
         topNotes,
         heartNotes,
         baseNotes,
-        seedString: generateSeedString(input)
-      };
-
-      onSelect(context);
+        seedString: generateSeedString(input),
+        vibe,
+        archetype,
+        dnaColors,
+        reason
+      });
       setLoading(false);
-    }, 800); // Slightly longer delay to simulate "deep AI analysis"
+    }, 800);
   };
 
   const quickScenarios = [
@@ -206,7 +251,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
       {/* Mode Tabs */}
       <div className="flex p-1 bg-white/5 rounded-lg mb-5 border border-white/10">
         <button
-          onClick={() => setMode('quick')}
+          onClick={() => { setMode('quick'); setDeepSuggestion(null); }}
           className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
             mode === 'quick' ? "bg-white/10 text-white shadow" : "text-white/50 hover:text-white/80"
           }`}
@@ -214,7 +259,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
           Quick Pick
         </button>
         <button
-          onClick={() => setMode('deep')}
+          onClick={() => { setMode('deep'); setDeepSuggestion(null); }}
           className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
             mode === 'deep' ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow" : "text-white/50 hover:text-white/80"
           }`}
@@ -223,7 +268,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </button>
       </div>
 
-      {/* QUICK MODE UI (Legacy) */}
+      {/* QUICK MODE UI */}
       {mode === 'quick' && (
         <div className="animate-fade-up">
           <div className="mb-5">
@@ -262,36 +307,132 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </div>
       )}
 
-      {/* DEEP MODE UI (New Feature) */}
+      {/* DEEP MODE UI */}
       {mode === 'deep' && (
         <div className="animate-fade-up">
-          <p className="text-sm text-white/60 mb-3">Describe your current mood, location, or occasion:</p>
-          <div className="flex gap-2 mb-4">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && analyzeDeepMood()}
-              placeholder="e.g. 'romantic winter evening in Paris'..."
-              className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500 transition-colors"
-            />
-            <button
-              onClick={analyzeDeepMood}
-              disabled={loading || !input.trim()}
-              className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-semibold hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-            >
-              {loading ? (
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                </svg>
-              ) : "Analyze"}
-            </button>
-          </div>
-          
-          <div className="text-xs text-white/40 mb-4">
-            Tip: Mention weather, time of day, or specific emotions for better results.
-          </div>
+          {!deepSuggestion ? (
+            // Input form when no suggestion is generated yet
+            <>
+              <p className="text-sm text-white/60 mb-3">Describe your current mood, location, or occasion:</p>
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && analyzeDeepMood()}
+                  placeholder="e.g. 'romantic winter evening in Paris'..."
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                />
+                <button
+                  onClick={analyzeDeepMood}
+                  disabled={loading || !input.trim()}
+                  className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-semibold hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                >
+                  {loading ? (
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                  ) : "Analyze"}
+                </button>
+              </div>
+              <div className="text-xs text-white/40 mb-4">
+                Tip: Mention weather, time of day, or specific emotions for better results.
+              </div>
+            </>
+          ) : (
+            // 🌟 RESTORED: The beautiful Result Card!
+            <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-5 border border-white/10 animate-fade-up">
+              {/* Archetype Badge */}
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-xs text-amber-300 font-medium mb-1">Your Scent Archetype</p>
+                  <h4 className="text-lg font-bold text-white">
+                    {deepSuggestion.archetype}
+                  </h4>
+                  <p className="text-sm text-white/50 mt-0.5">
+                    {GENDER_NAMES[deepSuggestion.gender]} {TYPE_NAMES[deepSuggestion.pType]}
+                  </p>
+                </div>
+                <div className="px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase">
+                  {deepSuggestion.pType === 0 ? "Intense" : deepSuggestion.pType === 1 ? "Elegant" : deepSuggestion.pType === 2 ? "Fresh" : "Light"}
+                </div>
+              </div>
+
+              {/* Scent DNA Visualization */}
+              <div className="mb-4">
+                <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Scent DNA</p>
+                <div className="h-2.5 rounded-full overflow-hidden flex">
+                  {deepSuggestion.dnaColors?.map((color, i) => (
+                    <div 
+                      key={i} 
+                      className="h-full transition-all duration-500"
+                      style={{ backgroundColor: color, width: `${100 / (deepSuggestion.dnaColors?.length || 8)}%` }}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-white/40 mt-2">
+                  Unique formula generated for on-chain minting
+                </p>
+              </div>
+
+              {/* Description */}
+              <p className="text-sm text-white/70 italic mb-4 leading-relaxed">
+                &ldquo;{deepSuggestion.reason}&rdquo;
+              </p>
+
+              {/* Notes Breakdown */}
+              <div className="space-y-2.5 mb-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/40 w-14 uppercase">Top</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {deepSuggestion.topNotes?.map((note) => (
+                      <span key={note} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-xs text-white/80">{note}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/40 w-14 uppercase">Heart</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {deepSuggestion.heartNotes?.map((note) => (
+                      <span key={note} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-xs text-white/80">{note}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/40 w-14 uppercase">Base</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {deepSuggestion.baseNotes?.map((note) => (
+                      <span key={note} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-xs text-white/80">{note}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeepSuggestion(null)}
+                  className="flex-1 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-semibold border border-white/10 transition-all"
+                >
+                  Try Again
+                </button>
+                <button
+                  onClick={() => {
+                    if (deepSuggestion) {
+                      onSelect(deepSuggestion); // Pass full context to MintForm
+                    }
+                  }}
+                  className="flex-[2] py-3 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white text-sm font-semibold shadow hover:shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all flex items-center justify-center gap-2 group"
+                >
+                  Apply to Mint Form
+                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
