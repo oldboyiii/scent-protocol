@@ -159,67 +159,68 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   };
 
   // Deep Mode: Analyze and SHOW THE RESULT CARD (restored feature!)
-  const analyzeDeepMood = () => {
-    if (!input.trim()) return;
-    setLoading(true);
-    setDeepSuggestion(null); // Clear previous result
+const analyzeDeepMood = () => {
+  if (!input.trim()) return;
+  setLoading(true);
+  setDeepSuggestion(null); // Clear previous result
 
-    setTimeout(() => {
-      const lower = input.toLowerCase();
-      let gender: number | undefined;
-      let pType: number | undefined;
-      const matchedTags: string[] = [];
-      const matchedNotes: { top?: string[]; heart?: string[]; base?: string[] } = {};
-      let archetype = "The Explorer";
+  setTimeout(() => {
+    const lower = input.toLowerCase();
+    let gender: number | undefined;
+    let pType: number | undefined;
+    const matchedTags: string[] = [];
+    const matchedNotes: { top?: string[]; heart?: string[]; base?: string[] } = {};
+    let archetype = "The Explorer";
 
-      for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
-        if (lower.includes(keyword)) {
-          if (data.gender !== undefined && gender === undefined) gender = data.gender;
-          if (data.pType !== undefined) pType = pType !== undefined ? Math.min(pType, data.pType) : data.pType;
-          matchedTags.push(...data.tags);
-          if (data.notes.top) matchedNotes.top = [...(matchedNotes.top || []), ...data.notes.top];
-          if (data.notes.heart) matchedNotes.heart = [...(matchedNotes.heart || []), ...data.notes.heart];
-          if (data.notes.base) matchedNotes.base = [...(matchedNotes.base || []), ...data.notes.base];
-          if (data.archetype) archetype = data.archetype;
-        }
+    for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
+      if (lower.includes(keyword)) {
+        if (data.gender !== undefined && gender === undefined) gender = data.gender;
+        if (data.pType !== undefined) pType = pType !== undefined ? Math.min(pType, data.pType) : data.pType;
+        matchedTags.push(...data.tags);
+        if (data.notes.top) matchedNotes.top = [...(matchedNotes.top || []), ...data.notes.top];
+        if (data.notes.heart) matchedNotes.heart = [...(matchedNotes.heart || []), ...data.notes.heart];
+        if (data.notes.base) matchedNotes.base = [...(matchedNotes.base || []), ...data.notes.base];
+        if (data.archetype) archetype = data.archetype;
       }
+    }
 
-      if (gender === undefined) gender = selectedGender;
-      if (pType === undefined) pType = 2;
+    if (gender === undefined) gender = selectedGender;
+    if (pType === undefined) pType = 2;
 
-      const uniqueTags = [...new Set(matchedTags)].slice(0, 4);
-      const topNotes = matchedNotes.top ? [...new Set(matchedNotes.top)].slice(0, 3) : ["Bergamot", "Citrus"];
-      const heartNotes = matchedNotes.heart ? [...new Set(matchedNotes.heart)].slice(0, 3) : ["Floral"];
-      const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
-      
-      const vibe = uniqueTags.length > 0 ? uniqueTags.join(", ") : "unique and mysterious";
-      const dnaColors = generateDNAColors(matchedNotes);
+    const uniqueTags = [...new Set(matchedTags)].slice(0, 4);
+    const topNotes = matchedNotes.top ? [...new Set(matchedNotes.top)].slice(0, 3) : ["Bergamot", "Citrus"];
+    const heartNotes = matchedNotes.heart ? [...new Set(matchedNotes.heart)].slice(0, 3) : ["Floral"];
+    const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
+    
+    const vibe = uniqueTags.length > 0 ? uniqueTags.join(", ") : "unique and mysterious";
+    
+    // FIX: Pass the FINAL notes arrays, not the raw matchedNotes!
+    const dnaColors = generateDNAColors({ top: topNotes, heart: heartNotes, base: baseNotes });
 
-      let reason = matchedTags.length === 0 
-        ? `Your vibe is intriguing! Sensing something ${vibe}.`
-        : `A fascinating blend of ${uniqueTags.slice(0, 2).join(" & ")}.`;
-      
-      const creativeDesc = getCreativeDescription(gender, pType);
-      if (creativeDesc) reason += ` ${creativeDesc}`;
+    let reason = matchedTags.length === 0 
+      ? `Your vibe is intriguing! Sensing something ${vibe}.`
+      : `A fascinating blend of ${uniqueTags.slice(0, 2).join(" & ")}.`;
+    
+    const creativeDesc = getCreativeDescription(gender, pType);
+    if (creativeDesc) reason += ` ${creativeDesc}`;
 
-      // Save to state to render the Result Card
-      setDeepSuggestion({
-        gender,
-        pType,
-        mood: input,
-        topNotes,
-        heartNotes,
-        baseNotes,
-        seedString: generateSeedString(input),
-        vibe,
-        archetype,
-        dnaColors,
-        reason
-      });
-      setLoading(false);
-    }, 800);
-  };
-
+    // Save to state to render the Result Card
+    setDeepSuggestion({
+      gender,
+      pType,
+      mood: input,
+      topNotes,
+      heartNotes,
+      baseNotes,
+      seedString: generateSeedString(input),
+      vibe,
+      archetype,
+      dnaColors,
+      reason
+    });
+    setLoading(false);
+  }, 800);
+};
   const quickScenarios = [
     { icon: "beach", text: "Beach sunset", tags: "summer beach" },
     { icon: "work", text: "CEO meeting", tags: "work elegant" },
