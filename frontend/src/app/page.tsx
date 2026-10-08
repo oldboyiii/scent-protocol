@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import MintForm from "@/components/MintForm";
-import MintReveal from "@/components/MintReveal"; // <-- Added import for the reveal animation
+import MintReveal from "@/components/MintReveal";
 import PerfumeCard from "@/components/PerfumeCard";
 import InfoSection from "@/components/InfoSection";
 import Logo from "@/components/Logo";
 import Confetti from "@/components/Confetti";
-import AIAdvisor from "@/components/AIAdvisor";
+import AIAdvisor, { MintContext } from "@/components/AIAdvisor"; // <-- Added MintContext import
 import RoadmapSection from "@/components/RoadmapSection";
 import { PerfumeData } from "@/utils/contract";
 
@@ -16,6 +16,7 @@ interface MintedPerfume {
   tokenId: number;
   perfume: PerfumeData;
   description: string;
+  mood?: string; // Added to store the context mood
 }
 
 export default function Home() {
@@ -27,14 +28,14 @@ export default function Home() {
   const [newlyMinted, setNewlyMinted] = useState<number | null>(null);
   // State to handle the fade-out transition of the reveal card
   const [isFadingOut, setIsFadingOut] = useState(false);
-  // States to hold the user's fragrance preferences selected from the AI Advisor
-  const [advisorGender, setAdvisorGender] = useState<number | null>(null);
-  const [advisorType, setAdvisorType] = useState<number | null>(null);
+  
+  // NEW: Single state to hold the full MintContext from AI Advisor (replaces separate gender/pType states)
+  const [advisorContext, setAdvisorContext] = useState<MintContext | null>(null);
 
   // Callback function triggered when a new perfume is successfully minted
-  const handleMinted = (tokenId: number, perfume: PerfumeData, desc: string) => {
+  const handleMinted = (tokenId: number, perfume: PerfumeData, desc: string, mood?: string) => {
     // 1. Add the new perfume to the beginning of the local session state array
-    const newMint: MintedPerfume = { tokenId, perfume, description: desc };
+    const newMint: MintedPerfume = { tokenId, perfume, description: desc, mood };
     setMinted((prev) => [newMint, ...prev]);
 
     // 2. Update local storage to persist the user's collection across page reloads
@@ -45,6 +46,7 @@ export default function Home() {
         name: perfume.name,
         rarity: perfume.rarity,
         timestamp: Date.now(),
+        mood: mood,
         perfume: {
           name: perfume.name,
           gender: perfume.gender,
@@ -73,11 +75,12 @@ export default function Home() {
     setIsFadingOut(false);
   };
 
-  // Callback function triggered when the user selects preferences in the AI Advisor
-  const handleAdvisorSelect = (gender: number, pType: number) => {
-    // Update the state with the selected preferences
-    setAdvisorGender(gender);
-    setAdvisorType(pType);
+  // NEW: Callback function triggered when the user selects preferences in the AI Advisor
+  // Now accepts the full MintContext object instead of separate gender and pType numbers
+  const handleAdvisorSelect = (context: MintContext) => {
+    // Store the full context (gender, pType, mood, notes, seedString)
+    setAdvisorContext(context);
+    
     // Smoothly scroll the user down to the Mint Form section
     document.getElementById("mint-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -145,11 +148,10 @@ export default function Home() {
             }}
           />
         ) : (
-          // Display the standard minting form
+          // Display the standard minting form, passing the full advisor context
           <MintForm 
             onMinted={handleMinted} 
-            defaultGender={advisorGender ?? undefined}
-            defaultType={advisorType ?? undefined}
+            advisorContext={advisorContext ?? undefined} // <-- Updated prop
           />
         )}
       </div>
@@ -163,6 +165,7 @@ export default function Home() {
           </p>
         </div>
         <div className="flex justify-center">
+          {/* AIAdvisor now passes the full MintContext object */}
           <AIAdvisor onSelect={handleAdvisorSelect} />
         </div>
       </div>
