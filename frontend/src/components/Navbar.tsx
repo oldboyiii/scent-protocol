@@ -91,10 +91,10 @@ export default function Navbar() {
           <Link href="/faq" className="text-sm font-medium text-white/70 hover:text-amber-400 transition-colors">FAQ</Link>
         </nav>
 
-        {/* Сдвинуто правее на ~3cm (ml-28 = 112px) */}
-        <div className="flex-shrink-0 flex items-center gap-2 ml-28">
+        {/* Правый блок: бейджи + кнопка подключения, всё прижато к правому краю */}
+        <div className="flex-shrink-0 flex items-center gap-2">
           {isConnected && address && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+            <div className="flex items-center gap-1.5">
               {hasGenesisBadge && (
                 <div className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/50 shrink-0" title="Genesis Holder">
                   <svg viewBox="0 0 24 16" className="w-3 h-2 text-amber-400">
