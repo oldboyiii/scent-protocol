@@ -19,7 +19,8 @@ const arcMainnet = {
 
 // wagmi configuration with injected wallets and WalletConnect
 export const config = createConfig({
-  chains: [mainnet, sepolia, arcMainnet],
+  // Arc Network first — it becomes the default chain
+  chains: [arcMainnet, mainnet, sepolia],
   connectors: [
     // Injected connector covers all browser wallets: MetaMask, Rabby, Trust, OKX, Coinbase Wallet extension
     injected(),
