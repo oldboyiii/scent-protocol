@@ -91,20 +91,20 @@ export default function Navbar() {
           <Link href="/faq" className="text-sm font-medium text-white/70 hover:text-amber-400 transition-colors">FAQ</Link>
         </nav>
 
-        <div className="flex-shrink-0 flex items-center gap-3">
+        <div className="flex-shrink-0 flex items-center gap-2">
           {isConnected && address && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10 text-xs">
               {hasGenesisBadge && (
-                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/50" title="Genesis Holder">
-                  <svg viewBox="0 0 24 16" className="w-3 h-2 text-amber-400">
+                <div className="flex items-center justify-center w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/50" title="Genesis Holder">
+                  <svg viewBox="0 0 24 16" className="w-2.5 h-1.5 text-amber-400">
                     <path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none" />
                   </svg>
                 </div>
               )}
               
               {hasMFWBadge && (
-                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/50" title="MFW 2026 Holder">
-                  <svg className="w-3 h-3 text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <div className="flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/20 border border-purple-500/50" title="MFW 2026 Holder">
+                  <svg className="w-2.5 h-2.5 text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
                     <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
                     <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
@@ -113,7 +113,7 @@ export default function Navbar() {
                 </div>
               )}
               
-              <span className="text-[10px] text-emerald-400 font-semibold tracking-wide uppercase">
+              <span className="text-[9px] text-emerald-400 font-semibold tracking-wide uppercase">
                 {chain ? getNetworkName(chain.id, chain.name || "") : "Unknown"}
               </span>
             </div>
