@@ -1,8 +1,9 @@
+// frontend/src/app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { ToastProvider } from "@/components/ToastProvider";
-import { WalletProvider } from "@/context/WalletContext";
+import { Providers } from "@/components/Providers";
 import Atmosphere from "@/components/Atmosphere";
 
 export const metadata: Metadata = {
@@ -18,7 +19,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 min-h-screen text-white relative">
-        <WalletProvider>
+        {/* Providers wraps the entire app: wagmi + ConnectKit + React Query */}
+        <Providers>
           <ToastProvider>
             <Atmosphere />
             <Navbar />
@@ -26,7 +28,7 @@ export default function RootLayout({
               {children}
             </main>
           </ToastProvider>
-        </WalletProvider>
+        </Providers>
       </body>
     </html>
   );
