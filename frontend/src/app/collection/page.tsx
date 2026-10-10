@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
-import { useWallet } from "@/context/WalletContext";   
+import { useAccount } from "wagmi"; // <-- REPLACED: useWallet with useAccount
 import ShareCard from "@/components/ShareCard";
 
 const MARKETPLACE_ADDRESS = ethers.getAddress("0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c");
@@ -173,26 +173,18 @@ export default function CollectionPage() {
     price: ""
   });
   const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
-  const { address } = useWallet();
+  
+  // REPLACED: useWallet with wagmi's useAccount
+  const { address, isConnected } = useAccount();
 
+  // SIMPLIFIED: Rely on wagmi's isConnected and address
   useEffect(() => {
-    if (address) {
+    if (address && isConnected) {
       setWalletReady(true);
     } else {
-      const checkDirectly = async () => {
-        const w = window as any;
-        if (w.ethereum) {
-          try {
-            const accounts = await w.ethereum.request({ method: 'eth_accounts' });
-            if (accounts && accounts.length > 0) setWalletReady(true);
-          } catch {}
-        }
-      };
-      checkDirectly();
-      const timer = setTimeout(() => setWalletReady(true), 2000);
-      return () => clearTimeout(timer);
+      setWalletReady(false);
     }
-  }, [address]);
+  }, [address, isConnected]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -208,21 +200,10 @@ export default function CollectionPage() {
 
   useEffect(() => {
     async function fetchCollection() {
-      if (!walletReady) return;
-
-      let currentAddress = address;
-      if (!currentAddress) {
-        const w = window as any;
-        if (w.ethereum) {
-          try {
-            const accounts = await w.ethereum.request({ method: 'eth_accounts' });
-            currentAddress = accounts?.[0];
-          } catch {}
-        }
-      }
-
-      if (!currentAddress) {
+      // If not connected, clear data and stop loading
+      if (!address) {
         setLoading(false);
+        setScents([]);
         return;
       }
 
@@ -250,7 +231,7 @@ export default function CollectionPage() {
             contract = getContract(new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io"));
           }
 
-          const balance = await contract.balanceOf(currentAddress);
+          const balance = await contract.balanceOf(address);
           const balanceNum = Number(balance);
 
           if (balanceNum > 0) {
@@ -260,7 +241,7 @@ export default function CollectionPage() {
             for (let tokenId = 1; tokenId <= maxId && foundCount < balanceNum; tokenId++) {
               try {
                 const owner = await contract.ownerOf(tokenId);
-                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                if (owner.toLowerCase() === address.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
                   
                   let isListed = false;
@@ -309,7 +290,7 @@ export default function CollectionPage() {
         // Part 2: Fetch Genesis NFTs
         try {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-          const genesisBalance = await genesisContract.balanceOf(currentAddress);
+          const genesisBalance = await genesisContract.balanceOf(address);
           const genesisBalanceNum = Number(genesisBalance);
 
           if (genesisBalanceNum > 0) {
@@ -319,7 +300,7 @@ export default function CollectionPage() {
             for (let tokenId = 1; tokenId <= maxId && foundCount < genesisBalanceNum; tokenId++) {
               try {
                 const owner = await genesisContract.ownerOf(tokenId);
-                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
                   
                   let isListed = false;
@@ -368,7 +349,7 @@ export default function CollectionPage() {
         // Part 3: Fetch MFW NFTs
         try {
           const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
-          const mfwBalance = await mfwContract.balanceOf(currentAddress);
+          const mfwBalance = await mfwContract.balanceOf(address);
           const mfwBalanceNum = Number(mfwBalance);
 
           if (mfwBalanceNum > 0) {
@@ -378,7 +359,7 @@ export default function CollectionPage() {
             for (let tokenId = 1; tokenId <= maxId && foundCount < mfwBalanceNum; tokenId++) {
               try {
                 const owner = await mfwContract.ownerOf(tokenId);
-                if (owner.toLowerCase() === currentAddress.toLowerCase()) {
+                if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await mfwContract.getPerfume(tokenId);
                   
                   let isListed = false;
@@ -432,7 +413,7 @@ export default function CollectionPage() {
       }
     }
     fetchCollection();
-  }, [walletReady, address]);
+  }, [address]); // Dependency simplified to just address
 
   const filteredScents = scents.filter(s => {
     if (filterBy === "all") return true;
@@ -680,7 +661,6 @@ export default function CollectionPage() {
                       )}
                       {isMFW && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
-                          {/* UPDATED: Replaced lightning bolt with perfume bottle icon */}
                           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
                             <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
