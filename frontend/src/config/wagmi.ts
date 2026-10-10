@@ -1,7 +1,7 @@
 // frontend/src/config/wagmi.ts
 import { createConfig, http } from "wagmi";
 import { mainnet, sepolia } from "wagmi/chains";
-import { coinbaseWallet, injected, walletConnect } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 
 // Arc Network configuration
 const arcMainnet = {
@@ -20,13 +20,10 @@ const arcMainnet = {
 export const config = createConfig({
   chains: [mainnet, sepolia, arcMainnet],
   connectors: [
-    injected(), // MetaMask, Rabby, Trust, OKX и другие браузерные кошельки
+    injected(), // MetaMask, Rabby, Trust, OKX, Coinbase Wallet extension и другие браузерные кошельки
     walletConnect({
       projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "",
-    }), // QR-код для 300+ мобильных кошельков
-    coinbaseWallet({
-      appName: "ScentProtocol",
-    }),
+    }), // QR-код для 300+ мобильных кошельков (включая мобильный Coinbase Wallet)
   ],
   transports: {
     [mainnet.id]: http(),
