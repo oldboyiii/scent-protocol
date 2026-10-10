@@ -91,7 +91,7 @@ export default function Navbar() {
           <Link href="/faq" className="text-sm font-medium text-white/70 hover:text-amber-400 transition-colors">FAQ</Link>
         </nav>
 
-        {/* Правый блок: бейджи + кнопка подключения, всё прижато к правому краю */}
+        {/* Compact right side: badges + small wallet button */}
         <div className="flex-shrink-0 flex items-center gap-2">
           {isConnected && address && (
             <div className="flex items-center gap-1.5">
@@ -120,7 +120,17 @@ export default function Navbar() {
             </div>
           )}
           
-          <ConnectKitButton />
+          {/* Custom compact ConnectKit button - no avatar, shows ENS name or truncated address */}
+          <ConnectKitButton.Custom>
+            {({ show, isConnected, ensName, truncatedAddress }) => (
+              <button 
+                onClick={show}
+                className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-white hover:bg-white/10 transition-all"
+              >
+                {isConnected ? (ensName || truncatedAddress) : "Connect Wallet"}
+              </button>
+            )}
+          </ConnectKitButton.Custom>
         </div>
       </div>
     </header>
