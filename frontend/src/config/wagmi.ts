@@ -24,9 +24,10 @@ export const config = createConfig({
   connectors: [
     // Injected connector covers all browser wallets: MetaMask, Rabby, Trust, OKX, Coinbase Wallet extension
     injected(),
-    // WalletConnect for mobile wallets via QR code
+    // WalletConnect for mobile wallets via QR code (modal disabled to avoid double-modal issue)
     walletConnect({
       projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "",
+      showQrModal: false,
     }),
   ],
   transports: {
