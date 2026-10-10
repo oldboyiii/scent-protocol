@@ -21,9 +21,9 @@ const arcMainnet = {
 export const config = createConfig({
   chains: [mainnet, sepolia, arcMainnet],
   connectors: [
-    // Covers MetaMask, Rabby, Trust, OKX, Coinbase Wallet extension and other browser wallets
+    // Injected connector covers all browser wallets: MetaMask, Rabby, Trust, OKX, Coinbase Wallet extension
     injected(),
-    // QR code modal for 300+ mobile wallets (including mobile Coinbase Wallet)
+    // WalletConnect for mobile wallets via QR code
     walletConnect({
       projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "",
     }),
