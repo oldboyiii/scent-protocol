@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getCurrentVibe } from "@/utils/weather"; // <-- ДОБАВЛЕНО
+import { getCurrentVibe } from "@/utils/weather";
 
 // --- INTERFACES ---
 
@@ -95,14 +95,19 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   const [input, setInput] = useState("");
   const [selectedGender, setSelectedGender] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null); // <-- ДОБАВЛЕНО для обработки ошибок геолокации
   
+  // State to handle geolocation or API errors
+  const [error, setError] = useState<string | null>(null);
+  
+  // State to hold the analyzed result for Deep Mode before applying
   const [deepSuggestion, setDeepSuggestion] = useState<MintContext | null>(null);
 
+  // Generates a unique seed string based on the mood
   const generateSeedString = (baseMood: string): string => {
     return `${baseMood.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   };
 
+  // Returns a creative description based on gender and perfume type
   const getCreativeDescription = (gender: number, pType: number): string => {
     if (gender in CREATIVE_DESCRIPTIONS && pType in CREATIVE_DESCRIPTIONS[gender]) {
       return CREATIVE_DESCRIPTIONS[gender][pType];
@@ -110,6 +115,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     return "";
   };
 
+  // Generates an array of 8 hex colors based on the fragrance notes
   const generateDNAColors = (notes: { top?: string[]; heart?: string[]; base?: string[] }): string[] => {
     const allNotes = [...(notes.top || []), ...(notes.heart || []), ...(notes.base || [])];
     const colors: string[] = [];
@@ -126,6 +132,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     return colors.slice(0, 8);
   };
 
+  // Quick Mode: Instant apply (keeps the fast UX for scenarios)
   const handleQuickPick = (scenarioTags: string) => {
     setLoading(true);
     setTimeout(() => {
@@ -158,7 +165,8 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     }, 400);
   };
 
-  // MODIFIED: Теперь принимает опциональный текст для авто-запуска после получения погоды
+  // Deep Mode: Analyzes the input text and generates a fragrance suggestion
+  // Accepts an optional overrideText for auto-triggering after weather fetch
   const analyzeDeepMood = (overrideText?: string) => {
     const textToAnalyze = overrideText || input;
     if (!textToAnalyze.trim()) return;
@@ -317,7 +325,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
             <>
               <p className="text-sm text-white/60 mb-3">Describe your current mood, location, or occasion:</p>
               
-              {/* --- НОВАЯ КНОПКА ПОЛУЧЕНИЯ ВАЙБА --- */}
+              {/* Button to automatically fetch weather and time context */}
               <button
                 onClick={async () => {
                   setLoading(true);
@@ -325,7 +333,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                   try {
                     const vibe = await getCurrentVibe();
                     setInput(vibe);
-                    // Авто-запуск анализа через 300мс, чтобы пользователь увидел, как текст появился
+                    // Auto-trigger analysis after a short delay so the user sees the text populate
                     setTimeout(() => analyzeDeepMood(vibe), 300);
                   } catch (err: any) {
                     setError(err.message || "Failed to detect location. Please enter manually.");
@@ -341,8 +349,8 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 </svg>
                 {loading ? "Detecting your vibe..." : "Get my current vibe"}
               </button>
-              {/* ------------------------------------- */}
 
+              {/* Error message display if geolocation fails */}
               {error && (
                 <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center">
                   {error}
@@ -377,7 +385,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
               </div>
             </>
           ) : (
-            // 🌟 RESTORED: The beautiful Result Card!
+            // The beautiful Result Card displayed after analysis
             <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-5 border border-white/10 animate-fade-up">
               <div className="flex items-start justify-between mb-4">
                 <div>
