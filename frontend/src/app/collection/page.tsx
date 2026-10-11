@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
-import { useAccount } from "wagmi"; // <-- REPLACED: useWallet with useAccount
+import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 
 const MARKETPLACE_ADDRESS = ethers.getAddress("0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c");
@@ -173,11 +173,14 @@ export default function CollectionPage() {
     price: ""
   });
   const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
-  
-  // REPLACED: useWallet with wagmi's useAccount
+
+  // Badge states - track which special NFTs the user holds
+  const [hasGenesisBadge, setHasGenesisBadge] = useState(false);
+  const [hasMFWBadge, setHasMFWBadge] = useState(false);
+
   const { address, isConnected } = useAccount();
 
-  // SIMPLIFIED: Rely on wagmi's isConnected and address
+  // Check wallet readiness
   useEffect(() => {
     if (address && isConnected) {
       setWalletReady(true);
@@ -186,6 +189,46 @@ export default function CollectionPage() {
     }
   }, [address, isConnected]);
 
+  // Check badge ownership via fast balanceOf calls (no need to iterate all tokens)
+  useEffect(() => {
+    async function checkBadges() {
+      setHasGenesisBadge(false);
+      setHasMFWBadge(false);
+
+      if (!address) return;
+
+      try {
+        const w = window as any;
+        const provider = w.ethereum
+          ? new ethers.BrowserProvider(w.ethereum)
+          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+
+        // Check Genesis balance
+        try {
+          const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
+          const balance = await genesisContract.balanceOf(address);
+          setHasGenesisBadge(Number(balance) > 0);
+        } catch (error) {
+          console.warn("Failed to check Genesis badge:", error);
+        }
+
+        // Check MFW balance
+        try {
+          const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
+          const balance = await mfwContract.balanceOf(address);
+          setHasMFWBadge(Number(balance) > 0);
+        } catch (error) {
+          console.warn("Failed to check MFW badge:", error);
+        }
+      } catch (error) {
+        console.warn("Badge check error:", error);
+      }
+    }
+
+    checkBadges();
+  }, [address]);
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -198,9 +241,9 @@ export default function CollectionPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  // Fetch collection NFTs
   useEffect(() => {
     async function fetchCollection() {
-      // If not connected, clear data and stop loading
       if (!address) {
         setLoading(false);
         setScents([]);
@@ -211,7 +254,7 @@ export default function CollectionPage() {
         const w = window as any;
         const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-        
+
         let activeTokenIds = new Set<number>();
         try {
           const activeIds: bigint[] = await marketplace.getActiveListings();
@@ -219,7 +262,7 @@ export default function CollectionPage() {
         } catch (e) {
           console.error("Failed to get active listings:", e);
         }
-        
+
         const results: StoredScent[] = [];
 
         // Part 1: Fetch ScentProtocol NFTs
@@ -243,7 +286,7 @@ export default function CollectionPage() {
                 const owner = await contract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
-                  
+
                   let isListed = false;
                   if (activeTokenIds.has(tokenId)) {
                     try {
@@ -302,7 +345,7 @@ export default function CollectionPage() {
                 const owner = await genesisContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
-                  
+
                   let isListed = false;
                   if (activeTokenIds.has(tokenId)) {
                     try {
@@ -361,7 +404,7 @@ export default function CollectionPage() {
                 const owner = await mfwContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await mfwContract.getPerfume(tokenId);
-                  
+
                   let isListed = false;
                   if (activeTokenIds.has(tokenId)) {
                     try {
@@ -413,7 +456,7 @@ export default function CollectionPage() {
       }
     }
     fetchCollection();
-  }, [address]); // Dependency simplified to just address
+  }, [address]);
 
   const filteredScents = scents.filter(s => {
     if (filterBy === "all") return true;
@@ -440,7 +483,7 @@ export default function CollectionPage() {
 
   const handleListConfirm = async () => {
     if (!listingModal.tokenId || !listingModal.price || !listingModal.contractAddress) return;
-    
+
     try {
       setListingStatus("approving");
       const w = window as any;
@@ -452,7 +495,7 @@ export default function CollectionPage() {
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
       const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
-      
+
       if (!isApproved) {
         const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
         await approveTx.wait();
@@ -460,7 +503,7 @@ export default function CollectionPage() {
 
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-      
+
       const listTx = await marketplaceContract.list(
         listingModal.contractAddress,
         listingModal.tokenId,
@@ -516,6 +559,7 @@ export default function CollectionPage() {
     { value: "rarity", label: "Rarity (High to Low)" },
   ];
 
+  // Loading skeleton
   if (!walletReady || loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
@@ -525,6 +569,7 @@ export default function CollectionPage() {
     );
   }
 
+  // Not connected
   if (!address) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
@@ -539,6 +584,39 @@ export default function CollectionPage() {
       <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">My Collection</h1>
       <p className="text-center text-white/50">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
 
+      {/* BADGES ROW: Trophy-style achievement badges shown above filters */}
+      {(hasGenesisBadge || hasMFWBadge) && (
+        <div className="flex items-center justify-center gap-3 animate-fade-up">
+          {hasGenesisBadge && (
+            <div
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 backdrop-blur-md shadow-[0_0_15px_rgba(251,191,36,0.15)] hover:shadow-[0_0_25px_rgba(251,191,36,0.3)] transition-all cursor-default"
+              title="Genesis Collection Holder"
+            >
+              <svg viewBox="0 0 24 16" className="w-4 h-2.5 text-amber-400">
+                <path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none" />
+              </svg>
+              <span className="text-xs font-bold text-amber-300 uppercase tracking-wide">Genesis Holder</span>
+            </div>
+          )}
+
+          {hasMFWBadge && (
+            <div
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/30 backdrop-blur-md shadow-[0_0_15px_rgba(168,85,247,0.15)] hover:shadow-[0_0_25px_rgba(168,85,247,0.3)] transition-all cursor-default"
+              title="MFW 2026 Exclusive Holder"
+            >
+              <svg className="w-4 h-4 text-purple-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
+                <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
+                <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
+                <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+              </svg>
+              <span className="text-xs font-bold text-purple-300 uppercase tracking-wide">MFW 2026</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* FILTERS AND SORT ROW */}
       <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
         <div className="relative">
           <button onClick={() => { setShowFilter(!showFilter); setShowSort(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
@@ -585,23 +663,23 @@ export default function CollectionPage() {
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
             const isGenesis = s.contractAddress === GENESIS_CONTRACT_ADDRESS;
             const isMFW = s.contractAddress === MFW_CONTRACT_ADDRESS;
-            
-            const style = isMFW 
+
+            const style = isMFW
               ? MFW_STYLE
-              : isGenesis 
-                ? { 
-                    bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
-                    border: "border-amber-400/70", 
-                    badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
-                    text: "text-amber-100", 
-                    glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", 
-                    hex: "#fbbf24" 
+              : isGenesis
+                ? {
+                    bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90",
+                    border: "border-amber-400/70",
+                    badge: "bg-amber-500/50 text-amber-50 border-amber-400/80",
+                    text: "text-amber-100",
+                    glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
+                    hex: "#fbbf24"
                   }
                 : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
               <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
-                
+
                 {isGenesis && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
                     background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`,
@@ -619,7 +697,7 @@ export default function CollectionPage() {
                 )}
 
                 {!isGenesis && !isMFW && (
-                  <div 
+                  <div
                     className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                     style={{
                       background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
@@ -637,7 +715,7 @@ export default function CollectionPage() {
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
                 {!isGenesis && !isMFW && (
-                  <div 
+                  <div
                     className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
                     style={{
                       background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
@@ -715,8 +793,8 @@ export default function CollectionPage() {
                     </div>
 
                     <div className="relative flex items-center justify-between pt-2 gap-2">
-                      <Link 
-                        href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}`} 
+                      <Link
+                        href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}`}
                         className="text-sm text-white/50 hover:text-white transition-colors"
                       >
                         View Details →
@@ -724,16 +802,16 @@ export default function CollectionPage() {
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} />
                         {s.isListed ? (
-                          <button 
-                            onClick={() => handleCancelListing(s.tokenId)} 
-                            disabled={listingStatus === "listing"} 
+                          <button
+                            onClick={() => handleCancelListing(s.tokenId)}
+                            disabled={listingStatus === "listing"}
                             className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                           >
                             {listingStatus === "listing" ? "Removing..." : "Remove"}
                           </button>
                         ) : (
-                          <button 
-                            onClick={() => handleListClick(s.tokenId, s.contractAddress)} 
+                          <button
+                            onClick={() => handleListClick(s.tokenId, s.contractAddress)}
                             className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all"
                           >
                             List for Sale
@@ -747,8 +825,8 @@ export default function CollectionPage() {
                     <p>Legacy entry — full details not available.</p>
                     <p className="text-xs mt-1">Minted: {new Date(s.timestamp).toLocaleString()}</p>
                     <div className="flex items-center justify-between pt-4">
-                      <Link 
-                        href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}`} 
+                      <Link
+                        href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}`}
                         className="text-sm text-white/50 hover:text-white transition-colors"
                       >
                         View Details →
@@ -770,13 +848,13 @@ export default function CollectionPage() {
         const style = isMFWModal
           ? MFW_STYLE
           : isGenesisModal
-            ? { 
-                bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
-                border: "border-amber-400/70", 
-                badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
-                text: "text-amber-100", 
-                glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", 
-                hex: "#fbbf24" 
+            ? {
+                bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90",
+                border: "border-amber-400/70",
+                badge: "bg-amber-500/50 text-amber-50 border-amber-400/80",
+                text: "text-amber-100",
+                glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
+                hex: "#fbbf24"
               }
             : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
         return (
@@ -814,7 +892,14 @@ export default function CollectionPage() {
         );
       })()}
 
-      <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+      <style>{`
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up { animation: fade-up 0.4s ease-out; }
+      `}</style>
     </div>
   );
 }
