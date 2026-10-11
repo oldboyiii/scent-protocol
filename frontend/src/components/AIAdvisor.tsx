@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getCurrentVibe } from "@/utils/weather"; // <-- ДОБАВЛЕНО
 
 // --- INTERFACES ---
 
@@ -94,8 +95,8 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   const [input, setInput] = useState("");
   const [selectedGender, setSelectedGender] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null); // <-- ДОБАВЛЕНО для обработки ошибок геолокации
   
-  // NEW: State to hold the analyzed result for Deep Mode before applying
   const [deepSuggestion, setDeepSuggestion] = useState<MintContext | null>(null);
 
   const generateSeedString = (baseMood: string): string => {
@@ -125,7 +126,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     return colors.slice(0, 8);
   };
 
-  // Quick Mode: Instant apply (keeps the fast UX for scenarios)
   const handleQuickPick = (scenarioTags: string) => {
     setLoading(true);
     setTimeout(() => {
@@ -158,69 +158,71 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     }, 400);
   };
 
-  // Deep Mode: Analyze and SHOW THE RESULT CARD (restored feature!)
-const analyzeDeepMood = () => {
-  if (!input.trim()) return;
-  setLoading(true);
-  setDeepSuggestion(null); // Clear previous result
+  // MODIFIED: Теперь принимает опциональный текст для авто-запуска после получения погоды
+  const analyzeDeepMood = (overrideText?: string) => {
+    const textToAnalyze = overrideText || input;
+    if (!textToAnalyze.trim()) return;
+    
+    setLoading(true);
+    setError(null);
+    setDeepSuggestion(null);
 
-  setTimeout(() => {
-    const lower = input.toLowerCase();
-    let gender: number | undefined;
-    let pType: number | undefined;
-    const matchedTags: string[] = [];
-    const matchedNotes: { top?: string[]; heart?: string[]; base?: string[] } = {};
-    let archetype = "The Explorer";
+    setTimeout(() => {
+      const lower = textToAnalyze.toLowerCase();
+      let gender: number | undefined;
+      let pType: number | undefined;
+      const matchedTags: string[] = [];
+      const matchedNotes: { top?: string[]; heart?: string[]; base?: string[] } = {};
+      let archetype = "The Explorer";
 
-    for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
-      if (lower.includes(keyword)) {
-        if (data.gender !== undefined && gender === undefined) gender = data.gender;
-        if (data.pType !== undefined) pType = pType !== undefined ? Math.min(pType, data.pType) : data.pType;
-        matchedTags.push(...data.tags);
-        if (data.notes.top) matchedNotes.top = [...(matchedNotes.top || []), ...data.notes.top];
-        if (data.notes.heart) matchedNotes.heart = [...(matchedNotes.heart || []), ...data.notes.heart];
-        if (data.notes.base) matchedNotes.base = [...(matchedNotes.base || []), ...data.notes.base];
-        if (data.archetype) archetype = data.archetype;
+      for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
+        if (lower.includes(keyword)) {
+          if (data.gender !== undefined && gender === undefined) gender = data.gender;
+          if (data.pType !== undefined) pType = pType !== undefined ? Math.min(pType, data.pType) : data.pType;
+          matchedTags.push(...data.tags);
+          if (data.notes.top) matchedNotes.top = [...(matchedNotes.top || []), ...data.notes.top];
+          if (data.notes.heart) matchedNotes.heart = [...(matchedNotes.heart || []), ...data.notes.heart];
+          if (data.notes.base) matchedNotes.base = [...(matchedNotes.base || []), ...data.notes.base];
+          if (data.archetype) archetype = data.archetype;
+        }
       }
-    }
 
-    if (gender === undefined) gender = selectedGender;
-    if (pType === undefined) pType = 2;
+      if (gender === undefined) gender = selectedGender;
+      if (pType === undefined) pType = 2;
 
-    const uniqueTags = [...new Set(matchedTags)].slice(0, 4);
-    const topNotes = matchedNotes.top ? [...new Set(matchedNotes.top)].slice(0, 3) : ["Bergamot", "Citrus"];
-    const heartNotes = matchedNotes.heart ? [...new Set(matchedNotes.heart)].slice(0, 3) : ["Floral"];
-    const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
-    
-    const vibe = uniqueTags.length > 0 ? uniqueTags.join(", ") : "unique and mysterious";
-    
-    // FIX: Pass the FINAL notes arrays, not the raw matchedNotes!
-    const dnaColors = generateDNAColors({ top: topNotes, heart: heartNotes, base: baseNotes });
+      const uniqueTags = [...new Set(matchedTags)].slice(0, 4);
+      const topNotes = matchedNotes.top ? [...new Set(matchedNotes.top)].slice(0, 3) : ["Bergamot", "Citrus"];
+      const heartNotes = matchedNotes.heart ? [...new Set(matchedNotes.heart)].slice(0, 3) : ["Floral"];
+      const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
+      
+      const vibe = uniqueTags.length > 0 ? uniqueTags.join(", ") : "unique and mysterious";
+      
+      const dnaColors = generateDNAColors({ top: topNotes, heart: heartNotes, base: baseNotes });
 
-    let reason = matchedTags.length === 0 
-      ? `Your vibe is intriguing! Sensing something ${vibe}.`
-      : `A fascinating blend of ${uniqueTags.slice(0, 2).join(" & ")}.`;
-    
-    const creativeDesc = getCreativeDescription(gender, pType);
-    if (creativeDesc) reason += ` ${creativeDesc}`;
+      let reason = matchedTags.length === 0 
+        ? `Your vibe is intriguing! Sensing something ${vibe}.`
+        : `A fascinating blend of ${uniqueTags.slice(0, 2).join(" & ")}.`;
+      
+      const creativeDesc = getCreativeDescription(gender, pType);
+      if (creativeDesc) reason += ` ${creativeDesc}`;
 
-    // Save to state to render the Result Card
-    setDeepSuggestion({
-      gender,
-      pType,
-      mood: input,
-      topNotes,
-      heartNotes,
-      baseNotes,
-      seedString: generateSeedString(input),
-      vibe,
-      archetype,
-      dnaColors,
-      reason
-    });
-    setLoading(false);
-  }, 800);
-};
+      setDeepSuggestion({
+        gender,
+        pType,
+        mood: textToAnalyze,
+        topNotes,
+        heartNotes,
+        baseNotes,
+        seedString: generateSeedString(textToAnalyze),
+        vibe,
+        archetype,
+        dnaColors,
+        reason
+      });
+      setLoading(false);
+    }, 800);
+  };
+
   const quickScenarios = [
     { icon: "beach", text: "Beach sunset", tags: "summer beach" },
     { icon: "work", text: "CEO meeting", tags: "work elegant" },
@@ -252,7 +254,7 @@ const analyzeDeepMood = () => {
       {/* Mode Tabs */}
       <div className="flex p-1 bg-white/5 rounded-lg mb-5 border border-white/10">
         <button
-          onClick={() => { setMode('quick'); setDeepSuggestion(null); }}
+          onClick={() => { setMode('quick'); setDeepSuggestion(null); setError(null); }}
           className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
             mode === 'quick' ? "bg-white/10 text-white shadow" : "text-white/50 hover:text-white/80"
           }`}
@@ -260,7 +262,7 @@ const analyzeDeepMood = () => {
           Quick Pick
         </button>
         <button
-          onClick={() => { setMode('deep'); setDeepSuggestion(null); }}
+          onClick={() => { setMode('deep'); setDeepSuggestion(null); setError(null); }}
           className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
             mode === 'deep' ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow" : "text-white/50 hover:text-white/80"
           }`}
@@ -312,9 +314,42 @@ const analyzeDeepMood = () => {
       {mode === 'deep' && (
         <div className="animate-fade-up">
           {!deepSuggestion ? (
-            // Input form when no suggestion is generated yet
             <>
               <p className="text-sm text-white/60 mb-3">Describe your current mood, location, or occasion:</p>
+              
+              {/* --- НОВАЯ КНОПКА ПОЛУЧЕНИЯ ВАЙБА --- */}
+              <button
+                onClick={async () => {
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    const vibe = await getCurrentVibe();
+                    setInput(vibe);
+                    // Авто-запуск анализа через 300мс, чтобы пользователь увидел, как текст появился
+                    setTimeout(() => analyzeDeepMood(vibe), 300);
+                  } catch (err: any) {
+                    setError(err.message || "Failed to detect location. Please enter manually.");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="w-full mb-3 px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-400/30 text-white text-sm font-medium hover:from-blue-500/30 hover:to-purple-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {loading ? "Detecting your vibe..." : "✨ Get my current vibe"}
+              </button>
+              {/* ------------------------------------- */}
+
+              {error && (
+                <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center">
+                  {error}
+                  <button onClick={() => setError(null)} className="block mx-auto mt-1 underline hover:text-red-300">Dismiss</button>
+                </div>
+              )}
+
               <div className="flex gap-2 mb-4">
                 <input
                   type="text"
@@ -325,7 +360,7 @@ const analyzeDeepMood = () => {
                   className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500 transition-colors"
                 />
                 <button
-                  onClick={analyzeDeepMood}
+                  onClick={() => analyzeDeepMood()}
                   disabled={loading || !input.trim()}
                   className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-semibold hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                 >
@@ -344,7 +379,6 @@ const analyzeDeepMood = () => {
           ) : (
             // 🌟 RESTORED: The beautiful Result Card!
             <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-5 border border-white/10 animate-fade-up">
-              {/* Archetype Badge */}
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-xs text-amber-300 font-medium mb-1">Your Scent Archetype</p>
@@ -360,7 +394,6 @@ const analyzeDeepMood = () => {
                 </div>
               </div>
 
-              {/* Scent DNA Visualization */}
               <div className="mb-4">
                 <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Scent DNA</p>
                 <div className="h-2.5 rounded-full overflow-hidden flex">
@@ -377,12 +410,10 @@ const analyzeDeepMood = () => {
                 </p>
               </div>
 
-              {/* Description */}
               <p className="text-sm text-white/70 italic mb-4 leading-relaxed">
                 &ldquo;{deepSuggestion.reason}&rdquo;
               </p>
 
-              {/* Notes Breakdown */}
               <div className="space-y-2.5 mb-6">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-white/40 w-14 uppercase">Top</span>
@@ -410,10 +441,9 @@ const analyzeDeepMood = () => {
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => setDeepSuggestion(null)}
+                  onClick={() => { setDeepSuggestion(null); setInput(""); }}
                   className="flex-1 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-semibold border border-white/10 transition-all"
                 >
                   Try Again
@@ -421,7 +451,7 @@ const analyzeDeepMood = () => {
                 <button
                   onClick={() => {
                     if (deepSuggestion) {
-                      onSelect(deepSuggestion); // Pass full context to MintForm
+                      onSelect(deepSuggestion);
                     }
                   }}
                   className="flex-[2] py-3 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white text-sm font-semibold shadow hover:shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all flex items-center justify-center gap-2 group"
