@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
-import { useWallet } from "@/context/WalletContext";
 
 const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
@@ -32,8 +31,10 @@ const USDC_ABI = [
 ];
 
 export default function MFW2026EventPage() {
-  const { address } = useWallet();
+  // 1. Manage wallet address locally instead of using broken useWallet context
+  const [address, setAddress] = useState<string | null>(null);
   const router = useRouter();
+  
   const [minting, setMinting] = useState(false);
   const [totalMinted, setTotalMinted] = useState(0);
   const [userMinted, setUserMinted] = useState(0);
@@ -50,6 +51,37 @@ export default function MFW2026EventPage() {
   const maxSupply = 500;
   const maxPerWallet = 3;
 
+  // 2. Check wallet connection on mount and listen for changes (Works perfectly in Brave)
+  useEffect(() => {
+    const checkWallet = async () => {
+      const w = window as any;
+      if (w.ethereum) {
+        try {
+          const accounts = await w.ethereum.request({ method: "eth_accounts" });
+          if (accounts && accounts.length > 0) {
+            setAddress(accounts[0]);
+          }
+        } catch (err) {
+          console.error("Failed to check wallet:", err);
+        }
+      }
+    };
+    checkWallet();
+
+    const w = window as any;
+    if (w.ethereum) {
+      w.ethereum.on("accountsChanged", (accounts: string[]) => {
+        setAddress(accounts[0] || null);
+      });
+    }
+
+    return () => {
+      if (w.ethereum) {
+        w.ethereum.removeListener("accountsChanged", () => {});
+      }
+    };
+  }, []);
+
   const fetchContractData = async () => {
     if (!address) return;
     try {
@@ -64,6 +96,7 @@ export default function MFW2026EventPage() {
         const genesisBalance = await genesisContract.balanceOf(address);
         setIsGenesisHolder(Number(genesisBalance) > 0);
         
+        // Note: hasBadge might not be in ABI, safely ignored if it fails
         try {
           const userHasBadge = await mfwContract.hasBadge(address);
           setHasBadge(userHasBadge);
@@ -392,7 +425,7 @@ export default function MFW2026EventPage() {
                   {needsApproval ? (
                     <button
                       onClick={handleApprove}
-                      disabled={minting}
+                      disabled={minting || !address}
                       className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold shadow-lg hover:shadow-blue-500/40 hover:scale-105 transition-all disabled:opacity-50"
                     >
                       {minting ? "Processing..." : "Approve USDC"}
@@ -400,7 +433,7 @@ export default function MFW2026EventPage() {
                   ) : (
                     <button
                       onClick={handleRequestMint}
-                      disabled={minting}
+                      disabled={minting || !address}
                       className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
                       {minting ? "Requesting..." : "Request Mint"}
@@ -418,7 +451,7 @@ export default function MFW2026EventPage() {
                     </p>
                     {revealExpired ? (
                       <p className="text-red-400 text-sm mt-2">
-                        ️ Reveal window has passed. Please cancel to get 50% refund.
+                        Reveal window has passed. Please cancel to get 50% refund.
                       </p>
                     ) : (
                       <p className="text-white/50 text-sm mt-2">
