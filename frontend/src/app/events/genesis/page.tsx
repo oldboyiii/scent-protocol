@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
-import { useAccount, useWalletClient } from "wagmi";
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 
@@ -24,10 +23,7 @@ const GENESIS_ABI = [
 ];
 
 export default function GenesisEventPage() {
-  // 1. Use wagmi to track connection state and address
-  const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
-
+  const [address, setAddress] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
   const [totalMinted, setTotalMinted] = useState(0);
   const [userMinted, setUserMinted] = useState(0);
@@ -38,25 +34,45 @@ export default function GenesisEventPage() {
   const maxSupply = 100;
   const maxPerWallet = 1;
 
-  // 2. Safely create ethers provider using standard EIP-1193 (window.ethereum)
-  // This completely avoids the viem/ethers transport incompatibility
-  const provider = useMemo(() => {
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      return new ethers.BrowserProvider((window as any).ethereum);
+  // Check wallet connection on mount
+  useEffect(() => {
+    const checkWallet = async () => {
+      const w = window as any;
+      if (w.ethereum) {
+        try {
+          const accounts = await w.ethereum.request({ method: "eth_accounts" });
+          if (accounts && accounts.length > 0) {
+            setAddress(accounts[0]);
+          }
+        } catch (err) {
+          console.error("Failed to check wallet:", err);
+        }
+      }
+    };
+    checkWallet();
+
+    // Listen for account changes
+    const w = window as any;
+    if (w.ethereum) {
+      w.ethereum.on("accountsChanged", (accounts: string[]) => {
+        setAddress(accounts[0] || null);
+      });
     }
-    return undefined;
+
+    return () => {
+      if (w.ethereum) {
+        w.ethereum.removeListener("accountsChanged", () => {});
+      }
+    };
   }, []);
 
-  // 3. Create signer only when wallet is connected and provider is ready
-  const signer = useMemo(() => {
-    if (!provider || !walletClient?.account?.address) return undefined;
-    return provider.getSigner(walletClient.account.address);
-  }, [provider, walletClient]);
-
   const fetchContractData = async () => {
-    if (!address || !isConnected || !provider) return;
-    
+    if (!address) return;
     try {
+      const w = window as any;
+      if (!w.ethereum) return;
+      
+      const provider = new ethers.BrowserProvider(w.ethereum);
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
 
       const remaining = await contract.getRemainingSupply();
@@ -98,16 +114,19 @@ export default function GenesisEventPage() {
 
   useEffect(() => {
     fetchContractData();
-  }, [address, isConnected, provider]);
+  }, [address]);
 
   const handleMint = async () => {
-    if (!isConnected || !address || !signer) {
+    if (!address) {
       alert("Please connect your wallet first");
       return;
     }
 
     setMinting(true);
     try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
       console.log("Calling requestMint...");
@@ -147,9 +166,7 @@ export default function GenesisEventPage() {
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else {
-        // Better error message extraction
-        const errorMsg = error.reason || error.shortMessage || error.message || "Mint failed";
-        alert(`Mint failed: ${errorMsg}`);
+        alert(error.reason || error.message || "Mint failed");
       }
     } finally {
       setMinting(false);
@@ -157,13 +174,16 @@ export default function GenesisEventPage() {
   };
 
   const handleReveal = async () => {
-    if (!isConnected || !address || tokenId === null || !signer) {
-      console.error("Reveal aborted: missing address, tokenId, or signer", { address, tokenId });
+    if (!address || tokenId === null) {
+      console.error("Reveal aborted: missing address or tokenId", { address, tokenId });
       return;
     }
 
     setMinting(true);
     try {
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
       console.log("=== PREPARING REVEAL ===");
@@ -217,13 +237,15 @@ export default function GenesisEventPage() {
     } catch (error: any) {
       console.error("=== REVEAL FAILED ===");
       console.error("Full error object:", error);
+      console.error("Decoded reason:", error.reason);
+      console.error("Short message:", error.shortMessage);
       
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else if (error.reason) {
         alert(`Reveal failed: ${error.reason}`);
       } else {
-        alert(error.shortMessage || error.message || "Reveal failed");
+        alert(error.message || "Reveal failed");
       }
     } finally {
       setMinting(false);
@@ -304,7 +326,7 @@ export default function GenesisEventPage() {
 
               <button
                 onClick={handleMint}
-                disabled={minting || userMinted >= maxPerWallet || !isConnected}
+                disabled={minting || userMinted >= maxPerWallet || !address}
                 className="px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {minting ? "Minting..." : userMinted >= maxPerWallet ? "Max Reached" : "Mint Now"}
