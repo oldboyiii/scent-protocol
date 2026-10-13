@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ethers, BrowserProvider, JsonRpcSigner } from "ethers";
-import { useAccount, usePublicClient, useWalletClient } from "wagmi";
+import { ethers } from "ethers";
+import { useAccount, useWalletClient } from "wagmi";
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 
@@ -24,10 +24,9 @@ const GENESIS_ABI = [
 ];
 
 export default function GenesisEventPage() {
-  // 1. Use wagmi native hooks instead of useWallet
+  // 1. Use wagmi to track connection state and address
   const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient(); // Returns client directly, not wrapped in data
-  const { data: walletClient } = useWalletClient(); // Returns { data: walletClient }
+  const { data: walletClient } = useWalletClient();
 
   const [minting, setMinting] = useState(false);
   const [totalMinted, setTotalMinted] = useState(0);
@@ -39,29 +38,22 @@ export default function GenesisEventPage() {
   const maxSupply = 100;
   const maxPerWallet = 1;
 
-  // 2. Safely create ethers provider from wagmi publicClient (works in Brave)
+  // 2. Safely create ethers provider using standard EIP-1193 (window.ethereum)
+  // This completely avoids the viem/ethers transport incompatibility
   const provider = useMemo(() => {
-    if (!publicClient) return undefined;
-    const { chain, transport } = publicClient;
-    const network = { 
-      chainId: chain.id, 
-      name: chain.name, 
-      ensAddress: chain.contracts?.ensRegistry?.address 
-    };
-    if (transport.type === "fallback") {
-      return new BrowserProvider(transport.transports[0].value, network);
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      return new ethers.BrowserProvider((window as any).ethereum);
     }
-    return new BrowserProvider(transport, network);
-  }, [publicClient]);
+    return undefined;
+  }, []);
 
-  // 3. Safely create ethers signer from wagmi walletClient
+  // 3. Create signer only when wallet is connected and provider is ready
   const signer = useMemo(() => {
-    if (!walletClient || !provider) return undefined;
-    return new JsonRpcSigner(provider, walletClient.account.address);
-  }, [walletClient, provider]);
+    if (!provider || !walletClient?.account?.address) return undefined;
+    return provider.getSigner(walletClient.account.address);
+  }, [provider, walletClient]);
 
   const fetchContractData = async () => {
-    // Wait until address and provider are ready
     if (!address || !isConnected || !provider) return;
     
     try {
@@ -104,7 +96,6 @@ export default function GenesisEventPage() {
     }
   };
 
-  // Dependency now includes provider to re-run when it's ready
   useEffect(() => {
     fetchContractData();
   }, [address, isConnected, provider]);
@@ -156,7 +147,9 @@ export default function GenesisEventPage() {
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else {
-        alert(error.reason || error.shortMessage || error.message || "Mint failed");
+        // Better error message extraction
+        const errorMsg = error.reason || error.shortMessage || error.message || "Mint failed";
+        alert(`Mint failed: ${errorMsg}`);
       }
     } finally {
       setMinting(false);
@@ -224,8 +217,6 @@ export default function GenesisEventPage() {
     } catch (error: any) {
       console.error("=== REVEAL FAILED ===");
       console.error("Full error object:", error);
-      console.error("Decoded reason:", error.reason);
-      console.error("Short message:", error.shortMessage);
       
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
