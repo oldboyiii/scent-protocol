@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ethers } from "ethers";
-import { useWallet } from "@/context/WalletContext";
+import { ethers, BrowserProvider, JsonRpcSigner } from "ethers";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 
@@ -24,7 +24,11 @@ const GENESIS_ABI = [
 ];
 
 export default function GenesisEventPage() {
-  const { address } = useWallet();
+  // 1. Используем нативные хуки wagmi вместо useWallet
+  const { address, isConnected } = useAccount();
+  const { data: publicClient } = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+
   const [minting, setMinting] = useState(false);
   const [totalMinted, setTotalMinted] = useState(0);
   const [userMinted, setUserMinted] = useState(0);
@@ -35,13 +39,32 @@ export default function GenesisEventPage() {
   const maxSupply = 100;
   const maxPerWallet = 1;
 
+  // 2. Безопасное создание ethers provider из wagmi publicClient (работает в Brave)
+  const provider = useMemo(() => {
+    if (!publicClient) return undefined;
+    const { chain, transport } = publicClient;
+    const network = { 
+      chainId: chain.id, 
+      name: chain.name, 
+      ensAddress: chain.contracts?.ensRegistry?.address 
+    };
+    if (transport.type === "fallback") {
+      return new BrowserProvider(transport.transports[0].value, network);
+    }
+    return new BrowserProvider(transport, network);
+  }, [publicClient]);
+
+  // 3. Безопасное создание ethers signer из wagmi walletClient
+  const signer = useMemo(() => {
+    if (!walletClient || !provider) return undefined;
+    return new JsonRpcSigner(provider, walletClient.account.address);
+  }, [walletClient, provider]);
+
   const fetchContractData = async () => {
-    if (!address) return;
+    // Ждем, пока адрес и провайдер будут готовы
+    if (!address || !isConnected || !provider) return;
+    
     try {
-      const w = window as any;
-      if (!w.ethereum) return;
-      
-      const provider = new ethers.BrowserProvider(w.ethereum);
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
 
       const remaining = await contract.getRemainingSupply();
@@ -81,21 +104,19 @@ export default function GenesisEventPage() {
     }
   };
 
+  // Зависимость теперь включает provider, чтобы перезапускать при его готовности
   useEffect(() => {
     fetchContractData();
-  }, [address]);
+  }, [address, isConnected, provider]);
 
   const handleMint = async () => {
-    if (!address) {
+    if (!isConnected || !address || !signer) {
       alert("Please connect your wallet first");
       return;
     }
 
     setMinting(true);
     try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
       console.log("Calling requestMint...");
@@ -135,7 +156,7 @@ export default function GenesisEventPage() {
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         alert("Transaction rejected by user.");
       } else {
-        alert(error.reason || error.message || "Mint failed");
+        alert(error.reason || error.shortMessage || error.message || "Mint failed");
       }
     } finally {
       setMinting(false);
@@ -143,16 +164,13 @@ export default function GenesisEventPage() {
   };
 
   const handleReveal = async () => {
-    if (!address || tokenId === null) {
-      console.error("Reveal aborted: missing address or tokenId", { address, tokenId });
+    if (!isConnected || !address || tokenId === null || !signer) {
+      console.error("Reveal aborted: missing address, tokenId, or signer", { address, tokenId });
       return;
     }
 
     setMinting(true);
     try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
       console.log("=== PREPARING REVEAL ===");
@@ -168,10 +186,8 @@ export default function GenesisEventPage() {
       await tx.wait();
       console.log("Reveal confirmed");
 
-      // 🚀 NEW: Fetch fresh perfume data from the contract immediately after mint
       const perfumeData = await contract.getPerfume(tokenId);
       
-      // 🚀 NEW: Send data to our API to pin metadata to IPFS
       console.log("Pinning metadata to IPFS...");
       const pinResponse = await fetch("/api/pin-metadata", {
         method: "POST",
@@ -216,7 +232,7 @@ export default function GenesisEventPage() {
       } else if (error.reason) {
         alert(`Reveal failed: ${error.reason}`);
       } else {
-        alert(error.message || "Reveal failed");
+        alert(error.shortMessage || error.message || "Reveal failed");
       }
     } finally {
       setMinting(false);
@@ -297,7 +313,7 @@ export default function GenesisEventPage() {
 
               <button
                 onClick={handleMint}
-                disabled={minting || userMinted >= maxPerWallet}
+                disabled={minting || userMinted >= maxPerWallet || !isConnected}
                 className="px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {minting ? "Minting..." : userMinted >= maxPerWallet ? "Max Reached" : "Mint Now"}
