@@ -24,10 +24,10 @@ const GENESIS_ABI = [
 ];
 
 export default function GenesisEventPage() {
-  // 1. Используем нативные хуки wagmi вместо useWallet
+  // 1. Use wagmi native hooks instead of useWallet
   const { address, isConnected } = useAccount();
-  const { data: publicClient } = usePublicClient();
-  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient(); // Returns client directly, not wrapped in data
+  const { data: walletClient } = useWalletClient(); // Returns { data: walletClient }
 
   const [minting, setMinting] = useState(false);
   const [totalMinted, setTotalMinted] = useState(0);
@@ -39,7 +39,7 @@ export default function GenesisEventPage() {
   const maxSupply = 100;
   const maxPerWallet = 1;
 
-  // 2. Безопасное создание ethers provider из wagmi publicClient (работает в Brave)
+  // 2. Safely create ethers provider from wagmi publicClient (works in Brave)
   const provider = useMemo(() => {
     if (!publicClient) return undefined;
     const { chain, transport } = publicClient;
@@ -54,14 +54,14 @@ export default function GenesisEventPage() {
     return new BrowserProvider(transport, network);
   }, [publicClient]);
 
-  // 3. Безопасное создание ethers signer из wagmi walletClient
+  // 3. Safely create ethers signer from wagmi walletClient
   const signer = useMemo(() => {
     if (!walletClient || !provider) return undefined;
     return new JsonRpcSigner(provider, walletClient.account.address);
   }, [walletClient, provider]);
 
   const fetchContractData = async () => {
-    // Ждем, пока адрес и провайдер будут готовы
+    // Wait until address and provider are ready
     if (!address || !isConnected || !provider) return;
     
     try {
@@ -104,7 +104,7 @@ export default function GenesisEventPage() {
     }
   };
 
-  // Зависимость теперь включает provider, чтобы перезапускать при его готовности
+  // Dependency now includes provider to re-run when it's ready
   useEffect(() => {
     fetchContractData();
   }, [address, isConnected, provider]);
