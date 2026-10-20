@@ -8,6 +8,7 @@ import { getContract } from "@/utils/contract";
 const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
+const VIRAL_CONTRACT_ADDRESS = "0x4CC0b84b75C5C61BE51C68bC4f27058023aAc4FC"; // <-- NEW
 const CACHE_KEY = "scentprotocol_gallery_cache";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -39,7 +40,6 @@ const GENESIS_ABI = [
   }
 ];
 
-// ADDED: MFW ABI
 const MFW_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -68,6 +68,34 @@ const MFW_ABI = [
   }
 ];
 
+// <-- NEW: ABI for Viral Contract (includes getNextTokenId for optimization)
+const VIRAL_ABI = [
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "getPerfume",
+    "outputs": [{
+      "components": [
+        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"internalType": "string", "name": "name", "type": "string"},
+        {"internalType": "uint8", "name": "gender", "type": "uint8"},
+        {"internalType": "uint8", "name": "pType", "type": "uint8"},
+        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
+        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
+        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
+        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
+        {"internalType": "address", "name": "creator", "type": "address"}
+      ],
+      "name": "",
+      "type": "tuple"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  "function getNextTokenId() external view returns (uint256)"
+];
+
 interface GalleryItem {
   tokenId: number;
   contractAddress: string;
@@ -81,8 +109,9 @@ interface GalleryItem {
   creator: string;
 }
 
+// <-- UPDATED: Added "viral" to filter types
 type SortOption = "newest" | "oldest" | "name" | "rarity";
-type CollectionFilter = "all" | "scents" | "genesis" | "mfw"; // ADDED "mfw"
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral";
 
 const RARITY_STYLE: Record<number, { 
   bg: string; 
@@ -126,7 +155,6 @@ const RARITY_STYLE: Record<number, {
   },
 };
 
-// ADDED: MFW style (unified purple with constant glow)
 const MFW_STYLE = {
   bg: "from-purple-900/80 via-indigo-900/70 to-slate-900/80",
   border: "border-purple-500/50",
@@ -134,6 +162,16 @@ const MFW_STYLE = {
   text: "text-purple-100",
   glow: "shadow-[0_0_40px_rgba(168,85,247,0.4)] hover:shadow-[0_0_60px_rgba(168,85,247,0.6)]",
   hex: "#a855f7",
+};
+
+// <-- NEW: Style for Viral NFTs matching other pages
+const VIRAL_STYLE = {
+  bg: "from-fuchsia-900/80 via-pink-900/70 to-purple-900/80",
+  border: "border-fuchsia-500/50",
+  badge: "bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80",
+  text: "text-fuchsia-100",
+  glow: "shadow-[0_0_40px_rgba(217,70,239,0.4)] hover:shadow-[0_0_60px_rgba(217,70,239,0.6)]",
+  hex: "#d946ef",
 };
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
@@ -174,13 +212,13 @@ export default function GalleryPage() {
         
         const nftContract = getContract(provider);
         const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-        const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider); // ADDED
+        const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
+        const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider); // <-- NEW
         
         const results: GalleryItem[] = [];
-
         console.log("🔍 Fetching gallery data...");
         
-        // OPTIMIZATION: Get actual nextTokenId instead of guessing
+        // 1. Fetch Main ScentProtocol
         let nextTokenId = 1;
         try {
           nextTokenId = Number(await nftContract.getNextTokenId());
@@ -188,7 +226,6 @@ export default function GalleryPage() {
           nextTokenId = 100; // Fallback
         }
         
-        // Fetch only existing tokens in parallel
         const mainPromises = [];
         for (let tokenId = 1; tokenId < nextTokenId; tokenId++) {
           mainPromises.push(
@@ -213,12 +250,10 @@ export default function GalleryPage() {
               .catch(() => null)
           );
         }
-        
         const mainResults = await Promise.all(mainPromises);
-        const validMain = mainResults.filter((item): item is GalleryItem => item !== null);
-        results.push(...validMain);
+        results.push(...mainResults.filter((item): item is GalleryItem => item !== null));
         
-        // Fetch Genesis (always 100 max)
+        // 2. Fetch Genesis (always 100 max)
         const genesisPromises = [];
         for (let tokenId = 1; tokenId <= 100; tokenId++) {
           genesisPromises.push(
@@ -243,12 +278,10 @@ export default function GalleryPage() {
               .catch(() => null)
           );
         }
-        
         const genesisResults = await Promise.all(genesisPromises);
-        const validGenesis = genesisResults.filter((item): item is GalleryItem => item !== null);
-        results.push(...validGenesis);
+        results.push(...genesisResults.filter((item): item is GalleryItem => item !== null));
 
-        // ADDED: Fetch MFW (always 500 max)
+        // 3. Fetch MFW (always 500 max)
         const mfwPromises = [];
         for (let tokenId = 1; tokenId <= 500; tokenId++) {
           mfwPromises.push(
@@ -273,10 +306,43 @@ export default function GalleryPage() {
               .catch(() => null)
           );
         }
-        
         const mfwResults = await Promise.all(mfwPromises);
-        const validMFW = mfwResults.filter((item): item is GalleryItem => item !== null);
-        results.push(...validMFW);
+        results.push(...mfwResults.filter((item): item is GalleryItem => item !== null));
+
+        // 4. Fetch Viral (Optimized: fetch up to getNextTokenId instead of hardcoded 10000)
+        let viralNextId = 1;
+        try {
+          viralNextId = Number(await viralContract.getNextTokenId());
+        } catch (e) {
+          viralNextId = 10000; // Fallback to max supply
+        }
+
+        const viralPromises = [];
+        for (let tokenId = 1; tokenId < viralNextId; tokenId++) {
+          viralPromises.push(
+            viralContract.getPerfume(tokenId)
+              .then((data: any) => {
+                if (data && data.name) {
+                  return {
+                    tokenId,
+                    contractAddress: VIRAL_CONTRACT_ADDRESS,
+                    name: data.name,
+                    rarity: Number(data.rarity),
+                    gender: Number(data.gender),
+                    pType: Number(data.pType),
+                    concentration: Number(data.concentration),
+                    topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                    createdAt: Number(data.createdAt),
+                    creator: data.creator,
+                  };
+                }
+                return null;
+              })
+              .catch(() => null)
+          );
+        }
+        const viralResults = await Promise.all(viralPromises);
+        results.push(...viralResults.filter((item): item is GalleryItem => item !== null));
         
         console.log(`✅ Gallery loaded: ${results.length} total items found`);
         setItems(results);
@@ -312,25 +378,22 @@ export default function GalleryPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  // <-- UPDATED: Added viral filter logic
   const filteredItems = items.filter(item => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return item.contractAddress === GENESIS_CONTRACT_ADDRESS;
-    if (filterBy === "mfw") return item.contractAddress === MFW_CONTRACT_ADDRESS; // ADDED
+    if (filterBy === "mfw") return item.contractAddress === MFW_CONTRACT_ADDRESS;
+    if (filterBy === "viral") return item.contractAddress === VIRAL_CONTRACT_ADDRESS;
     return item.contractAddress === NFT_CONTRACT_ADDRESS;
   });
 
   const sortedItems = [...filteredItems].sort((a, b) => {
     switch (sortBy) {
-      case "newest":
-        return b.createdAt - a.createdAt;
-      case "oldest":
-        return a.createdAt - b.createdAt;
-      case "name":
-        return a.name.localeCompare(b.name);
-      case "rarity":
-        return b.rarity - a.rarity;
-      default:
-        return 0;
+      case "newest": return b.createdAt - a.createdAt;
+      case "oldest": return a.createdAt - b.createdAt;
+      case "name": return a.name.localeCompare(b.name);
+      case "rarity": return b.rarity - a.rarity;
+      default: return 0;
     }
   });
 
@@ -361,6 +424,7 @@ export default function GalleryPage() {
               {filterBy === "scents" && "ScentProtocol"}
               {filterBy === "genesis" && "Genesis"}
               {filterBy === "mfw" && "MFW 2026"}
+              {filterBy === "viral" && "Viral Scent"} {/* <-- NEW */}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -373,6 +437,8 @@ export default function GalleryPage() {
               <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
               <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
               <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button>
+              {/* <-- NEW: Viral Filter Option */}
+              <button onClick={() => { setFilterBy("viral"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "viral" ? "text-fuchsia-400 bg-white/5" : "text-white/70"}`}>Viral Scent</button>
             </div>
           )}
         </div>
@@ -420,27 +486,30 @@ export default function GalleryPage() {
           {sortedItems.map((item) => {
             const rarity = item.rarity;
             const isGenesis = item.contractAddress === GENESIS_CONTRACT_ADDRESS;
-            const isMFW = item.contractAddress === MFW_CONTRACT_ADDRESS; // ADDED
+            const isMFW = item.contractAddress === MFW_CONTRACT_ADDRESS;
+            const isViral = item.contractAddress === VIRAL_CONTRACT_ADDRESS; // <-- NEW
             
-            // MODIFIED: added support for MFW style
-            const style = isMFW 
-              ? MFW_STYLE
-              : isGenesis 
-                ? { 
-                    bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
-                    border: "border-amber-400/70", 
-                    badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
-                    text: "text-amber-100",
-                    glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
-                    hex: "#fbbf24"
-                  }
-                : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+            // <-- UPDATED: Added support for Viral style
+            const style = isViral 
+              ? VIRAL_STYLE
+              : isMFW 
+                ? MFW_STYLE
+                : isGenesis 
+                  ? { 
+                      bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
+                      border: "border-amber-400/70", 
+                      badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
+                      text: "text-amber-100",
+                      glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
+                      hex: "#fbbf24"
+                    }
+                  : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
-              // CRITICAL FIX: Added ?contract=${item.contractAddress} to the href
               <Link 
                 key={`${item.contractAddress}-${item.tokenId}`} 
                 href={`/nft/${item.tokenId}?contract=${item.contractAddress}`}
+                className="block"
               >
                 <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
                   
@@ -460,7 +529,16 @@ export default function GalleryPage() {
                     }} />
                   )}
 
-                  {!isGenesis && !isMFW && (
+                  {/* <-- NEW: Viral Shimmer Effect */}
+                  {isViral && (
+                    <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
+                      background: `linear-gradient(90deg, transparent, rgba(217,70,239,0.3), transparent)`,
+                      backgroundSize: "200% 100%",
+                      animation: "shimmer 2.5s linear infinite",
+                    }} />
+                  )}
+
+                  {!isGenesis && !isMFW && !isViral && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
                       background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
                       backgroundSize: "200% 100%",
@@ -475,7 +553,7 @@ export default function GalleryPage() {
                   <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                  {!isGenesis && !isMFW && (
+                  {!isGenesis && !isMFW && !isViral && (
                     <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{
                       background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
                       backgroundSize: "200% 100%",
@@ -487,7 +565,7 @@ export default function GalleryPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-xs text-white/40 uppercase tracking-wider">
-                          {isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{item.tokenId}
+                          {isViral ? "Viral" : isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{item.tokenId}
                         </p>
                         {isGenesis && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
@@ -497,7 +575,6 @@ export default function GalleryPage() {
                         )}
                         {isMFW && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
-                            {/* UPDATED: Replaced lightning bolt with perfume bottle icon */}
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
                               <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
@@ -505,6 +582,13 @@ export default function GalleryPage() {
                               <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
                             </svg>
                             MFW 2026
+                          </span>
+                        )}
+                        {/* <-- NEW: Viral Badge in Gallery Card */}
+                        {isViral && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            Viral
                           </span>
                         )}
                       </div>
