@@ -1,44 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link"; // <-- Добавлен импорт для ссылки
 import MintForm from "@/components/MintForm";
 import MintReveal from "@/components/MintReveal";
 import PerfumeCard from "@/components/PerfumeCard";
 import InfoSection from "@/components/InfoSection";
 import Logo from "@/components/Logo";
 import Confetti from "@/components/Confetti";
-import AIAdvisor, { MintContext } from "@/components/AIAdvisor"; // <-- Added MintContext import
+import AIAdvisor, { MintContext } from "@/components/AIAdvisor";
 import RoadmapSection from "@/components/RoadmapSection";
 import { PerfumeData } from "@/utils/contract";
 
-// Interface defining the structure of a newly minted perfume in the local session state
 interface MintedPerfume {
   tokenId: number;
   perfume: PerfumeData;
   description: string;
-  mood?: string; // Added to store the context mood
+  mood?: string;
 }
 
 export default function Home() {
-  // State to store all perfumes minted during the current user session
   const [minted, setMinted] = useState<MintedPerfume[]>([]);
-  // State to trigger the confetti animation on a successful mint
   const [showConfetti, setShowConfetti] = useState(false);
-  // State to hold the token ID of the most recently minted perfume to display the reveal animation
   const [newlyMinted, setNewlyMinted] = useState<number | null>(null);
-  // State to handle the fade-out transition of the reveal card
   const [isFadingOut, setIsFadingOut] = useState(false);
-  
-  // NEW: Single state to hold the full MintContext from AI Advisor (replaces separate gender/pType states)
   const [advisorContext, setAdvisorContext] = useState<MintContext | null>(null);
 
-  // Callback function triggered when a new perfume is successfully minted
   const handleMinted = (tokenId: number, perfume: PerfumeData, desc: string, mood?: string) => {
-    // 1. Add the new perfume to the beginning of the local session state array
     const newMint: MintedPerfume = { tokenId, perfume, description: desc, mood };
     setMinted((prev) => [newMint, ...prev]);
 
-    // 2. Update local storage to persist the user's collection across page reloads
     const existing = JSON.parse(localStorage.getItem("scent_collection") || "[]");
     const updated = [
       {
@@ -61,36 +52,27 @@ export default function Home() {
         },
         description: desc,
       },
-      // Filter out any existing entry with the same tokenId to prevent duplicates
       ...existing.filter((s: any) => s.tokenId !== tokenId),
     ];
     localStorage.setItem("scent_collection", JSON.stringify(updated));
 
-    // 3. Trigger confetti animation for 5 seconds
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 5000);
 
-    // 4. Set the newly minted ID to display the reveal animation instead of the mint form
     setNewlyMinted(tokenId);
     setIsFadingOut(false);
   };
 
-  // NEW: Callback function triggered when the user selects preferences in the AI Advisor
-  // Now accepts the full MintContext object instead of separate gender and pType numbers
   const handleAdvisorSelect = (context: MintContext) => {
-    // Store the full context (gender, pType, mood, notes, seedString)
     setAdvisorContext(context);
-    
-    // Smoothly scroll the user down to the Mint Form section
     document.getElementById("mint-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   return (
     <div className="flex flex-col items-center gap-16 pb-20 w-full">
-      {/* Confetti animation component, controlled by the showConfetti state */}
       <Confetti active={showConfetti} />
 
-      {/* Header Section: Contains the Logo and project branding */}
+      {/* Header Section */}
       <div className="w-full max-w-4xl px-4 animate-fade-up">
         <div className="glass-card flex items-center justify-between px-6 py-4">
           <Logo size={36} />
@@ -103,7 +85,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Hero Section: Main title, description, and key network features */}
+      {/* Hero Section */}
       <section className="text-center max-w-3xl mx-auto px-4 animate-fade-up pt-4">
         <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-8 pb-4 leading-none">
           Digital Perfume House
@@ -129,15 +111,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Info Section: Additional details about the project */}
+      {/* Info Section */}
       <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
         <InfoSection />
       </div>
 
-      {/* Conditional Rendering: Shows the Mint Reveal animation for the newest mint, otherwise shows the Mint Form */}
+      {/* Mint Form / Reveal Section */}
       <div id="mint-form" className="w-full max-w-xl px-4 animate-fade-up-delay">
         {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted ? (
-          // Display the envelope reveal animation for the most recently minted NFT
           <MintReveal
             tokenId={minted[0].tokenId}
             perfume={minted[0].perfume}
@@ -148,15 +129,14 @@ export default function Home() {
             }}
           />
         ) : (
-          // Display the standard minting form, passing the full advisor context
           <MintForm 
             onMinted={handleMinted} 
-            advisorContext={advisorContext ?? undefined} // <-- Updated prop
+            advisorContext={advisorContext ?? undefined}
           />
         )}
       </div>
 
-      {/* AI Advisor Section: Helps users choose their fragrance profile */}
+      {/* AI Advisor Section */}
       <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold text-white mb-2">Not sure what to create?</h2>
@@ -165,12 +145,50 @@ export default function Home() {
           </p>
         </div>
         <div className="flex justify-center">
-          {/* AIAdvisor now passes the full MintContext object */}
           <AIAdvisor onSelect={handleAdvisorSelect} />
         </div>
       </div>
 
-      {/* Recent Creations Section: Displays a list of previously minted perfumes in the current session (if more than one) */}
+      {/* 🚀 NEW: Viral Wallet Scent Banner 🚀 */}
+      <Link href="/wallet-scent" className="w-full max-w-4xl px-4 group animate-fade-up-delay">
+        <div className="relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-900/20 via-pink-900/20 to-purple-900/20 p-1 transition-all duration-300 hover:border-purple-400/50 hover:shadow-[0_0_40px_rgba(168,85,247,0.15)]">
+          
+          {/* Decorative background glows */}
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-pink-500/20 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Inner glass card */}
+          <div className="relative flex flex-col md:flex-row items-center justify-between gap-6 rounded-xl bg-[#0a0a1a]/60 backdrop-blur-xl p-6 md:p-8">
+            
+            {/* Text Content */}
+            <div className="flex-1 text-center md:text-left relative z-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold uppercase tracking-wider mb-3">
+                <span>🔮</span> Viral Experiment
+              </div>
+              <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                What's Your Wallet's Scent?
+              </h3>
+              <p className="text-white/60 text-sm md:text-base max-w-lg">
+                We analyzed millions of transactions to create a unique fragrance profile for your wallet. 
+                Discover your crypto archetype (Degen, Diamond Hands, Whale...) and mint it as a limited NFT.
+              </p>
+            </div>
+
+            {/* CTA Button */}
+            <div className="relative z-10 flex-shrink-0">
+              <div className="flex items-center gap-3 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold shadow-lg shadow-purple-500/20 group-hover:shadow-purple-500/40 group-hover:scale-105 transition-all duration-300">
+                <span>Analyze My Wallet</span>
+                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Link>
+      {/* 🚀 END: Viral Wallet Scent Banner 🚀 */}
+
+      {/* Recent Creations Section */}
       {minted.length > 1 && (
         <div className="w-full max-w-md px-4 space-y-4 animate-fade-up-delay">
           <h3 className="text-xl font-bold text-white text-center mb-4">Your Recent Creations</h3>
@@ -185,7 +203,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Roadmap Section: Displays the project's future development phases */}
+      {/* Roadmap Section */}
       <div className="w-full animate-fade-up-delay">
         <RoadmapSection />
       </div>
