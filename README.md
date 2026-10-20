@@ -11,9 +11,9 @@ ScentProtocol is a digital perfume house where users create unique, AI-generated
 ScentProtocol is the world's first digital perfume house on the blockchain. Every fragrance is a unique NFT — a digital certificate of ownership for an AI-generated formula. No two scents are ever the same.
 
 **How It Works:**
-1. Choose gender and perfume type (Parfum, EDP, EDT, EDC)
-2. Pay 1 USDC — the smart contract generates a unique formula on-chain
-3. AI writes a poetic description — your NFT is ready
+1. Choose gender and perfume type (Parfum, EDP, EDT, EDC) or use the AI Advisor.
+2. Pay 1 USDC (or mint free Viral editions) — the smart contract generates a unique formula on-chain.
+3. AI writes a poetic description — your NFT is ready.
 
 ---
 
@@ -34,19 +34,20 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 | Frontend | Next.js 14 + Tailwind + TypeScript | Vercel |
 | AI Description | OpenAI GPT-4o-mini | Vercel Serverless Function |
 | Blockchain RPC | Public Arc Mainnet endpoint | Via ethers.js in browser |
-| Wallet | MetaMask / Rabby | User |
+| Wallet | MetaMask / Rabby / WalletConnect | User |
 
 ---
 
-##  Contract Deployment (Mainnet Production)
+## 📜 Contract Deployment (Mainnet Production)
 
 | Contract | Address | Purpose |
 |----------|---------|---------|
 | **ScentProtocolMainnet** | [`0x8d456e033FF7220068CDc1C3F08D6BA6641D103e`](https://explorer.arc.io/address/0x8d456e033FF7220068CDc1C3F08D6BA6641D103e) | Main perfume creation & NFT minting logic |
 | **ScentProtocolMainnetGenesis** | [`0x807dF79Ec16CF51C07e7B522175EB408D6dE247E`](https://explorer.arc.io/address/0x807dF79Ec16CF51C07e7B522175EB408D6dE247E) | Exclusive Genesis collection (100 supply, commit-reveal) |
-| **ScentProtocolMarketplaceMainnet** | [`0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c`](https://explorer.arc.io/address/0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c) | Secondary marketplace for trading Scent NFTs |
-| **ScentProtocolMFW2026** | [`0xBcF87E80C18CF5d0D8769703fDb891A16D279B50`](https://explorer.arc.io/address/0xBcF87E80C18CF5d0D8769703fDb891A16D279B50) | Milan Fashion Week 2026 exclusive drop (500 supply, 5 USDC / 1 USDC for Genesis) |
-| **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc *(verify exact mainnet address)* |
+| **ScentProtocolMFW2026** | [`0xBcF87E80C18CF5d0D8769703fDb891A16D279B50`](https://explorer.arc.io/address/0xBcF87E80C18CF5d0D8769703fDb891A16D279B50) | Milan Fashion Week 2026 exclusive drop (500 supply) |
+| **ScentProtocolViral** | [`0x4CC0b84b75C5C61BE51C68bC4f27058023aAc4FC`](https://explorer.arc.io/address/0x4CC0b84b75C5C61BE51C68bC4f27058023aAc4FC) | Viral "Wallet Scent" campaign (10k supply, free mint, 1 per wallet) |
+| **ScentProtocolMarketplace** | [`0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c`](https://explorer.arc.io/address/0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c) | Secondary marketplace for trading Scent NFTs |
+| **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc |
 
 ---
 
@@ -99,37 +100,43 @@ All contracts below are deployed and verified on Arc Testnet:
 
 ## 🗺️ Roadmap
 
-### Phase 1 — Live Now ✅
+### ✅ Phase 1: Live Now
 - [x] On-chain perfume generation with unique formulas
 - [x] ERC-721 NFT minting with USDC gas
 - [x] AI-generated poetic descriptions
 - [x] Collection & Gallery pages
 
-### Phase 1.5 — Marketplace Launch ✅
+### ✅ Phase 1.5: Marketplace Launch
 - [x] Peer-to-peer NFT trading platform
 - [x] Fixed price & auction listing types
 - [x] Royalty enforcement on secondary sales
 - [x] Rarity-based filtering & search
 
-### Phase 2 — AI Agent & Mainnet 🔄
+### 🔄 Phase 2: AI Agent & Mainnet (In Progress)
 - [x] Personal AI advisor for scent recommendations
 - [x] Successful Mainnet deployment
 - [x] Limited Event Editions (Special Occasion Drops)
-- [ ] Auto-minting based on mood & context
-- [ ] Session keys for gasless experience
+- [x] **Auto-minting based on mood & context (Viral Wallet Scent)** 🆕
 - [ ] Natural language → fragrance pipeline
 
-### Phase 3 — Nanopayments & Samples
+### 🔮 Phase 3: Advanced On-Chain Mechanics
 - [ ] $0.01 scent previews (no NFT required)
-- [ ] $0.05 note merging & blending
-- [ ] $0.001 governance voting
-- [ ] Subscription 'Scent of the Month'
+- [ ] Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance
+- [ ] Evolving Scents: Dynamic metadata upgrades based on holding duration
+- [ ] Subscription 'Scent of the Month' & micro-governance
 
-### Phase 4 — Metaverse & Beyond
-- [ ] Avatar scent status in virtual worlds
-- [ ] Wearable fragrance as social signal
-- [ ] Cross-platform NFT interoperability
-- [ ] Physical redemption partnerships
+### 🌐 Phase 4: Cross-Chain Expansion & Virtual Worlds
+- [ ] CCTP (Cross-Chain Transfer Protocol) integration for seamless multi-chain onboarding
+- [ ] Web2.5 creator onboarding from Ethereum, Base, and Arbitrum
+- [ ] Unified liquidity across chains — zero fragmentation
+- [ ] Dynamic Environment Scents: NFTs adapt to seasons via Oracles
+- [ ] Avatar scent status & wearable fragrance in virtual worlds
+
+### 🌍 Phase 5: Phygital Reality & Global Partnerships
+- [ ] Partnerships with luxury perfume houses & fashion brands
+- [ ] Physical Redemption: Top rarity holders claim real perfume samples
+- [ ] Cross-platform NFT interoperability for real-world utility
+- [ ] Global logistics & compliant distribution for physical claims
 
 ---
 
@@ -147,33 +154,3 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 ### 🔐 Environment Variables (`.env.local`)
 *Note: These are configured for **Arc Mainnet**.*
 
-```env
-NEXT_PUBLIC_CONTRACT_ADDRESS=0x8d456e033FF7220068CDc1C3F08D6BA6641D103e
-NEXT_PUBLIC_GENESIS_ADDRESS=0x807dF79Ec16CF51C07e7B522175EB408D6dE247E
-NEXT_PUBLIC_MARKETPLACE_ADDRESS=0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c
-NEXT_PUBLIC_MARKETPLACE_ADDRESS=0xBcF87E80C18CF5d0D8769703fDb891A16D279B50
-NEXT_PUBLIC_USDC_ADDRESS=0x3600000000000000000000000000000000000000
-NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.arc.io
-NEXT_PUBLIC_CHAIN_ID=5042
-OPENAI_API_KEY=sk-...
-
-ScentProtocol/
-── frontend/
-│   ├── app/                  # Next.js App Router
-│   ├── components/           # React components
-│   ├── context/              # Wallet & Global state
-│   ├── utils/                # Contract ABI & ethers.js utils
-│   ── .env.local.example
-├── contracts/
-│   ├── ScentProtocolMainnet.sol      # Main creation logic
-│   ├── ScentProtocolMainnetGenesis.sol # Genesis collection
-│   ├── ScentProtocolMFW2026.sol # Milan Fashion Week 2026
-│   ── ScentProtocolMarketplace.sol  # Marketplace logic
-├── README.md
-└── LICENSE
-
-📄 License
-MIT
-
-    Built on Arc — fast, cheap, USDC‑powered.
-    Every fragrance is a formula, every formula is on‑chain.
