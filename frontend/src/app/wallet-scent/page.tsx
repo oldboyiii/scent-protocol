@@ -150,7 +150,7 @@ export default function WalletScentPage() {
   // We always scan Ethereum Mainnet to get the real on-chain history,
   // regardless of which network the user currently has selected.
   // ============================================================
-  const analyzeWallet = async () => {
+    const analyzeWallet = async () => {
     if (!address) return;
 
     setAnalyzing(true);
@@ -158,12 +158,23 @@ export default function WalletScentPage() {
     setErrorMessage(null);
 
     try {
-      // Use public Ethereum Mainnet RPC for accurate wallet history analysis
-      const mainnetProvider = new ethers.JsonRpcProvider("https://eth.llamarpc.com");
+      // Use viem's publicClient for Ethereum Mainnet (CORS-safe, no RPC URL issues)
+      // This leverages the already-installed viem library via wagmi
+      const { createPublicClient, http } = await import("viem");
+      const { mainnet } = await import("viem/chains");
+
+      const ethMainnetClient = createPublicClient({
+        chain: mainnet,
+        transport: http(),
+      });
 
       // Fetch real transaction count and balance from Ethereum Mainnet
-      const txCount = await mainnetProvider.getTransactionCount(address);
-      const balance = await mainnetProvider.getBalance(address);
+      const txCount = await ethMainnetClient.getTransactionCount({
+        address: address as `0x${string}`,
+      });
+      const balance = await ethMainnetClient.getBalance({
+        address: address as `0x${string}`,
+      });
 
       // Dramatic delay for the "scanning" animation effect
       await new Promise((resolve) => setTimeout(resolve, 2500));
