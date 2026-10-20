@@ -460,7 +460,7 @@ export default function WalletScentPage() {
                     disabled={minting}
                     className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {minting ? "Minting..." : "✨ Mint This Scent (Free)"}
+                    {minting ? "Minting..." : " Mint This Scent (Free)"}
                   </button>
                 )}
                 <button
