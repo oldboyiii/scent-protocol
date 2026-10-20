@@ -461,7 +461,7 @@ export default function WalletScentPage() {
                   <div className="w-full px-6 py-3 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold text-center">Switch to Arc Network</div>
                 ) : (
                   <button onClick={handleMint} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50">
-                    {minting ? "Minting..." : "✨ Mint This Scent (Free)"}
+                    {minting ? "Minting..." : " Mint This Scent (Free)"}
                   </button>
                 )}
                 <button onClick={shareOnTwitter} className="w-full px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all">
