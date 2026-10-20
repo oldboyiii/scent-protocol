@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link"; // <-- Добавлен импорт для ссылки
+import Link from "next/link"; // 
 import MintForm from "@/components/MintForm";
 import MintReveal from "@/components/MintReveal";
 import PerfumeCard from "@/components/PerfumeCard";
