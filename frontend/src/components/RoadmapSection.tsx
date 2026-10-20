@@ -31,7 +31,7 @@ const phases = [
       { text: "Personal AI advisor for scent recommendations", done: true },
       { text: "Successful Mainnet deployment", done: true },
       { text: "Limited Event Editions (Special Occasion Drops)", done: true },
-      { text: "Auto-minting based on mood & context", done: true }, // <-- ОТМЕЧЕНО КАК ВЫПОЛНЕННОЕ
+      { text: "Auto-minting based on mood & context (Viral Wallet Scent)", done: true }, // <-- ОТМЕЧЕНО КАК ВЫПОЛНЕННОЕ
       { text: "Natural language → fragrance pipeline", done: false },
     ],
   },
@@ -127,6 +127,7 @@ export default function RoadmapSection() {
                     <h3 className={`text-lg font-semibold text-white mb-3 ${isLeftSide ? "md:text-right" : "md:text-left"}`}>{p.title}</h3>
                     <ul className="space-y-1.5 text-left">
                       {p.items.map((item, j) => {
+                        // Handle both string items (for completed/upcoming) and object items (for in-progress)
                         const isDone = typeof item === 'object' ? item.done : (p.status === "completed");
                         const itemText = typeof item === 'object' ? item.text : item;
                         
