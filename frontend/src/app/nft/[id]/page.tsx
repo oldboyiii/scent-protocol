@@ -9,6 +9,7 @@ import ShareCard from "@/components/ShareCard";
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
+const VIRAL_CONTRACT_ADDRESS = "0x4CC0b84b75C5C61BE51C68bC4f27058023aAc4FC"; // <-- NEW
 
 const GENESIS_ABI = [
   {
@@ -66,6 +67,33 @@ const MFW_ABI = [
   }
 ];
 
+// <-- NEW: ABI for Viral Contract
+const VIRAL_ABI = [
+  {
+    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+    "name": "getPerfume",
+    "outputs": [{
+      "components": [
+        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"internalType": "string", "name": "name", "type": "string"},
+        {"internalType": "uint8", "name": "gender", "type": "uint8"},
+        {"internalType": "uint8", "name": "pType", "type": "uint8"},
+        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
+        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
+        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
+        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
+        {"internalType": "address", "name": "creator", "type": "address"}
+      ],
+      "name": "",
+      "type": "tuple"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
+
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
@@ -95,16 +123,21 @@ const MFW_STYLE = {
   hex: "#a855f7",
 };
 
-// Small perfume bottle icon (replaces lightning bolt)
+// <-- NEW: Style for Viral NFTs matching the collection page
+const VIRAL_STYLE = {
+  bg: "from-fuchsia-900/80 via-pink-900/70 to-purple-900/80",
+  border: "border-fuchsia-500/50",
+  badge: "bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80",
+  text: "text-fuchsia-100",
+  glow: "shadow-[0_0_80px_rgba(217,70,239,0.5),0_0_120px_rgba(217,70,239,0.3)]",
+  hex: "#d946ef",
+};
+
 const MFWBottleIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    {/* Cap */}
     <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
-    {/* Neck */}
     <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
-    {/* Body */}
     <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
-    {/* Inner highlight */}
     <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
   </svg>
 );
@@ -147,6 +180,7 @@ export default function NFTDetailPage() {
   const [perfume, setPerfume] = useState<any>(null);
   const [isGenesis, setIsGenesis] = useState(false);
   const [isMFW, setIsMFW] = useState(false);
+  const [isViral, setIsViral] = useState(false); // <-- NEW
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,106 +198,63 @@ export default function NFTDetailPage() {
 
         let found = false;
 
+        // 1. Check by explicit contract param
         if (contractParam?.toLowerCase() === MFW_CONTRACT_ADDRESS.toLowerCase()) {
           try {
-            console.log(" Trying MFW contract for token", id);
             const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
             const data = await mfwContract.getPerfume(id);
             if (data && data.name) {
-              console.log("✅ MFW found:", data.name);
-              setPerfume({
-                name: data.name,
-                gender: Number(data.gender),
-                pType: Number(data.pType),
-                topNotes: Array.from(data.topNotes || []) as string[],
-                heartNotes: Array.from(data.heartNotes || []) as string[],
-                baseNotes: Array.from(data.baseNotes || []) as string[],
-                concentration: Number(data.concentration),
-                rarity: Number(data.rarity),
-                createdAt: Number(data.createdAt),
-                creator: data.creator,
-              });
-              setIsMFW(true);
-              setIsGenesis(false);
+              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+              setIsMFW(true); setIsGenesis(false); setIsViral(false);
               found = true;
             }
-          } catch (e) {
-            console.log("MFW not found or error:", e);
-          }
+          } catch (e) {}
         } else if (contractParam?.toLowerCase() === GENESIS_CONTRACT_ADDRESS.toLowerCase()) {
           try {
-            console.log("🎯 Trying Genesis contract for token", id);
             const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
             const data = await genesisContract.getPerfume(id);
             if (data && data.name) {
-              console.log("✅ Genesis found:", data.name);
-              setPerfume({
-                name: data.name,
-                gender: Number(data.gender),
-                pType: Number(data.pType),
-                topNotes: Array.from(data.topNotes || []) as string[],
-                heartNotes: Array.from(data.heartNotes || []) as string[],
-                baseNotes: Array.from(data.baseNotes || []) as string[],
-                concentration: Number(data.concentration),
-                rarity: Number(data.rarity),
-                createdAt: Number(data.createdAt),
-                creator: data.creator,
-              });
-              setIsGenesis(true);
-              setIsMFW(false);
+              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+              setIsGenesis(true); setIsMFW(false); setIsViral(false);
               found = true;
             }
-          } catch (e) {
-            console.log("Genesis not found or error:", e);
-          }
+          } catch (e) {}
+        } else if (contractParam?.toLowerCase() === VIRAL_CONTRACT_ADDRESS.toLowerCase()) { // <-- NEW
+          try {
+            const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
+            const data = await viralContract.getPerfume(id);
+            if (data && data.name) {
+              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+              setIsViral(true); setIsGenesis(false); setIsMFW(false);
+              found = true;
+            }
+          } catch (e) {}
         }
 
+        // 2. Fallback auto-detect logic
         if (!found) {
-          console.log("🔄 Falling back to auto-detect logic...");
-          
           if (id === 1) {
             try {
-              console.log("🎯 Trying Genesis FIRST for token #1...");
               const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
               const data = await genesisContract.getPerfume(id);
               if (data && data.name) {
-                console.log("✅ Genesis found:", data.name);
-                setPerfume({
-                  name: data.name,
-                  gender: Number(data.gender),
-                  pType: Number(data.pType),
-                  topNotes: Array.from(data.topNotes || []) as string[],
-                  heartNotes: Array.from(data.heartNotes || []) as string[],
-                  baseNotes: Array.from(data.baseNotes || []) as string[],
-                  concentration: Number(data.concentration),
-                  rarity: Number(data.rarity),
-                  createdAt: Number(data.createdAt),
-                  creator: data.creator,
-                });
-                setIsGenesis(true);
-                setIsMFW(false);
+                setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+                setIsGenesis(true); setIsMFW(false); setIsViral(false);
                 found = true;
               }
-            } catch (e) {
-              console.log("Genesis not found, trying ScentProtocol...");
-            }
+            } catch (e) {}
           }
 
           if (!found) {
             try {
-              console.log("Trying ScentProtocol for token", id);
               const contract = getContract(provider);
               const data = await contract.getPerfume(id);
               if (data && data.name) {
-                console.log("✅ ScentProtocol found:", data.name);
                 setPerfume(data);
-                setIsGenesis(false);
-                setIsMFW(false);
+                setIsGenesis(false); setIsMFW(false); setIsViral(false);
                 found = true;
               }
-            } catch (e) {
-              console.log("ScentProtocol error, trying Genesis...");
-            }
+            } catch (e) {}
           }
 
           if (!found && id !== 1) {
@@ -271,26 +262,24 @@ export default function NFTDetailPage() {
               const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
               const data = await genesisContract.getPerfume(id);
               if (data && data.name) {
-                console.log("✅ Genesis found:", data.name);
-                setPerfume({
-                  name: data.name,
-                  gender: Number(data.gender),
-                  pType: Number(data.pType),
-                  topNotes: Array.from(data.topNotes || []) as string[],
-                  heartNotes: Array.from(data.heartNotes || []) as string[],
-                  baseNotes: Array.from(data.baseNotes || []) as string[],
-                  concentration: Number(data.concentration),
-                  rarity: Number(data.rarity),
-                  createdAt: Number(data.createdAt),
-                  creator: data.creator,
-                });
-                setIsGenesis(true);
-                setIsMFW(false);
+                setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+                setIsGenesis(true); setIsMFW(false); setIsViral(false);
                 found = true;
               }
-            } catch (e) {
-              console.log("Genesis not found either");
-            }
+            } catch (e) {}
+          }
+
+          // <-- NEW: Fallback check for Viral contract
+          if (!found) {
+            try {
+              const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
+              const data = await viralContract.getPerfume(id);
+              if (data && data.name) {
+                setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+                setIsViral(true); setIsGenesis(false); setIsMFW(false);
+                found = true;
+              }
+            } catch (e) {}
           }
         }
 
@@ -326,10 +315,7 @@ export default function NFTDetailPage() {
         <h1 className="text-3xl font-bold text-white mb-4">Scent not found</h1>
         <p className="text-white/50 mb-8">Token #{id} does not exist or has not been minted yet.</p>
         {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
-        <button 
-          onClick={() => router.back()} 
-          className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-        >
+        <button onClick={() => router.back()} className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer">
           ← Back
         </button>
       </div>
@@ -338,63 +324,56 @@ export default function NFTDetailPage() {
 
   const description = generateDescription(perfume);
   
-  const labelColor = isGenesis ? 'text-amber-300/80' : isMFW ? 'text-purple-300/80' : 'text-white/40';
-  const descBg = isGenesis ? 'bg-amber-950/40 border-amber-400/60' : isMFW ? 'bg-purple-950/40 border-purple-400/60' : 'bg-black/30 border-white/10';
-  const style = isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
+  // <-- UPDATED: Include isViral in style and color logic
+  const labelColor = isViral ? 'text-fuchsia-300/80' : isGenesis ? 'text-amber-300/80' : isMFW ? 'text-purple-300/80' : 'text-white/40';
+  const descBg = isViral ? 'bg-fuchsia-950/40 border-fuchsia-400/60' : isGenesis ? 'bg-amber-950/40 border-amber-400/60' : isMFW ? 'bg-purple-950/40 border-purple-400/60' : 'bg-black/30 border-white/10';
+  const style = isViral ? VIRAL_STYLE : isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8 relative z-10">
-      <button 
-        onClick={() => router.back()} 
-        className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer"
-      >
+      <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer">
         ← Back
       </button>
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
-        {(isGenesis || isMFW) && (
+        {/* Shimmer for special editions */}
+        {(isGenesis || isMFW || isViral) && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
-            background: `linear-gradient(90deg, transparent, rgba(${isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`,
+            background: `linear-gradient(90deg, transparent, rgba(${isViral ? '217,70,239' : isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`,
             backgroundSize: "200% 100%",
             animation: "shimmer 2.5s linear infinite",
           }} />
         )}
 
-        {!isGenesis && !isMFW && (
-          <div 
-            className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-            style={{
-              background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
-              backgroundSize: "200% 100%",
-              animation: "shimmer 2s linear infinite",
-              padding: "2px",
-              WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-              WebkitMaskComposite: "xor",
-              maskComposite: "exclude",
-            }}
-          />
+        {!isGenesis && !isMFW && !isViral && (
+          <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+            background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+            backgroundSize: "200% 100%",
+            animation: "shimmer 2s linear infinite",
+            padding: "2px",
+            WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+            WebkitMaskComposite: "xor",
+            maskComposite: "exclude",
+          }} />
         )}
 
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {!isGenesis && !isMFW && (
-          <div 
-            className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-            style={{
-              background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
-              backgroundSize: "200% 100%",
-              animation: "shimmer 2.5s infinite",
-            }}
-          />
+        {!isGenesis && !isMFW && !isViral && (
+          <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{
+            background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
+            backgroundSize: "200% 100%",
+            animation: "shimmer 2.5s infinite",
+          }} />
         )}
 
         <div className="relative flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <p className="text-xs text-white/40 uppercase tracking-wider">
-                {isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
+                {isViral ? "VIRAL" : isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
               </p>
               {isGenesis && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
@@ -406,6 +385,13 @@ export default function NFTDetailPage() {
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
                   <MFWBottleIcon className="w-3 h-3" />
                   MFW 2026
+                </span>
+              )}
+              {/* <-- NEW: Viral Badge */}
+              {isViral && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  Viral
                 </span>
               )}
             </div>
@@ -429,9 +415,7 @@ export default function NFTDetailPage() {
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Top Notes</span>
             <div className="flex flex-wrap gap-2 mt-2">
               {perfume.topNotes.map((n: string) => (
-                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-amber-200 text-sm border border-amber-500/30">
-                  {n}
-                </span>
+                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-amber-200 text-sm border border-amber-500/30">{n}</span>
               ))}
             </div>
           </div>
@@ -439,9 +423,7 @@ export default function NFTDetailPage() {
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Heart Notes</span>
             <div className="flex flex-wrap gap-2 mt-2">
               {perfume.heartNotes.map((n: string) => (
-                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-rose-200 text-sm border border-rose-500/30">
-                  {n}
-                </span>
+                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-rose-200 text-sm border border-rose-500/30">{n}</span>
               ))}
             </div>
           </div>
@@ -449,9 +431,7 @@ export default function NFTDetailPage() {
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Base Notes</span>
             <div className="flex flex-wrap gap-2 mt-2">
               {perfume.baseNotes.map((n: string) => (
-                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-emerald-200 text-sm border border-emerald-500/30">
-                  {n}
-                </span>
+                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-emerald-200 text-sm border border-emerald-500/30">{n}</span>
               ))}
             </div>
           </div>
@@ -466,12 +446,7 @@ export default function NFTDetailPage() {
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
           {isGenesis && (
             <p className="text-amber-300 font-bold mt-2 flex items-center gap-2">
-              <img 
-                src="/arc-logo.png" 
-                alt="Arc" 
-                className="w-5 h-5 inline-block"
-                style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }}
-              />
+              <img src="/arc-logo.png" alt="Arc" className="w-5 h-5 inline-block" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }} />
               Arc Mainnet Genesis Collection
             </p>
           )}
@@ -479,6 +454,13 @@ export default function NFTDetailPage() {
             <p className="text-purple-300 font-bold mt-2 flex items-center gap-2">
               <MFWBottleIcon className="w-5 h-5" />
               Milan Fashion Week 2026 Exclusive
+            </p>
+          )}
+          {/* <-- NEW: Viral Footer Info */}
+          {isViral && (
+            <p className="text-fuchsia-300 font-bold mt-2 flex items-center gap-2">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              Viral Scent Experiment
             </p>
           )}
         </div>
