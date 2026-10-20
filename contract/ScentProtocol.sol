@@ -20,7 +20,7 @@ contract ScentProtocolV2 is
     using SafeERC20 for IERC20;
     using Strings for uint256;
 
-    // Arc Mainnet Chain ID для безопасности
+    // Arc Mainnet Chain ID for security
     uint256 private constant ARC_MAINNET_CHAIN_ID = 5042;
 
     struct Perfume {
@@ -83,7 +83,7 @@ contract ScentProtocolV2 is
         address feeRecipient_,
         uint256 mintPrice_
     ) ERC721("ScentProtocol", "SCENT") Ownable(msg.sender) {
-        // ПРОВЕРКА СЕТИ: Разрешаем деплой только на Arc Mainnet
+        // NETWORK CHECK: Allow deployment only on Arc Mainnet
         require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be deployed on Arc Mainnet");
         
         if (usdcAddress == address(0) || feeRecipient_ == address(0)) {
@@ -115,7 +115,7 @@ contract ScentProtocolV2 is
         tokenId = nextTokenId++;
         uint256 price = mintPrice;
         
-        // Безопасный перевод USDC (6 decimals)
+        // Safe transfer of USDC (6 decimals)
         usdc.safeTransferFrom(msg.sender, address(this), price);
         usdc.safeTransfer(feeRecipient, price);
         
