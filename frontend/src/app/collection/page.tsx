@@ -793,7 +793,7 @@ export default function CollectionPage() {
                         View Details →
                       </Link>
                       <div className="flex gap-2">
-                        <ShareCard tokenId={s.tokenId} perfume={perfume!} />
+                        <ShareCard tokenId={s.tokenId} perfume={perfume!} contractAddress={s.contractAddress} />
                         {s.isListed ? (
                           <button onClick={() => handleCancelListing(s.tokenId)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
                             {listingStatus === "listing" ? "Removing..." : "Remove"}
