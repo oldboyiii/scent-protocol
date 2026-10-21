@@ -480,7 +480,7 @@ export default function NFTDetailPage() {
           <Link href={`/nft/${id - 1}`} className={`text-sm text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>
             ← Previous
           </Link>
-          <ShareCard tokenId={id} perfume={perfume} />
+          <ShareCard tokenId={s.tokenId} perfume={perfume!} contractAddress={s.contractAddress} />
           <Link href={`/nft/${id + 1}`} className="text-sm text-white/50 hover:text-white transition-colors">
             Next →
           </Link>
