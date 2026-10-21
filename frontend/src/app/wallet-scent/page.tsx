@@ -8,7 +8,7 @@ import { useAccount, useChainId } from "wagmi";
 // ============================================================
 // VIRAL CONTRACT CONFIGURATION
 // ============================================================
-const VIRAL_CONTRACT_ADDRESS = "0x4CC0b84b75C5C61BE51C68bC4f27058023aAc4FC";
+const VIRAL_CONTRACT_ADDRESS = "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb";
 const ARC_CHAIN_ID = 5042;
 
 const VIRAL_ABI = [
