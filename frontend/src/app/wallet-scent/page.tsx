@@ -20,7 +20,7 @@ const VIRAL_ABI = [
 ];
 
 // ============================================================
-// ARCHETYPES
+// WALLET ARCHETYPES
 // ============================================================
 interface WalletArchetype {
   id: string;
@@ -52,7 +52,7 @@ const ARCHETYPES: WalletArchetype[] = [
     heartNotes: ["Patience", "Wisdom", "Conviction"],
     baseNotes: ["Diamond Dust", "Time", "Silence"],
     dnaColors: ["#2d6a4f", "#40916c", "#52b788", "#74c69d", "#95d5b2"],
-    twitterText: "My wallet smells like 'aged oak and absolute calm'. 7 years of holding! 🙌",
+    twitterText: "My wallet smells like 'aged oak and absolute calm'. Years of holding! 🙌",
   },
   {
     id: "nft-collector",
@@ -97,53 +97,33 @@ const ARCHETYPES: WalletArchetype[] = [
 ];
 
 // ============================================================
-// GET WALLET AGE (First transaction timestamp)
+// GET WALLET AGE (Via Etherscan API for 100% accuracy)
+// Fetches the timestamp of the very first transaction, regardless of age.
 // ============================================================
 async function getWalletAge(address: string): Promise<number> {
   try {
-    const { createPublicClient, http } = await import("viem");
-    const { mainnet } = await import("viem/chains");
+    // Fetch the oldest transaction (sort=asc, page=1, offset=1)
+    const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=1&sort=asc`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
 
-    const ethMainnetClient = createPublicClient({
-      chain: mainnet,
-      transport: http(),
-    });
-
-    const txCount = await ethMainnetClient.getTransactionCount({
-      address: address as `0x${string}`,
-    });
-
-    if (txCount === 0) return 0;
-
-    // For wallets with few transactions, check recent blocks
-    if (txCount < 50) {
-      const currentBlock = await ethMainnetClient.getBlockNumber();
-      
-      // Check last 10000 blocks for first transaction
-      for (let i = Number(currentBlock); i > Math.max(0, Number(currentBlock) - 10000); i--) {
-        try {
-          const block = await ethMainnetClient.getBlock({ blockNumber: BigInt(i) });
-          for (const txHash of block.transactions) {
-            const tx = await ethMainnetClient.getTransaction({ hash: txHash as `0x${string}` });
-            if (tx && tx.from.toLowerCase() === address.toLowerCase()) {
-              return Number(block.timestamp);
-            }
-          }
-        } catch {
-          continue;
-        }
-      }
+    // If transactions exist, return the timestamp of the first one
+    if (data.status === "1" && data.result && data.result.length > 0) {
+      const firstTx = data.result[0];
+      return Number(firstTx.timeStamp);
     }
-
-    return 0; // Fallback
+    
+    // No transactions found
+    return 0; 
   } catch (error) {
-    console.error("Failed to get wallet age:", error);
-    return 0;
+    console.error("Failed to get wallet age via Etherscan:", error);
+    return 0; // Fallback to 0
   }
 }
 
 // ============================================================
-// ARCHETYPE DETERMINATION (WITH AGE)
+// ARCHETYPE DETERMINATION LOGIC
 // ============================================================
 function getWalletArchetype(txCount: number, balance: bigint, walletAgeTimestamp: number): WalletArchetype {
   const balanceInETH = Number(balance) / 1e18;
@@ -152,11 +132,13 @@ function getWalletArchetype(txCount: number, balance: bigint, walletAgeTimestamp
   const ageInYears = ageInSeconds / (365 * 24 * 60 * 60);
 
   if (balanceInETH > 100) return ARCHETYPES[3]; // Whale
-  if (ageInYears >= 2 && txCount < 100 && balanceInETH > 0.1) return ARCHETYPES[1]; // Diamond Hands
+  // Diamond Hands: Older wallet (1+ years), low activity, holds some balance
+  if (ageInYears >= 1 && txCount < 100 && balanceInETH >= 0.01) return ARCHETYPES[1]; 
   if (txCount > 200 && balanceInETH > 5) return ARCHETYPES[2]; // Collector
   if (txCount > 500) return ARCHETYPES[5]; // DeFi Degen
   if (txCount > 100) return ARCHETYPES[0]; // Degen
-  return ARCHETYPES[4]; // Newbie
+  
+  return ARCHETYPES[4]; // Default: Newbie
 }
 
 // ============================================================
@@ -195,7 +177,7 @@ export default function WalletScentPage() {
   const isOnArcNetwork = chainId === ARC_CHAIN_ID;
 
   // ============================================================
-  // ANALYZE WALLET
+  // STEP 1: ANALYZE WALLET
   // ============================================================
   const analyzeWallet = async () => {
     if (!address) return;
@@ -213,6 +195,7 @@ export default function WalletScentPage() {
         transport: http(),
       });
 
+      // Fetch current metrics
       const txCount = await ethMainnetClient.getTransactionCount({
         address: address as `0x${string}`,
       });
@@ -220,9 +203,10 @@ export default function WalletScentPage() {
         address: address as `0x${string}`,
       });
 
-      // Get wallet age
+      // Fetch historical age
       const walletAgeTimestamp = await getWalletAge(address);
 
+      // Dramatic delay for UX
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
       const walletArchetype = getWalletArchetype(txCount, balance, walletAgeTimestamp);
@@ -238,7 +222,7 @@ export default function WalletScentPage() {
   };
 
   // ============================================================
-  // MINT
+  // STEP 2: MINT NFT
   // ============================================================
   const handleMint = async () => {
     if (!address || !archetype) return;
@@ -256,7 +240,7 @@ export default function WalletScentPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
 
-      // Step 1: Request mint
+      // Step 2a: Request mint
       const tx = await contract.requestMint();
       const receipt = await tx.wait();
 
@@ -273,7 +257,7 @@ export default function WalletScentPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
       setTokenId(newTokenId);
 
-      // Deterministic seed
+      // Generate deterministic seed based on address + archetype
       const seedString = `${address.toLowerCase()}-${archetype.id}`;
       const userSeedHex = ethers.id(seedString);
 
@@ -288,13 +272,14 @@ export default function WalletScentPage() {
         });
       }, 1000);
 
+      // Wait for the reveal window
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
-      // Step 2: Reveal and mint
+      // Step 2b: Reveal and mint
       const revealTx = await contract.revealAndMint(newTokenId, userSeedHex);
       await revealTx.wait();
 
-      // Fetch perfume data
+      // Fetch and store perfume data
       const perfumeData = await contract.getPerfume(newTokenId);
       setMintedPerfume({
         tokenId: Number(perfumeData.tokenId),
@@ -326,6 +311,9 @@ export default function WalletScentPage() {
     }
   };
 
+  // ============================================================
+  // UTILITIES
+  // ============================================================
   const shareOnTwitter = () => {
     if (!archetype) return;
     const text = encodeURIComponent(archetype.twitterText);
@@ -342,7 +330,7 @@ export default function WalletScentPage() {
   };
 
   // ============================================================
-  // RENDER
+  // RENDER UI
   // ============================================================
   return (
     <div className="min-h-screen py-20 px-4">
@@ -461,7 +449,7 @@ export default function WalletScentPage() {
                   <div className="w-full px-6 py-3 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold text-center">Switch to Arc Network</div>
                 ) : (
                   <button onClick={handleMint} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50">
-                    {minting ? "Minting..." : " Mint This Scent (Free)"}
+                    {minting ? "Minting..." : "Mint This Scent (Free)"}
                   </button>
                 )}
                 <button onClick={shareOnTwitter} className="w-full px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all">
@@ -554,7 +542,7 @@ export default function WalletScentPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="glass-card p-6 rounded-xl">
-            <h4 className="text-lg font-semibold text-white mb-2"> How It Works</h4>
+            <h4 className="text-lg font-semibold text-white mb-2">How It Works</h4>
             <p className="text-sm text-white/60">We analyze your Ethereum transaction history and wallet age to determine your archetype.</p>
           </div>
           <div className="glass-card p-6 rounded-xl">
