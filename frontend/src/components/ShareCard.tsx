@@ -13,15 +13,21 @@ interface Perfume {
   rarity: number;
 }
 
+interface ShareCardProps {
+  tokenId: number;
+  perfume: Perfume;
+  contractAddress?: string; // NEW: To detect Viral scents
+}
+
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
 const RARITY_HEX: Record<number, string> = {
-  0: "#94a3b8",
-  1: "#60a5fa",
-  2: "#c084fc",
-  3: "#fbbf24",
+  0: "#94a3b8", // Slate
+  1: "#60a5fa", // Blue
+  2: "#c084fc", // Purple
+  3: "#fbbf24", // Amber/Gold
 };
 
 const RARITY_BG: Record<number, string> = {
@@ -31,61 +37,36 @@ const RARITY_BG: Record<number, string> = {
   3: "#1a1005",
 };
 
-export default function ShareCard({
-  tokenId,
-  perfume,
-}: {
-  tokenId: number;
-  perfume: Perfume;
-}) {
+export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCardProps) {
   const [open, setOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const rarityHex = RARITY_HEX[perfume.rarity] || RARITY_HEX[0];
   const rarityBg = RARITY_BG[perfume.rarity] || RARITY_BG[0];
-  const url = `https://scentprotocol.vercel.app/nft/${tokenId}`;
+  const isViral = contractAddress === "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb";
+  const url = `https://scentprotocol.io/nft/${tokenId}`; // Updated to your actual domain if different
 
+  const collectionName = isViral ? "Viral Scent" : "ScentProtocol";
+  
   const tweetText = encodeURIComponent(
-    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}
-
-` +
-      `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
-
-` +
-      `Top: ${perfume.topNotes.join(", ")}
-` +
-      `Heart: ${perfume.heartNotes.join(", ")}
-` +
-      `Base: ${perfume.baseNotes.join(", ")}
-
-` +
-      `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.
-
-` +
-      `Mint yours →`
+    `🧪 ${perfume.name} — ${isViral ? "Viral " : ""}Digital Perfume NFT #${tokenId}\n\n` +
+    `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
+    `Top: ${perfume.topNotes.join(", ")}\n` +
+    `Heart: ${perfume.heartNotes.join(", ")}\n` +
+    `Base: ${perfume.baseNotes.join(", ")}\n\n` +
+    `Created with AI on @Scent_Protocol — the first digital perfume house on Arc.\n\n` +
+    `Mint yours →`
   );
   
-  // Изменено с twitter.com на x.com
   const tweetUrl = `https://x.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(url)}`;
 
   const copyText =
-    `🧪 ${perfume.name} — Digital Perfume NFT #${tokenId}
-
-` +
-    `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}
-
-` +
-    `Top: ${perfume.topNotes.join(", ")}
-` +
-    `Heart: ${perfume.heartNotes.join(", ")}
-` +
-    `Base: ${perfume.baseNotes.join(", ")}
-
-` +
-    `Created with AI on ScentProtocol — the first digital perfume house on Arc. Every scent is a unique NFT with an on-chain formula.
-
-` +
-    `Mint yours → ${url}`;
+    `🧪 ${perfume.name} — ${isViral ? "Viral " : ""}Digital Perfume NFT #${tokenId}\n\n` +
+    `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
+    `Top: ${perfume.topNotes.join(", ")}\n` +
+    `Heart: ${perfume.heartNotes.join(", ")}\n` +
+    `Base: ${perfume.baseNotes.join(", ")}\n\n` +
+    `Created with AI on ScentProtocol. Mint yours → ${url}`;
 
   const drawCard = useCallback(() => {
     const canvas = canvasRef.current;
@@ -98,95 +79,143 @@ export default function ShareCard({
     canvas.width = W;
     canvas.height = H;
 
-    // Background
+    // 1. Background
     const grad = ctx.createLinearGradient(0, 0, W, H);
     grad.addColorStop(0, rarityBg);
-    grad.addColorStop(1, "#0f172a");
+    grad.addColorStop(1, "#050510");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // Animated border glow
+    // 2. Outer Glow Border
     ctx.shadowColor = rarityHex;
-    ctx.shadowBlur = 80;
+    ctx.shadowBlur = 60;
     ctx.strokeStyle = rarityHex;
-    ctx.lineWidth = 10;
-    ctx.strokeRect(20, 20, W - 40, H - 40);
-    ctx.shadowBlur = 0;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(10, 10, W - 20, H - 20);
+    ctx.shadowBlur = 0; // Reset shadow
 
-    // Inner card
-    ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
-    ctx.fillRect(36, 36, W - 72, H - 72);
+    // 3. Inner Glass Panel
+    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    ctx.fillRect(30, 30, W - 60, H - 60);
+    
+    // Inner border
+    ctx.strokeStyle = `${rarityHex}40`;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(30, 30, W - 60, H - 60);
 
-    // Shimmer line
-    const shimmerGrad = ctx.createLinearGradient(0, 0, W, H);
-    shimmerGrad.addColorStop(0, "transparent");
-    shimmerGrad.addColorStop(0.5, `${rarityHex}20`);
-    shimmerGrad.addColorStop(1, "transparent");
-    ctx.fillStyle = shimmerGrad;
-    ctx.fillRect(36, 36, W - 72, H - 72);
-
-    // Brand
+    // 4. Brand & Collection
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 32px sans-serif";
-    ctx.fillText("ScentProtocol", 80, 110);
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "22px sans-serif";
-    ctx.fillText("Built on Arc", 80, 140);
-
-    // Token ID
+    ctx.font = "bold 36px 'Segoe UI', sans-serif";
+    ctx.fillText("ScentProtocol", 80, 100);
     ctx.fillStyle = rarityHex;
-    ctx.font = "bold 28px sans-serif";
-    ctx.fillText(`SCENT #${tokenId}`, 80, 200);
+    ctx.font = "bold 24px 'Segoe UI', sans-serif";
+    ctx.fillText(isViral ? "VIRAL EXPERIMENT" : "BUILT ON ARC", 80, 135);
 
-    // Name
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 80px sans-serif";
-    ctx.fillText(perfume.name, 80, 300);
+    // 5. Faux Crest (Circle with Initials)
+    const initials = perfume.name
+      .split(" ")
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "SP";
+    
+    const crestX = W - 160;
+    const crestY = 110;
+    const crestR = 55;
 
-    // Tags
-    ctx.font = "30px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    const tags = `${GENDER[perfume.gender]}  ·  ${TYPE[perfume.pType]}  ·  ${perfume.concentration}%  ·  ${RARITY[perfume.rarity]}`;
-    ctx.fillText(tags, 80, 360);
-
-    // Divider with glow
-    ctx.shadowColor = rarityHex;
-    ctx.shadowBlur = 20;
+    // Crest bg
+    ctx.beginPath();
+    ctx.arc(crestX, crestY, crestR, 0, 2 * Math.PI);
+    ctx.fillStyle = `${rarityHex}15`;
+    ctx.fill();
+    // Crest border
     ctx.strokeStyle = rarityHex;
     ctx.lineWidth = 3;
+    ctx.stroke();
+    // Crest inner dashed line
     ctx.beginPath();
-    ctx.moveTo(80, 400);
-    ctx.lineTo(W - 80, 400);
+    ctx.arc(crestX, crestY, crestR - 8, 0, 2 * Math.PI);
+    ctx.strokeStyle = `${rarityHex}60`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset
+    // Crest Initials
+    ctx.fillStyle = rarityHex;
+    ctx.font = "bold 42px 'Segoe UI', serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(initials, crestX, crestY + 2);
+    
+    // Reset alignment for rest of text
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+
+    // 6. Token ID & Name
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = "bold 28px 'Segoe UI', sans-serif";
+    ctx.fillText(`${isViral ? "VIRAL" : "SCENT"} #${tokenId}`, 80, 210);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 72px 'Segoe UI', sans-serif";
+    ctx.fillText(perfume.name, 80, 290);
+
+    // 7. Tags
+    ctx.font = "bold 32px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    const tags = `${GENDER[perfume.gender]}  ·  ${TYPE[perfume.pType]}  ·  ${perfume.concentration}%  ·  ${RARITY[perfume.rarity]}`;
+    ctx.fillText(tags, 80, 350);
+
+    // 8. Divider with glow
+    ctx.shadowColor = rarityHex;
+    ctx.shadowBlur = 15;
+    ctx.strokeStyle = rarityHex;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(80, 390);
+    ctx.lineTo(W - 80, 390);
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Notes
-    ctx.font = "bold 28px sans-serif";
+    // 9. Notes Pyramid
     ctx.fillStyle = rarityHex;
-    ctx.fillText("PYRAMID OF NOTES", 80, 450);
+    ctx.font = "bold 26px 'Segoe UI', sans-serif";
+    ctx.fillText("PYRAMID OF NOTES", 80, 440);
 
-    ctx.font = "26px sans-serif";
+    ctx.font = "28px 'Segoe UI', sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.95)";
-    ctx.fillText(`Top:     ${perfume.topNotes.join(", ")}`, 80, 495);
-    ctx.fillText(`Heart:   ${perfume.heartNotes.join(", ")}`, 80, 535);
-    ctx.fillText(`Base:    ${perfume.baseNotes.join(", ")}`, 80, 575);
+    
+    // Helper to draw notes with colored labels
+    const drawNote = (label: string, notes: string[], y: number) => {
+      ctx.fillStyle = rarityHex;
+      ctx.font = "bold 28px 'Segoe UI', sans-serif";
+      ctx.fillText(`${label}:`, 80, y);
+      
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.font = "28px 'Segoe UI', sans-serif";
+      ctx.fillText(notes.join(", "), 260, y);
+    };
 
-    // URL
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "22px sans-serif";
+    drawNote("Top", perfume.topNotes, 490);
+    drawNote("Heart", perfume.heartNotes, 540);
+    drawNote("Base", perfume.baseNotes, 590);
+
+    // 10. Footer URL
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = "24px 'Segoe UI', sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText(url, W - 80, H - 60);
-    ctx.textAlign = "left";
+    ctx.fillText(url, W - 80, H - 50);
 
     return canvas.toDataURL("image/png");
-  }, [perfume, tokenId, rarityHex, rarityBg, url]);
+  }, [perfume, tokenId, rarityHex, rarityBg, url, isViral]);
 
   const handleDownload = () => {
     const dataUrl = drawCard();
     if (!dataUrl) return;
     const link = document.createElement("a");
     link.href = dataUrl;
-    link.download = `scent-${tokenId}.png`;
+    link.download = `scent-${tokenId}-${perfume.name.replace(/\s+/g, '-').toLowerCase()}.png`;
     link.click();
     setOpen(false);
   };
@@ -213,17 +242,17 @@ export default function ShareCard({
       {open && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}
           onClick={() => setOpen(false)}
         >
           <div
-  className="relative rounded-2xl p-6 max-w-sm w-full space-y-5 overflow-hidden"
-  style={{
-    background: `linear-gradient(135deg, ${rarityHex}15 0%, ${rarityHex}05 50%, #0f172a 100%)`,
-    border: `1px solid ${rarityHex}50`,
-  }}
-  onClick={(e) => e.stopPropagation()}
->
+            className="relative rounded-2xl p-6 max-w-sm w-full space-y-5 overflow-hidden"
+            style={{
+              background: `linear-gradient(135deg, ${rarityHex}15 0%, ${rarityHex}05 50%, #0f172a 100%)`,
+              border: `1px solid ${rarityHex}50`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Animated border */}
             <div 
               className="absolute inset-0 rounded-2xl pointer-events-none"
@@ -231,56 +260,51 @@ export default function ShareCard({
                 background: `linear-gradient(90deg, ${rarityHex}40, ${rarityHex}, ${rarityHex}40)`,
                 backgroundSize: "200% 100%",
                 animation: "shimmer-border 3s linear infinite",
-                padding: "2px",
+                padding: "1px",
                 WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                 WebkitMaskComposite: "xor",
                 maskComposite: "exclude",
               }}
             />
 
-            {/* Inner glow */}
-            <div 
-              className="absolute inset-0 rounded-2xl pointer-events-none opacity-30"
-              style={{
-                background: `radial-gradient(circle at 50% 0%, ${rarityHex}30, transparent 70%)`,
-              }}
-            />
-
-            <h3 className="relative text-lg font-bold text-white">Share Your Scent</h3>
+            <h3 className="relative text-lg font-bold text-white text-center">Share Your Scent</h3>
 
             {/* Preview card */}
             <div
-              className="relative rounded-xl p-5 overflow-hidden"
+              className="relative rounded-xl p-5 overflow-hidden backdrop-blur-md"
               style={{
-                background: `linear-gradient(135deg, ${rarityHex}15 0%, transparent 60%)`,
-                border: `1px solid ${rarityHex}50`,
+                background: `linear-gradient(135deg, ${rarityHex}10 0%, transparent 60%)`,
+                border: `1px solid ${rarityHex}40`,
               }}
             >
-              {/* Shimmer overlay */}
               <div 
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: `linear-gradient(105deg, transparent 40%, ${rarityHex}10 50%, transparent 60%)`,
+                  background: `linear-gradient(105deg, transparent 40%, ${rarityHex}15 50%, transparent 60%)`,
                   backgroundSize: "200% 100%",
                   animation: "shimmer 2.5s infinite",
                 }}
               />
-              <p className="relative text-white/60 text-xs uppercase tracking-wider mb-1">Scent #{tokenId}</p>
+              <p className="relative text-white/50 text-[10px] uppercase tracking-widest mb-1">
+                {isViral ? "VIRAL" : "SCENT"} #{tokenId}
+              </p>
               <h4 className="relative text-xl font-bold text-white mb-3">{perfume.name}</h4>
-              <div className="relative flex flex-wrap gap-2 text-xs text-white/80">
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{GENDER[perfume.gender]}</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{TYPE[perfume.pType]}</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{perfume.concentration}%</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">{RARITY[perfume.rarity]}</span>
+              <div className="relative flex flex-wrap gap-2 text-[10px] font-semibold text-white/80 mb-3">
+                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10">{GENDER[perfume.gender]}</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10">{TYPE[perfume.pType]}</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10">{perfume.concentration}%</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10" style={{ color: rarityHex, borderColor: `${rarityHex}40` }}>
+                  {RARITY[perfume.rarity]}
+                </span>
               </div>
-              <div className="relative mt-3 text-xs text-white/70 space-y-0.5">
-                <p>Top: {perfume.topNotes.join(", ")}</p>
-                <p>Heart: {perfume.heartNotes.join(", ")}</p>
-                <p>Base: {perfume.baseNotes.join(", ")}</p>
+              <div className="relative text-xs text-white/60 space-y-1 font-mono">
+                <p><span style={{ color: rarityHex }}>Top:</span> {perfume.topNotes.join(", ")}</p>
+                <p><span style={{ color: rarityHex }}>Heart:</span> {perfume.heartNotes.join(", ")}</p>
+                <p><span style={{ color: rarityHex }}>Base:</span> {perfume.baseNotes.join(", ")}</p>
               </div>
             </div>
 
-            {/* Обновленные кнопки без эмодзи, с SVG иконками */}
+            {/* Action Buttons */}
             <div className="relative grid grid-cols-2 gap-3">
               <button
                 onClick={handleTweet}
@@ -313,7 +337,7 @@ export default function ShareCard({
 
             <button
               onClick={() => setOpen(false)}
-              className="relative w-full text-xs text-white/40 hover:text-white/70 transition-colors"
+              className="relative w-full text-xs text-white/40 hover:text-white/70 transition-colors mt-2"
             >
               Close
             </button>
