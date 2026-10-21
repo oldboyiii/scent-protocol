@@ -45,7 +45,7 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 | **ScentProtocolMainnet** | [`0x8d456e033FF7220068CDc1C3F08D6BA6641D103e`](https://explorer.arc.io/address/0x8d456e033FF7220068CDc1C3F08D6BA6641D103e) | Main perfume creation & NFT minting logic |
 | **ScentProtocolMainnetGenesis** | [`0x807dF79Ec16CF51C07e7B522175EB408D6dE247E`](https://explorer.arc.io/address/0x807dF79Ec16CF51C07e7B522175EB408D6dE247E) | Exclusive Genesis collection (100 supply, commit-reveal) |
 | **ScentProtocolMFW2026** | [`0xBcF87E80C18CF5d0D8769703fDb891A16D279B50`](https://explorer.arc.io/address/0xBcF87E80C18CF5d0D8769703fDb891A16D279B50) | Milan Fashion Week 2026 exclusive drop (500 supply) |
-| **ScentProtocolViral** | [`0x4CC0b84b75C5C61BE51C68bC4f27058023aAc4FC`](https://explorer.arc.io/address/0x4CC0b84b75C5C61BE51C68bC4f27058023aAc4FC) | Viral "Wallet Scent" campaign (10k supply, free mint, 1 per wallet) |
+| **ScentProtocolViral** | [`0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb`](https://explorer.arc.io/address/0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb) | Viral "Wallet Scent" campaign (10k supply, free mint, 1 per wallet) |
 | **ScentProtocolMarketplace** | [`0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c`](https://explorer.arc.io/address/0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c) | Secondary marketplace for trading Scent NFTs |
 | **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc |
 
