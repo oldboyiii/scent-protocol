@@ -716,7 +716,7 @@ export default function CollectionPage() {
                     
                     {/* NEW: Scent Crest Logo rendered dynamically */}
                     <ScentCrest 
-                      seed={`${perfume?.creator || s.creator}-${perfume?.name || s.name}`}
+                     seed={`${(perfume?.creator || s.perfume?.creator || 'unknown')}-${perfume?.name || s.name || 'unknown'}`}
                       name={perfume?.name || s.name || `Scent #${s.tokenId}`}
                       rarity={rarity}
                       size={60}
