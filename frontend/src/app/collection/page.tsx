@@ -824,7 +824,10 @@ export default function CollectionPage() {
       )}
 
       {listingModal.open && (() => {
-        const currentScent = scents.find(s => s.tokenId === listingModal.tokenId);
+        const currentScent = scents.find(s => 
+  s.tokenId === listingModal.tokenId && 
+  s.contractAddress?.toLowerCase() === listingModal.contractAddress?.toLowerCase()
+);
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
         const isGenesisModal = currentScent?.contractAddress === GENESIS_CONTRACT_ADDRESS;
         const isMFWModal = currentScent?.contractAddress === MFW_CONTRACT_ADDRESS;
