@@ -6,10 +6,11 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ShareCard from "@/components/ShareCard";
+import ScentCrest from "@/components/ScentCrest"; // NEW: Import ScentCrest component
 
 const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
 const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
-const VIRAL_CONTRACT_ADDRESS = "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb"; // <-- NEW
+const VIRAL_CONTRACT_ADDRESS = "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb"; // NEW
 
 const GENESIS_ABI = [
   {
@@ -67,7 +68,7 @@ const MFW_ABI = [
   }
 ];
 
-// <-- NEW: ABI for Viral Contract
+// NEW: ABI for Viral Contract
 const VIRAL_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -123,7 +124,7 @@ const MFW_STYLE = {
   hex: "#a855f7",
 };
 
-// <-- NEW: Style for Viral NFTs matching the collection page
+// NEW: Style for Viral NFTs matching the collection page
 const VIRAL_STYLE = {
   bg: "from-fuchsia-900/80 via-pink-900/70 to-purple-900/80",
   border: "border-fuchsia-500/50",
@@ -180,7 +181,7 @@ export default function NFTDetailPage() {
   const [perfume, setPerfume] = useState<any>(null);
   const [isGenesis, setIsGenesis] = useState(false);
   const [isMFW, setIsMFW] = useState(false);
-  const [isViral, setIsViral] = useState(false); // <-- NEW
+  const [isViral, setIsViral] = useState(false); // NEW
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -198,7 +199,7 @@ export default function NFTDetailPage() {
 
         let found = false;
 
-        // 1. Check by explicit contract param
+        // 1. Check by explicit contract parameter
         if (contractParam?.toLowerCase() === MFW_CONTRACT_ADDRESS.toLowerCase()) {
           try {
             const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
@@ -219,7 +220,7 @@ export default function NFTDetailPage() {
               found = true;
             }
           } catch (e) {}
-        } else if (contractParam?.toLowerCase() === VIRAL_CONTRACT_ADDRESS.toLowerCase()) { // <-- NEW
+        } else if (contractParam?.toLowerCase() === VIRAL_CONTRACT_ADDRESS.toLowerCase()) { // NEW
           try {
             const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
             const data = await viralContract.getPerfume(id);
@@ -269,7 +270,7 @@ export default function NFTDetailPage() {
             } catch (e) {}
           }
 
-          // <-- NEW: Fallback check for Viral contract
+          // NEW: Fallback check for Viral contract
           if (!found) {
             try {
               const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
@@ -324,7 +325,7 @@ export default function NFTDetailPage() {
 
   const description = generateDescription(perfume);
   
-  // <-- UPDATED: Include isViral in style and color logic
+  // UPDATED: Include isViral in style and color logic
   const labelColor = isViral ? 'text-fuchsia-300/80' : isGenesis ? 'text-amber-300/80' : isMFW ? 'text-purple-300/80' : 'text-white/40';
   const descBg = isViral ? 'bg-fuchsia-950/40 border-fuchsia-400/60' : isGenesis ? 'bg-amber-950/40 border-amber-400/60' : isMFW ? 'bg-purple-950/40 border-purple-400/60' : 'bg-black/30 border-white/10';
   const style = isViral ? VIRAL_STYLE : isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
@@ -337,7 +338,7 @@ export default function NFTDetailPage() {
 
       <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
-        {/* Shimmer for special editions */}
+        {/* Shimmer effect for special editions */}
         {(isGenesis || isMFW || isViral) && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
             background: `linear-gradient(90deg, transparent, rgba(${isViral ? '217,70,239' : isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`,
@@ -370,34 +371,44 @@ export default function NFTDetailPage() {
         )}
 
         <div className="relative flex items-start justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <p className="text-xs text-white/40 uppercase tracking-wider">
-                {isViral ? "VIRAL" : isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
-              </p>
-              {isGenesis && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
-                  <svg viewBox="0 0 24 16" className="w-3 h-2"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
-                  Genesis
-                </span>
-              )}
-              {isMFW && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
-                  <MFWBottleIcon className="w-3 h-3" />
-                  MFW 2026
-                </span>
-              )}
-              {/* <-- NEW: Viral Badge */}
-              {isViral && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                  Viral
-                </span>
-              )}
+          <div className="flex items-center gap-4"> {/* Added flex container for logo and text */}
+            {/* NEW: Scent Crest Logo */}
+            <ScentCrest 
+              seed={`${perfume.creator}-${perfume.name}`}
+              name={perfume.name}
+              rarity={perfume.rarity}
+              size={80}
+            />
+            
+            <div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <p className="text-xs text-white/40 uppercase tracking-wider">
+                  {isViral ? "VIRAL" : isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
+                </p>
+                {isGenesis && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
+                    <svg viewBox="0 0 24 16" className="w-3 h-2"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
+                    Genesis
+                  </span>
+                )}
+                {isMFW && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
+                    <MFWBottleIcon className="w-3 h-3" />
+                    MFW 2026
+                  </span>
+                )}
+                {/* NEW: Viral Badge */}
+                {isViral && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Viral
+                  </span>
+                )}
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white mt-2 leading-normal pb-1">
+                {perfume.name}
+              </h1>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-white mt-2 leading-normal pb-1">
-              {perfume.name}
-            </h1>
           </div>
           <span className={`relative text-sm font-bold px-3 py-1.5 rounded-full border backdrop-blur-md ${style.badge}`}>
             {RARITY[perfume.rarity]}
@@ -456,7 +467,7 @@ export default function NFTDetailPage() {
               Milan Fashion Week 2026 Exclusive
             </p>
           )}
-          {/* <-- NEW: Viral Footer Info */}
+          {/* NEW: Viral Footer Info */}
           {isViral && (
             <p className="text-fuchsia-300 font-bold mt-2 flex items-center gap-2">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
