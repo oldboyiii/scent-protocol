@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PerfumeCard from "./PerfumeCard";
 import { PerfumeData } from "@/utils/contract";
+import ScentCrest from "@/components/ScentCrest"; // NEW: Import the crest component
 
 interface MintRevealProps {
   tokenId: number;
@@ -10,6 +10,13 @@ interface MintRevealProps {
   description: string;
   onComplete: () => void;
 }
+
+// Helper constants for the premium card styling
+const RARITY_HEX: Record<number, string> = { 0: "#94a3b8", 1: "#60a5fa", 2: "#c084fc", 3: "#fbbf24" };
+const RARITY_BG: Record<number, string> = { 0: "#0f172a", 1: "#0c1222", 2: "#110c22", 3: "#1a1005" };
+const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
+const GENDER = ["Unisex", "Male", "Female"];
+const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 
 export default function MintReveal({ tokenId, perfume, description, onComplete }: MintRevealProps) {
   const [stage, setStage] = useState<"envelope" | "opening" | "revealed" | "dissolving">("envelope");
@@ -30,7 +37,7 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
     // Stage 2: Seal breaks and card reveals (1.5-4s)
     const t2 = setTimeout(() => setStage("revealed"), 4000);
     
-    // Stage 3: Start dissolving after 10 seconds
+    // Stage 3: Start dissolving after 10 seconds of being revealed (14s total)
     const t3 = setTimeout(() => {
       setStage("dissolving");
       // Generate scent molecule particles
@@ -47,7 +54,7 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
       setParticles(newParticles);
     }, 14000);
 
-    // Stage 4: Complete after dissolve
+    // Stage 4: Complete after dissolve (18s total)
     const t4 = setTimeout(() => onComplete(), 18000);
 
     return () => {
@@ -149,7 +156,7 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
         </div>
       </div>
 
-      {/* NFT Card - emerges from envelope */}
+      {/* NEW: Premium NFT Card - emerges from envelope */}
       <div
         className={`absolute transition-all duration-2000 ${
           stage === "envelope" ? "opacity-0 scale-50 translate-y-32 z-0" :
@@ -159,122 +166,119 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
         }`}
       >
         {stage !== "envelope" && (
-          <div className="relative">
-            <div className="text-center mb-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
-                  <svg className="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-3xl font-bold text-emerald-400 mb-2">Mint Successful!</h3>
-              <p className="text-white/60 text-sm">Your unique fragrance has been created</p>
-            </div>
-            
-            <PerfumeCard
-              tokenId={tokenId}
-              perfume={perfume}
-              aiDescription={description}
-              highlight={true}
+          <div
+            className="relative rounded-2xl p-6 w-[380px] text-left overflow-hidden backdrop-blur-md border"
+            style={{
+              background: `linear-gradient(135deg, ${RARITY_HEX[perfume.rarity]}15 0%, ${RARITY_BG[perfume.rarity]} 100%)`,
+              borderColor: `${RARITY_HEX[perfume.rarity]}50`,
+              boxShadow: `0 0 40px ${RARITY_HEX[perfume.rarity]}30`
+            }}
+          >
+            {/* Shimmer overlay */}
+            <div 
+              className="absolute inset-0 pointer-events-none" 
+              style={{ 
+                background: `linear-gradient(105deg, transparent 40%, ${RARITY_HEX[perfume.rarity]}15 50%, transparent 60%)`, 
+                backgroundSize: "200% 100%", 
+                animation: "shimmer 2.5s infinite" 
+              }} 
             />
+
+            <div className="relative flex items-center gap-4 mb-4">
+              <ScentCrest
+                seed={`${perfume.creator}-${perfume.name}`}
+                name={perfume.name}
+                rarity={perfume.rarity}
+                size={60}
+              />
+              <div>
+                <p className="text-xs text-white/50 uppercase tracking-wider">Scent #{tokenId}</p>
+                <h4 className="text-xl font-bold text-white">{perfume.name}</h4>
+              </div>
+            </div>
+
+            <div className="relative flex flex-wrap gap-2 text-xs mb-4">
+              <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{GENDER[perfume.gender]}</span>
+              <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{TYPE[perfume.pType]}</span>
+              <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{perfume.concentration}%</span>
+              <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 font-semibold" style={{ color: RARITY_HEX[perfume.rarity], borderColor: `${RARITY_HEX[perfume.rarity]}40` }}>
+                {RARITY_LABELS[perfume.rarity]}
+              </span>
+            </div>
+
+            <div className="relative space-y-2 text-sm">
+              <div className="flex gap-2">
+                <span className="text-white/40 text-xs w-14 shrink-0 uppercase">Top</span>
+                <span className="text-white/80 text-xs">{perfume.topNotes.join(", ")}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-white/40 text-xs w-14 shrink-0 uppercase">Heart</span>
+                <span className="text-white/80 text-xs">{perfume.heartNotes.join(", ")}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-white/40 text-xs w-14 shrink-0 uppercase">Base</span>
+                <span className="text-white/80 text-xs">{perfume.baseNotes.join(", ")}</span>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
       <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
         @keyframes seal-breaking {
-          0% {
-            transform: scale(1) rotate(0deg);
-            opacity: 1;
-          }
-          40% {
-            transform: scale(1.15) rotate(3deg);
-          }
-          100% {
-            transform: scale(0) rotate(-15deg);
-            opacity: 0;
-          }
+          0% { transform: scale(1) rotate(0deg); opacity: 1; }
+          40% { transform: scale(1.15) rotate(3deg); }
+          100% { transform: scale(0) rotate(-15deg); opacity: 0; }
         }
-        .seal-breaking {
-          animation: seal-breaking 1.5s ease-in forwards;
-        }
+        .seal-breaking { animation: seal-breaking 1.5s ease-in forwards; }
         
         @keyframes seal-piece-1 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(60px, -100px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-1 {
-          animation: seal-piece-1 1.5s ease-out 0.3s forwards;
-        }
+        .animate-seal-piece-1 { animation: seal-piece-1 1.5s ease-out 0.3s forwards; }
         
         @keyframes seal-piece-2 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(-50px, 80px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-2 {
-          animation: seal-piece-2 1.5s ease-out 0.4s forwards;
-        }
+        .animate-seal-piece-2 { animation: seal-piece-2 1.5s ease-out 0.4s forwards; }
         
         @keyframes seal-piece-3 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(-80px, -50px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-3 {
-          animation: seal-piece-3 1.5s ease-out 0.5s forwards;
-        }
+        .animate-seal-piece-3 { animation: seal-piece-3 1.5s ease-out 0.5s forwards; }
         
         @keyframes seal-piece-4 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(40px, 60px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-4 {
-          animation: seal-piece-4 1.5s ease-out 0.6s forwards;
-        }
+        .animate-seal-piece-4 { animation: seal-piece-4 1.5s ease-out 0.6s forwards; }
         
         @keyframes card-float {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-10px); }
         }
-        .animate-card-float {
-          animation: card-float 3s ease-in-out infinite;
-        }
+        .animate-card-float { animation: card-float 3s ease-in-out infinite; }
         
         @keyframes scent-molecule {
-          0% {
-            transform: translate(-50%, -50%) scale(1) rotate(0deg);
-            opacity: 1;
-          }
-          20% {
-            opacity: 1;
-          }
-          100% {
-            transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.2) rotate(var(--rotation));
-            opacity: 0;
-          }
+          0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+          20% { opacity: 1; }
+          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.2) rotate(var(--rotation)); opacity: 0; }
         }
-        .animate-scent-molecule {
-          animation: scent-molecule 4s ease-out forwards;
-        }
+        .animate-scent-molecule { animation: scent-molecule 4s ease-out forwards; }
         
         @keyframes molecule-label {
-          0%, 30% {
-            opacity: 0;
-            transform: translateY(0);
-          }
-          50%, 80% {
-            opacity: 0.8;
-            transform: translateY(-10px);
-          }
-          100% {
-            opacity: 0;
-            transform: translateY(-20px);
-          }
+          0%, 30% { opacity: 0; transform: translateY(0); }
+          50%, 80% { opacity: 0.8; transform: translateY(-10px); }
+          100% { opacity: 0; transform: translateY(-20px); }
         }
-        .animate-molecule-label {
-          animation: molecule-label 4s ease-out forwards;
-          animation-delay: inherit;
-        }
+        .animate-molecule-label { animation: molecule-label 4s ease-out forwards; animation-delay: inherit; }
       `}</style>
     </div>
   );
