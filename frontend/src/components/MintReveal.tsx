@@ -24,10 +24,16 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
   }>>([]);
 
   useEffect(() => {
+    // Stage 1: Envelope appears (0-1.5s)
     const t1 = setTimeout(() => setStage("opening"), 1500);
+    
+    // Stage 2: Seal breaks and card reveals (1.5-4s)
     const t2 = setTimeout(() => setStage("revealed"), 4000);
+    
+    // Stage 3: Start dissolving after 10 seconds
     const t3 = setTimeout(() => {
       setStage("dissolving");
+      // Generate scent molecule particles
       const colors = ["#fbbf24", "#c084fc", "#60a5fa", "#f472b6", "#34d399", "#fb923c"];
       const newParticles = Array.from({ length: 60 }, (_, i) => ({
         id: i,
@@ -41,6 +47,7 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
       setParticles(newParticles);
     }, 14000);
 
+    // Stage 4: Complete after dissolve
     const t4 = setTimeout(() => onComplete(), 18000);
 
     return () => {
@@ -53,6 +60,7 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
 
   return (
     <div className="relative w-full max-w-2xl mx-auto h-[600px] flex items-center justify-center">
+      {/* Particles for scent molecule effect */}
       {stage === "dissolving" && (
         <div className="absolute inset-0 pointer-events-none z-50">
           {particles.map((p) => (
@@ -89,11 +97,14 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
         }`}
       >
         <div className="relative w-[400px] h-[280px]">
+          {/* Envelope body with paper texture - NOBLE COLORS */}
           <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-indigo-950 to-slate-900 rounded-lg shadow-2xl border-4 border-amber-700/50">
+            {/* Paper texture overlay */}
             <div className="absolute inset-0 opacity-20" style={{
               backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E")`,
             }} />
             
+            {/* Envelope flap */}
             <div 
               className={`absolute top-0 left-0 right-0 h-[140px] bg-gradient-to-b from-purple-800 to-indigo-900 border-b-4 border-amber-700/50 origin-top transition-all duration-2000 ease-in-out ${
                 stage === "opening" ? "seal-breaking" : ""
@@ -104,16 +115,21 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
                 zIndex: 30,
               }}
             >
+              {/* Wax seal - NO LETTERS */}
               <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full transition-all duration-1000 ${
                 stage === "opening" ? "seal-breaking" : ""
               }`}>
+                {/* Seal outer ring */}
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-red-900 via-red-950 to-red-950 shadow-lg border-4 border-red-950">
+                  {/* Wax texture overlay */}
                   <div className="absolute inset-0 rounded-full opacity-30" style={{
                     backgroundImage: `radial-gradient(circle at 30% 30%, rgba(255,200,150,0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, rgba(100,50,50,0.3) 0%, transparent 40%)`,
                   }} />
+                  {/* Inner decorative circle - NO LETTERS */}
                   <div className="absolute inset-3 rounded-full border-2 border-red-950/50" />
                   <div className="absolute inset-5 rounded-full border border-red-900/30" />
                 </div>
+                {/* Seal breaking pieces */}
                 {stage === "opening" && (
                   <>
                     <div className="absolute top-2 left-1/2 w-8 h-8 bg-red-900 rounded-full animate-seal-piece-1 shadow-lg" />
@@ -125,6 +141,7 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
               </div>
             </div>
             
+            {/* Envelope front */}
             <div className="absolute bottom-0 left-0 right-0 top-[140px]">
               <div className="absolute inset-2 border-2 border-amber-700/20 rounded" />
             </div>
@@ -167,55 +184,97 @@ export default function MintReveal({ tokenId, perfume, description, onComplete }
 
       <style>{`
         @keyframes seal-breaking {
-          0% { transform: scale(1) rotate(0deg); opacity: 1; }
-          40% { transform: scale(1.15) rotate(3deg); }
-          100% { transform: scale(0) rotate(-15deg); opacity: 0; }
+          0% {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+          }
+          40% {
+            transform: scale(1.15) rotate(3deg);
+          }
+          100% {
+            transform: scale(0) rotate(-15deg);
+            opacity: 0;
+          }
         }
-        .seal-breaking { animation: seal-breaking 1.5s ease-in forwards; }
+        .seal-breaking {
+          animation: seal-breaking 1.5s ease-in forwards;
+        }
         
         @keyframes seal-piece-1 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(60px, -100px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-1 { animation: seal-piece-1 1.5s ease-out 0.3s forwards; }
+        .animate-seal-piece-1 {
+          animation: seal-piece-1 1.5s ease-out 0.3s forwards;
+        }
         
         @keyframes seal-piece-2 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(-50px, 80px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-2 { animation: seal-piece-2 1.5s ease-out 0.4s forwards; }
+        .animate-seal-piece-2 {
+          animation: seal-piece-2 1.5s ease-out 0.4s forwards;
+        }
         
         @keyframes seal-piece-3 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(-80px, -50px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-3 { animation: seal-piece-3 1.5s ease-out 0.5s forwards; }
+        .animate-seal-piece-3 {
+          animation: seal-piece-3 1.5s ease-out 0.5s forwards;
+        }
         
         @keyframes seal-piece-4 {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           100% { transform: translate(40px, 60px) scale(0.2); opacity: 0; }
         }
-        .animate-seal-piece-4 { animation: seal-piece-4 1.5s ease-out 0.6s forwards; }
+        .animate-seal-piece-4 {
+          animation: seal-piece-4 1.5s ease-out 0.6s forwards;
+        }
         
         @keyframes card-float {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-10px); }
         }
-        .animate-card-float { animation: card-float 3s ease-in-out infinite; }
+        .animate-card-float {
+          animation: card-float 3s ease-in-out infinite;
+        }
         
         @keyframes scent-molecule {
-          0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
-          20% { opacity: 1; }
-          100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.2) rotate(var(--rotation)); opacity: 0; }
+          0% {
+            transform: translate(-50%, -50%) scale(1) rotate(0deg);
+            opacity: 1;
+          }
+          20% {
+            opacity: 1;
+          }
+          100% {
+            transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.2) rotate(var(--rotation));
+            opacity: 0;
+          }
         }
-        .animate-scent-molecule { animation: scent-molecule 4s ease-out forwards; }
+        .animate-scent-molecule {
+          animation: scent-molecule 4s ease-out forwards;
+        }
         
         @keyframes molecule-label {
-          0%, 30% { opacity: 0; transform: translateY(0); }
-          50%, 80% { opacity: 0.8; transform: translateY(-10px); }
-          100% { opacity: 0; transform: translateY(-20px); }
+          0%, 30% {
+            opacity: 0;
+            transform: translateY(0);
+          }
+          50%, 80% {
+            opacity: 0.8;
+            transform: translateY(-10px);
+          }
+          100% {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
         }
-        .animate-molecule-label { animation: molecule-label 4s ease-out forwards; animation-delay: inherit; }
+        .animate-molecule-label {
+          animation: molecule-label 4s ease-out forwards;
+          animation-delay: inherit;
+        }
       `}</style>
     </div>
   );
