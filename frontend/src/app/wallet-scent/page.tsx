@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useAccount, useChainId } from "wagmi";
+import ScentCrest from "@/components/ScentCrest"; // <-- NEW: Import ScentCrest
 
 // ============================================================
 // VIRAL CONTRACT CONFIGURATION
@@ -98,27 +99,21 @@ const ARCHETYPES: WalletArchetype[] = [
 
 // ============================================================
 // GET WALLET AGE (Via Etherscan API for 100% accuracy)
-// Fetches the timestamp of the very first transaction, regardless of age.
 // ============================================================
 async function getWalletAge(address: string): Promise<number> {
   try {
-    // Fetch the oldest transaction (sort=asc, page=1, offset=1)
     const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=1&sort=asc`;
-    
     const response = await fetch(url);
     const data = await response.json();
 
-    // If transactions exist, return the timestamp of the first one
     if (data.status === "1" && data.result && data.result.length > 0) {
       const firstTx = data.result[0];
       return Number(firstTx.timeStamp);
     }
-    
-    // No transactions found
     return 0; 
   } catch (error) {
     console.error("Failed to get wallet age via Etherscan:", error);
-    return 0; // Fallback to 0
+    return 0;
   }
 }
 
@@ -131,14 +126,13 @@ function getWalletArchetype(txCount: number, balance: bigint, walletAgeTimestamp
   const ageInSeconds = walletAgeTimestamp > 0 ? now - walletAgeTimestamp : 0;
   const ageInYears = ageInSeconds / (365 * 24 * 60 * 60);
 
-  if (balanceInETH > 100) return ARCHETYPES[3]; // Whale
-  // Diamond Hands: Older wallet (1+ years), low activity, holds some balance
+  if (balanceInETH > 100) return ARCHETYPES[3]; 
   if (ageInYears >= 1 && txCount < 100 && balanceInETH >= 0.01) return ARCHETYPES[1]; 
-  if (txCount > 200 && balanceInETH > 5) return ARCHETYPES[2]; // Collector
-  if (txCount > 500) return ARCHETYPES[5]; // DeFi Degen
-  if (txCount > 100) return ARCHETYPES[0]; // Degen
+  if (txCount > 200 && balanceInETH > 5) return ARCHETYPES[2]; 
+  if (txCount > 500) return ARCHETYPES[5]; 
+  if (txCount > 100) return ARCHETYPES[0]; 
   
-  return ARCHETYPES[4]; // Default: Newbie
+  return ARCHETYPES[4]; 
 }
 
 // ============================================================
@@ -176,9 +170,6 @@ export default function WalletScentPage() {
 
   const isOnArcNetwork = chainId === ARC_CHAIN_ID;
 
-  // ============================================================
-  // STEP 1: ANALYZE WALLET
-  // ============================================================
   const analyzeWallet = async () => {
     if (!address) return;
 
@@ -195,18 +186,10 @@ export default function WalletScentPage() {
         transport: http(),
       });
 
-      // Fetch current metrics
-      const txCount = await ethMainnetClient.getTransactionCount({
-        address: address as `0x${string}`,
-      });
-      const balance = await ethMainnetClient.getBalance({
-        address: address as `0x${string}`,
-      });
-
-      // Fetch historical age
+      const txCount = await ethMainnetClient.getTransactionCount({ address: address as `0x${string}` });
+      const balance = await ethMainnetClient.getBalance({ address: address as `0x${string}` });
       const walletAgeTimestamp = await getWalletAge(address);
 
-      // Dramatic delay for UX
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
       const walletArchetype = getWalletArchetype(txCount, balance, walletAgeTimestamp);
@@ -221,9 +204,6 @@ export default function WalletScentPage() {
     }
   };
 
-  // ============================================================
-  // STEP 2: MINT NFT
-  // ============================================================
   const handleMint = async () => {
     if (!address || !archetype) return;
     if (!isOnArcNetwork) {
@@ -240,46 +220,34 @@ export default function WalletScentPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
 
-      // Step 2a: Request mint
       const tx = await contract.requestMint();
       const receipt = await tx.wait();
 
       const mintEvent = receipt.logs
         .map((log: any) => {
-          try {
-            return contract.interface.parseLog(log);
-          } catch {
-            return null;
-          }
+          try { return contract.interface.parseLog(log); } catch { return null; }
         })
         .find((e: any) => e?.name === "MintRequested");
 
       const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
       setTokenId(newTokenId);
 
-      // Generate deterministic seed based on address + archetype
       const seedString = `${address.toLowerCase()}-${archetype.id}`;
       const userSeedHex = ethers.id(seedString);
 
       setCountdown(10);
       const timer = setInterval(() => {
         setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
+          if (prev <= 1) { clearInterval(timer); return 0; }
           return prev - 1;
         });
       }, 1000);
 
-      // Wait for the reveal window
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
-      // Step 2b: Reveal and mint
       const revealTx = await contract.revealAndMint(newTokenId, userSeedHex);
       await revealTx.wait();
 
-      // Fetch and store perfume data
       const perfumeData = await contract.getPerfume(newTokenId);
       setMintedPerfume({
         tokenId: Number(perfumeData.tokenId),
@@ -311,9 +279,6 @@ export default function WalletScentPage() {
     }
   };
 
-  // ============================================================
-  // UTILITIES
-  // ============================================================
   const shareOnTwitter = () => {
     if (!archetype) return;
     const text = encodeURIComponent(archetype.twitterText);
@@ -321,13 +286,8 @@ export default function WalletScentPage() {
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
   };
 
-  const getRarityName = (rarity: number) => {
-    return ["Common", "Rare", "Epic", "Legendary"][rarity] || "Common";
-  };
-
-  const getRarityColor = (rarity: number) => {
-    return ["#94a3b8", "#60a5fa", "#c084fc", "#fbbf24"][rarity] || "#94a3b8";
-  };
+  const getRarityName = (rarity: number) => ["Common", "Rare", "Epic", "Legendary"][rarity] || "Common";
+  const getRarityColor = (rarity: number) => ["#94a3b8", "#60a5fa", "#c084fc", "#fbbf24"][rarity] || "#94a3b8";
 
   // ============================================================
   // RENDER UI
@@ -367,22 +327,14 @@ export default function WalletScentPage() {
                 <p className="text-white/60">Connect your wallet and let our AI analyze your on-chain behavior</p>
               </div>
               {errorMessage && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-                  {errorMessage}
-                </div>
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{errorMessage}</div>
               )}
               {!isConnected ? (
                 <div className="px-8 py-4 rounded-xl bg-white/10 text-white/50 font-semibold">Connect Wallet First</div>
               ) : !isOnArcNetwork ? (
-                <div className="px-8 py-4 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold">
-                  ⚠️ Switch to Arc Network
-                </div>
+                <div className="px-8 py-4 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold">⚠️ Switch to Arc Network</div>
               ) : (
-                <button
-                  onClick={analyzeWallet}
-                  disabled={analyzing}
-                  className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50"
-                >
+                <button onClick={analyzeWallet} disabled={analyzing} className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50">
                   {analyzing ? "Analyzing..." : "Analyze My Wallet"}
                 </button>
               )}
@@ -452,9 +404,7 @@ export default function WalletScentPage() {
                     {minting ? "Minting..." : "Mint This Scent (Free)"}
                   </button>
                 )}
-                <button onClick={shareOnTwitter} className="w-full px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all">
-                  Share on X
-                </button>
+                <button onClick={shareOnTwitter} className="w-full px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all">Share on X</button>
               </div>
             </div>
           )}
@@ -467,6 +417,7 @@ export default function WalletScentPage() {
             </div>
           )}
 
+          {/* UPDATED: Success state with NEW Premium Card including ScentCrest */}
           {step === "success" && mintedPerfume && (
             <div className="space-y-6">
               <div className="text-center">
@@ -479,55 +430,63 @@ export default function WalletScentPage() {
                 <p className="text-white/60">Token ID: #{tokenId}</p>
               </div>
 
-              {/* PERFUME CARD */}
-              <div className="relative rounded-2xl p-6 bg-gradient-to-br from-purple-900/40 via-pink-900/40 to-purple-900/40 border border-purple-500/30 backdrop-blur-xl">
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 blur-xl"></div>
-                
-                <div className="relative">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="text-xs text-purple-300 uppercase tracking-wider mb-1">Scent #{mintedPerfume.tokenId}</p>
-                      <h4 className="text-2xl font-bold text-white">{mintedPerfume.name}</h4>
-                      <p className="text-sm text-white/50 mt-1">
-                        {["Unisex", "Male", "Female"][mintedPerfume.gender]} • {["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}
-                      </p>
-                    </div>
-                    <span 
-                      className="px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-md"
-                      style={{ 
-                        backgroundColor: `${getRarityColor(mintedPerfume.rarity)}20`,
-                        borderColor: getRarityColor(mintedPerfume.rarity),
-                        color: getRarityColor(mintedPerfume.rarity)
-                      }}
-                    >
-                      {getRarityName(mintedPerfume.rarity)}
-                    </span>
-                  </div>
+              {/* NEW PREMIUM PERFUME CARD */}
+              <div 
+                className="relative rounded-2xl p-6 backdrop-blur-xl border overflow-hidden"
+                style={{
+                  background: `linear-gradient(135deg, ${getRarityColor(mintedPerfume.rarity)}15 0%, #0f172a 100%)`,
+                  borderColor: `${getRarityColor(mintedPerfume.rarity)}50`,
+                  boxShadow: `0 0 30px ${getRarityColor(mintedPerfume.rarity)}20`
+                }}
+              >
+                {/* Shimmer overlay */}
+                <div 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: `linear-gradient(105deg, transparent 40%, ${getRarityColor(mintedPerfume.rarity)}15 50%, transparent 60%)`,
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2.5s infinite",
+                  }}
+                />
 
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/40 w-12 uppercase">Top</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mintedPerfume.topNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-xs text-white/80">{n}</span>))}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/40 w-12 uppercase">Heart</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mintedPerfume.heartNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-xs text-white/80">{n}</span>))}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/40 w-12 uppercase">Base</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mintedPerfume.baseNotes.map((n) => (<span key={n} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-xs text-white/80">{n}</span>))}
-                      </div>
-                    </div>
+                <div className="relative flex items-center gap-4 mb-4">
+                  {/* Scent Crest Logo */}
+                  <ScentCrest
+                    seed={`${mintedPerfume.creator}-${mintedPerfume.name}`}
+                    name={mintedPerfume.name}
+                    rarity={mintedPerfume.rarity}
+                    size={70}
+                  />
+                  <div>
+                    <p className="text-xs text-white/50 uppercase tracking-wider">Viral Scent #{mintedPerfume.tokenId}</p>
+                    <h4 className="text-xl font-bold text-white">{mintedPerfume.name}</h4>
+                    <p className="text-sm text-white/50 mt-1">
+                      {["Unisex", "Male", "Female"][mintedPerfume.gender]} • {["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}
+                    </p>
                   </div>
+                </div>
 
-                  <div className="pt-4 border-t border-white/10">
-                    <p className="text-xs text-white/40">Concentration: {mintedPerfume.concentration}%</p>
-                    <p className="text-xs text-white/40 mt-1">Creator: {mintedPerfume.creator.slice(0, 6)}...{mintedPerfume.creator.slice(-4)}</p>
+                <div className="relative flex flex-wrap gap-2 text-xs mb-4">
+                  <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{["Unisex", "Male", "Female"][mintedPerfume.gender]}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{mintedPerfume.concentration}%</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 font-semibold" style={{ color: getRarityColor(mintedPerfume.rarity), borderColor: `${getRarityColor(mintedPerfume.rarity)}40` }}>
+                    {getRarityName(mintedPerfume.rarity)}
+                  </span>
+                </div>
+
+                <div className="relative space-y-2 text-sm">
+                  <div className="flex gap-2">
+                    <span className="text-white/40 text-xs w-12 shrink-0 uppercase">Top</span>
+                    <span className="text-white/80 text-xs">{mintedPerfume.topNotes.join(", ")}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-white/40 text-xs w-12 shrink-0 uppercase">Heart</span>
+                    <span className="text-white/80 text-xs">{mintedPerfume.heartNotes.join(", ")}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-white/40 text-xs w-12 shrink-0 uppercase">Base</span>
+                    <span className="text-white/80 text-xs">{mintedPerfume.baseNotes.join(", ")}</span>
                   </div>
                 </div>
               </div>
@@ -555,6 +514,13 @@ export default function WalletScentPage() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
     </div>
   );
 }
