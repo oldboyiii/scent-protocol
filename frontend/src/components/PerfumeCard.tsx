@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP, RARITY_COLORS } from "@/utils/contract";
+import ScentCrest from "@/components/ScentCrest";
 
 interface PerfumeCardProps {
   tokenId: number;
@@ -56,13 +57,22 @@ export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {/* Header */}
+        {/* Header - NOW WITH SCENT CREST */}
         <div className="relative flex justify-between items-start mb-4">
-          <div>
-            <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{tokenId}</p>
-            <h3 className="text-xl font-bold text-white mt-1 group-hover:text-amber-300 transition-colors">
-              {perfume.name}
-            </h3>
+          <div className="flex items-center gap-3">
+            {/* NEW: Scent Crest Logo */}
+            <ScentCrest
+              seed={`${perfume.creator}-${perfume.name}`}
+              name={perfume.name}
+              rarity={perfume.rarity}
+              size={60}
+            />
+            <div>
+              <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{tokenId}</p>
+              <h3 className="text-xl font-bold text-white mt-1 group-hover:text-amber-300 transition-colors">
+                {perfume.name}
+              </h3>
+            </div>
           </div>
           <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
             {RARITY_MAP[perfume.rarity]}
