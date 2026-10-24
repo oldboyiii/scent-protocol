@@ -31,12 +31,23 @@ export default function AboutPage() {
         <p>
           ScentProtocol has evolved into a multi-layered ecosystem with four distinct collections:
         </p>
-        <ul className="list-disc list-inside space-y-2 ml-4">
-          <li><span className="text-amber-400 font-semibold">ScentProtocol Mainnet</span> — The core collection. AI-generated perfumes minted for 1 USDC.</li>
-          <li><span className="text-amber-400 font-semibold">Genesis Collection</span> — 100 exclusive NFTs with commit-reveal mechanics.</li>
-          <li><span className="text-amber-400 font-semibold">MFW 2026</span> — Milan Fashion Week exclusive drop (500 supply).</li>
-          <li><span className="text-fuchsia-400 font-semibold">Viral Scent</span> — Free-to-mint campaign that analyzes your wallet history to generate a unique "Wallet Scent" archetype.</li>
-        </ul>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-10">
+  {[
+    { label: "Unique Formulas", value: "100%" },
+    { label: "Finality", value: "<1s" },
+    { label: "Notes Per Scent", value: "9" },
+    { label: "Rarity Tiers", value: "4" },
+    { label: "Collections", value: "4" },
+    { label: "Viral Supply", value: "10k" },
+    { label: "Gas Token", value: "USDC" },
+    { label: "Chain", value: "Arc" },
+  ].map((s) => (
+    <div key={s.label} className="glass-card p-4 text-center">
+      <div className="text-2xl font-bold text-amber-400">{s.value}</div>
+      <div className="text-xs text-white/50 mt-1">{s.label}</div>
+    </div>
+  ))}
+</div>
 
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">ScentCrest: Generative Branding</h2>
         <p>
