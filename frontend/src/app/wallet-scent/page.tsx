@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useAccount, useChainId } from "wagmi";
-import ScentCrest from "@/components/ScentCrest"; // <-- NEW: Import ScentCrest
+import ScentCrest from "@/components/ScentCrest";
 
 // ============================================================
 // VIRAL CONTRACT CONFIGURATION
@@ -287,7 +287,6 @@ export default function WalletScentPage() {
   };
 
   const getRarityName = (rarity: number) => ["Common", "Rare", "Epic", "Legendary"][rarity] || "Common";
-  const getRarityColor = (rarity: number) => ["#94a3b8", "#60a5fa", "#c084fc", "#fbbf24"][rarity] || "#94a3b8";
 
   // ============================================================
   // RENDER UI
@@ -417,7 +416,7 @@ export default function WalletScentPage() {
             </div>
           )}
 
-          {/* UPDATED: Success state with NEW Premium Card including ScentCrest */}
+          {/* UPDATED: Success state with NEW Premium Card (VIRAL PINK THEME) */}
           {step === "success" && mintedPerfume && (
             <div className="space-y-6">
               <div className="text-center">
@@ -430,35 +429,35 @@ export default function WalletScentPage() {
                 <p className="text-white/60">Token ID: #{tokenId}</p>
               </div>
 
-              {/* NEW PREMIUM PERFUME CARD */}
+              {/* NEW PREMIUM PERFUME CARD - VIRAL PINK THEME */}
               <div 
                 className="relative rounded-2xl p-6 backdrop-blur-xl border overflow-hidden"
                 style={{
-                  background: `linear-gradient(135deg, ${getRarityColor(mintedPerfume.rarity)}15 0%, #0f172a 100%)`,
-                  borderColor: `${getRarityColor(mintedPerfume.rarity)}50`,
-                  boxShadow: `0 0 30px ${getRarityColor(mintedPerfume.rarity)}20`
+                  background: "linear-gradient(135deg, rgba(217,70,239,0.15) 0%, rgba(236,72,153,0.1) 50%, #0f172a 100%)",
+                  borderColor: "rgba(217,70,239,0.5)",
+                  boxShadow: "0 0 30px rgba(217,70,239,0.2)"
                 }}
               >
                 {/* Shimmer overlay */}
                 <div 
                   className="absolute inset-0 pointer-events-none"
                   style={{
-                    background: `linear-gradient(105deg, transparent 40%, ${getRarityColor(mintedPerfume.rarity)}15 50%, transparent 60%)`,
+                    background: "linear-gradient(105deg, transparent 40%, rgba(217,70,239,0.15) 50%, transparent 60%)",
                     backgroundSize: "200% 100%",
                     animation: "shimmer 2.5s infinite",
                   }}
                 />
 
                 <div className="relative flex items-center gap-4 mb-4">
-                  {/* Scent Crest Logo */}
+                  {/* Scent Crest Logo - Forced to Epic (2) for pink/purple Viral theme */}
                   <ScentCrest
-                    seed={`${mintedPerfume.creator}-${mintedPerfume.name}`}
-                    name={mintedPerfume.name}
-                    rarity={mintedPerfume.rarity}
-                    size={70}
-                  />
+  seed={`${mintedPerfume.creator}-${mintedPerfume.name}`}
+  name={mintedPerfume.name}
+  rarity={mintedPerfume.rarity}  //
+  size={70}
+/>
                   <div>
-                    <p className="text-xs text-white/50 uppercase tracking-wider">Viral Scent #{mintedPerfume.tokenId}</p>
+                    <p className="text-xs text-fuchsia-300/80 uppercase tracking-wider mb-1">Viral Scent #{mintedPerfume.tokenId}</p>
                     <h4 className="text-xl font-bold text-white">{mintedPerfume.name}</h4>
                     <p className="text-sm text-white/50 mt-1">
                       {["Unisex", "Male", "Female"][mintedPerfume.gender]} • {["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}
@@ -470,22 +469,22 @@ export default function WalletScentPage() {
                   <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{["Unisex", "Male", "Female"][mintedPerfume.gender]}</span>
                   <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}</span>
                   <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{mintedPerfume.concentration}%</span>
-                  <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 font-semibold" style={{ color: getRarityColor(mintedPerfume.rarity), borderColor: `${getRarityColor(mintedPerfume.rarity)}40` }}>
+                  <span className="px-2 py-0.5 rounded-full bg-fuchsia-500/40 border border-fuchsia-400/80 text-fuchsia-50 font-semibold">
                     {getRarityName(mintedPerfume.rarity)}
                   </span>
                 </div>
 
                 <div className="relative space-y-2 text-sm">
                   <div className="flex gap-2">
-                    <span className="text-white/40 text-xs w-12 shrink-0 uppercase">Top</span>
+                    <span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Top</span>
                     <span className="text-white/80 text-xs">{mintedPerfume.topNotes.join(", ")}</span>
                   </div>
                   <div className="flex gap-2">
-                    <span className="text-white/40 text-xs w-12 shrink-0 uppercase">Heart</span>
+                    <span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Heart</span>
                     <span className="text-white/80 text-xs">{mintedPerfume.heartNotes.join(", ")}</span>
                   </div>
                   <div className="flex gap-2">
-                    <span className="text-white/40 text-xs w-12 shrink-0 uppercase">Base</span>
+                    <span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Base</span>
                     <span className="text-white/80 text-xs">{mintedPerfume.baseNotes.join(", ")}</span>
                   </div>
                 </div>
