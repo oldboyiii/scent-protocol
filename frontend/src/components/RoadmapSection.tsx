@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 const phases = [
   {
     phase: "Phase 1",
@@ -31,7 +33,7 @@ const phases = [
       { text: "Personal AI advisor for scent recommendations", done: true },
       { text: "Successful Mainnet deployment", done: true },
       { text: "Limited Event Editions (Special Occasion Drops)", done: true },
-      { text: "Auto-minting based on mood & context (Viral Wallet Scent)", done: true }, // 
+      { text: "Auto-minting based on mood & context (Viral Wallet Scent)", done: true },
       { text: "Natural language → fragrance pipeline", done: false },
     ],
   },
@@ -156,7 +158,17 @@ export default function RoadmapSection() {
 
       {/* Contact & Support Section */}
       <div className="mt-20 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-white/40">
-        <p>© 2026 ScentProtocol. All rights reserved.</p>
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <p>© 2026 ScentProtocol. All rights reserved.</p>
+          
+          {/* NEW: Vision Link in Footer */}
+          <Link 
+            href="/vision" 
+            className="text-fuchsia-400 hover:text-fuchsia-300 transition-colors flex items-center gap-1 group font-medium"
+          >
+            <span>Explore Our Vision 🔮</span>
+          </Link>
+        </div>
         
         <div className="flex items-center gap-6">
           {/* X (Twitter) Link */}
