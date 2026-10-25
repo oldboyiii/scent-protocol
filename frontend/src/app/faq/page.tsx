@@ -40,9 +40,10 @@ const faqs = [
   },
   {
     // NEW: What if I don't like the result
-    q: "What if I don't like the scent I minted? Can I re-mint?",
-    a: "Each wallet can mint only one ScentProtocol Mainnet NFT and one Viral Scent NFT — this is by design to ensure fairness and scarcity. The scent you receive is determined by your unique seed (your address + chosen parameters), so the result is deterministic. If you want a different scent, you can use a different wallet address, or acquire one on the Marketplace.",
-  },
+    {
+  q: "What if I don't like the scent I minted? Can I re-mint?",
+  a: "For Genesis and Viral Scent collections, each wallet can mint only one NFT — this is by design to ensure fairness and scarcity. The scent you receive is determined by your unique seed (your address + chosen parameters), so the result is deterministic. If you want a different scent from these collections, you can use a different wallet address, or acquire one on the Marketplace.\n\nFor ScentProtocol Mainnet, there is no per-wallet limit — you can mint as many scents as you like for 1 USDC each.",
+}
   {
     q: "Can I sell or trade my Scent NFT?",
     a: "Yes. As with any ERC-721 standard, you are the full owner. You can list it on our built-in Marketplace, transfer it to another wallet, or keep it in your collection forever.",
