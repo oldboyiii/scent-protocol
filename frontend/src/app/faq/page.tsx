@@ -25,8 +25,23 @@ const faqs = [
     a: "Yes. The smart contract uses a combination of blockchain randomness (blockhash) and your seed to generate the formula. The probability of creating two absolutely identical scents is astronomically low.",
   },
   {
+    // NEW: Randomness & fairness
+    q: "How is the formula generated? Is the process fair and tamper-proof?",
+    a: "Yes. We use a commit-reveal mechanism combined with on-chain randomness (blockhash + timestamp + your unique seed). The formula is generated entirely inside the smart contract — nobody, not even the team, can predict or manipulate the outcome before minting. What you see is what the blockchain produced.",
+  },
+  {
     q: "Is it safe to connect my wallet for Viral Scent analysis?",
     a: "Absolutely. Our analyzer reads only public blockchain data (via Etherscan API): the date of the first transaction, total transaction count, and current balance. We do not request access to your funds, cannot sign transactions, and never store your private keys.",
+  },
+  {
+    // NEW: Storage & IPFS
+    q: "Where is the NFT data stored? What about IPFS?",
+    a: "ScentProtocol uses a hybrid storage model for maximum reliability:\n\n• On-chain: The core formula (notes, rarity, concentration, creator address) is stored directly inside the smart contract on Arc. This data is permanent and cannot be lost.\n• IPFS: The full metadata (including the AI-generated description and image) is pinned to IPFS for decentralized access. This ensures your NFT remains readable even if our servers go offline.\n\nUnlike many NFT projects that store everything off-chain, your scent formula lives forever on the blockchain.",
+  },
+  {
+    // NEW: What if I don't like the result
+    q: "What if I don't like the scent I minted? Can I re-mint?",
+    a: "Each wallet can mint only one ScentProtocol Mainnet NFT and one Viral Scent NFT — this is by design to ensure fairness and scarcity. The scent you receive is determined by your unique seed (your address + chosen parameters), so the result is deterministic. If you want a different scent, you can use a different wallet address, or acquire one on the Marketplace.",
   },
   {
     q: "Can I sell or trade my Scent NFT?",
