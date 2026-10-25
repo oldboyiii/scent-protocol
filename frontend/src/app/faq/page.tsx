@@ -6,7 +6,7 @@ export const metadata = {
 const faqs = [
   {
     q: "What collections exist in ScentProtocol?",
-    a: "Our ecosystem features 4 unique collections:\n\n• ScentProtocol Mainnet: The core collection. AI-generated perfumes minted for 1 USDC.\n• Genesis Collection: The first 100 exclusive NFTs with a unique commit-reveal minting mechanic.\n• MFW 2026: A limited series of 500 NFTs dedicated to Milan Fashion Week 2026.\n• Viral Scent: A Free Mint experiment that analyzes your wallet history to create a scent matching your crypto archetype.",
+    a: "Our ecosystem features 4 unique collections:\n\n• ScentProtocol Mainnet: The core collection. AI-generated perfumes minted for 1 USDC.\n• Genesis Collection: The first 100 exclusive NFTs with a unique commit-reveal minting mechanic.\n• MFW 2026: A limited series of 500 NFTs dedicated to Milan Fashion Week 2026.\n• Viral Scent: A Free Mint experiment (10,000 supply limit) that analyzes your wallet history to create a scent matching your crypto archetype.",
   },
   {
     q: "How much does minting cost?",
@@ -45,7 +45,7 @@ const faqs = [
 export default function FAQPage() {
   return (
     <div className="max-w-3xl mx-auto py-16 px-4">
-      <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center">
+      <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center pb-2">
         Frequently Asked Questions
       </h1>
       <p className="text-center text-white/50 mb-12 text-lg">
