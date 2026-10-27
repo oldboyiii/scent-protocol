@@ -42,7 +42,6 @@ const phases = [
     title: "Advanced On-Chain Mechanics",
     status: "upcoming",
     items: [
-      "$0.01 scent previews (no NFT required)",
       "Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance",
       "Evolving Scents: Dynamic metadata upgrades based on holding duration",
       "Subscription 'Scent of the Month' & micro-governance",
