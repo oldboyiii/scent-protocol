@@ -44,7 +44,7 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
   const rarityHex = RARITY_HEX[perfume.rarity] || RARITY_HEX[0];
   const rarityBg = RARITY_BG[perfume.rarity] || RARITY_BG[0];
   const isViral = contractAddress === "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb";
-  const url = `https://scentprotocol.io/nft/${tokenId}`; // Updated to your actual domain if different
+  const url = `https://scent-protocol-pi.vercel.app/nft/${tokenId}`; // Updated to your actual domain if different
 
   const collectionName = isViral ? "Viral Scent" : "ScentProtocol";
   
