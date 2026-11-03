@@ -7,31 +7,36 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
 
 /**
  * @title ScentProtocolMFW2026
- * @dev Milan Fashion Week 2026 Exclusive NFT Collection (Audited & Secured)
+ * @dev Milan Fashion Week 2026 Exclusive NFT Collection. 
+ * Paid mint (5 USDC regular, 1 USDC for Genesis holders), with secure revenue tracking and pull-based refunds.
  */
-contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, ReentrancyGuard {
+contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, ReentrancyGuard, ERC2981 {
     using Strings for uint256;
+    using SafeERC20 for IERC20;
 
-    // Arc Mainnet addresses
+    // Arc Mainnet USDC address
     address public constant USDC_ADDRESS = 0x3600000000000000000000000000000000000000; 
     address public immutable genesisContract;
 
-    // Pricing
+    // Pricing configuration
     uint256 public constant PRICE_REGULAR = 5 * 10**6; // 5 USDC (6 decimals)
-    uint256 public constant PRICE_GENESIS_HOLDER = 1 * 10**6; // 1 USDC for Genesis holders
+    uint256 public constant PRICE_GENESIS_HOLDER = 1 * 10**6; // 1 USDC discount for Genesis holders
 
-    // Supply limits
+    // Supply and wallet limits
     uint256 public constant MAX_SUPPLY = 500;
     uint256 public constant MAX_PER_WALLET = 3;
 
-    // Timing (Arc has sub-second blocks, so we use timestamps)
+    // Timing configuration (using timestamps for sub-second block chains like Arc)
     uint256 private constant REVEAL_MIN_WAIT = 30; // 30 seconds minimum wait
     uint256 private constant REVEAL_MAX_DEADLINE = 600; // 10 minutes max deadline
-    uint256 private constant CANCEL_PENALTY_BPS = 5000; // 50% penalty
+    uint256 private constant CANCEL_PENALTY_BPS = 5000; // 50% penalty on cancellation
 
     uint256 private nextTokenId;
     uint256 private totalMinted;
@@ -55,7 +60,7 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
     struct PendingMint {
         address minter;
         uint256 timestamp;
-        uint256 blockNumber; // Stored for secure blockhash usage
+        uint256 blockNumber; // Stored for secure historical blockhash usage
         uint256 paidAmount;
         bytes32 seedCommitment;
     }
@@ -70,11 +75,13 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
     mapping(address => uint256) public walletPendingCount;
     mapping(address => bool) public hasExclusiveBadge;
     
-    // Pull-based accounting for refunds and penalties (Fixes Issue 9)
+    // Pull-based accounting for secure user refunds
     mapping(address => uint256) public claimableRefunds;
-    uint256 public totalPenalties;
+    
+    // Tracks all earned funds (successful mints + penalties) that the owner can safely withdraw
+    uint256 public totalRevenue;
 
-    // MFW-inspired note pools
+    // MFW-inspired note and name pools
     string[MAX_NOTES] private topNotes;
     string[MAX_NOTES] private heartNotes;
     string[MAX_NOTES] private baseNotes;
@@ -84,14 +91,17 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
     event BadgeAwarded(address indexed recipient);
     event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber);
     event MintCancelled(uint256 indexed tokenId, address indexed minter, uint256 refundAmount, uint256 penaltyAmount);
+    event RevenueWithdrawn(address indexed owner, uint256 amount);
 
     constructor(address genesisContract_) ERC721("ScentProtocol MFW 2026", "SCENTMFW") Ownable(msg.sender) {
         genesisContract = genesisContract_;
         nextTokenId = 1;
-        initializeMFWNotePools();
+        _initializeMFWNotePools();
+        // Set 5% royalty for the creator to ensure marketplace compatibility
+        _setDefaultRoyalty(msg.sender, 500);
     }
 
-    function initializeMFWNotePools() internal {
+    function _initializeMFWNotePools() internal {
         topNotes = ["Bergamot", "Italian Lemon", "Lavender", "Rose", "Jasmine", "Mint", "Orange Blossom", "Neroli", "Grapefruit", "Fig"];
         heartNotes = ["Rose", "Jasmine", "Tuberose", "Iris", "Peony", "Lily", "Violet", "Ylang-Ylang", "Gardenia", "Freesia"];
         baseNotes = ["Sandalwood", "Cedarwood", "Amber", "Musk", "Vanilla", "Patchouli", "Vetiver", "Tonka Bean", "Oud", "Benzoin"];
@@ -113,12 +123,10 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
     function requestMint(bytes32 seedCommitment) external nonReentrant returns (uint256 tokenId) {
         require(totalMinted + activePendingCount < MAX_SUPPLY, "Max supply reached");
         require(walletMintedCount[msg.sender] + walletPendingCount[msg.sender] < MAX_PER_WALLET, "Max per wallet reached");
+        require(seedCommitment != bytes32(0), "Invalid commitment");
 
         uint256 price = getMintPrice(msg.sender);
-        require(
-            IERC20(USDC_ADDRESS).transferFrom(msg.sender, address(this), price),
-            "USDC transfer failed"
-        );
+        IERC20(USDC_ADDRESS).safeTransferFrom(msg.sender, address(this), price);
 
         tokenId = nextTokenId++;
         pendingMints[tokenId] = PendingMint({
@@ -142,10 +150,7 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         require(pending.minter == msg.sender, "Not authorized");
         require(block.timestamp > pending.timestamp + REVEAL_MIN_WAIT, "Too early");
         require(block.timestamp <= pending.timestamp + REVEAL_MAX_DEADLINE, "Reveal window passed");
-        require(
-            keccak256(abi.encodePacked(seedPreimage)) == pending.seedCommitment,
-            "Invalid seed preimage"
-        );
+        require(keccak256(abi.encodePacked(seedPreimage)) == pending.seedCommitment, "Invalid seed preimage");
 
         uint256 price = pending.paidAmount;
         
@@ -156,21 +161,26 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
             tokenId
         )));
 
-        Perfume memory perfume = generatePerfume(tokenId, seed, msg.sender);
+        Perfume memory perfume = _generatePerfume(tokenId, seed, msg.sender);
         bool shouldAwardBadge = !hasExclusiveBadge[msg.sender];
 
         if (shouldAwardBadge) {
             hasExclusiveBadge[msg.sender] = true;
         }
 
-        // CRITICAL FIX: Update ALL state BEFORE _safeMint to prevent reentrancy attacks
+        // CRITICAL FIX: Mark these funds as earned revenue so the owner can withdraw them later
+        totalRevenue += price;
+
+        // Update ALL state BEFORE _safeMint to prevent reentrancy attacks (Checks-Effects-Interactions)
         perfumes[tokenId] = perfume;
         walletPendingCount[msg.sender]--;
         walletMintedCount[msg.sender]++;
         activePendingCount--;
         totalMinted++;
         delete pendingMints[tokenId];
-        _setTokenURI(tokenId, string(abi.encodePacked("scents://mfw2026/", tokenId.toString())));
+        
+        // Use Data URI so marketplaces can read attributes without external servers
+        _setTokenURI(tokenId, _buildDataURI(perfume));
 
         _safeMint(msg.sender, tokenId);
 
@@ -201,9 +211,11 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         uint256 penaltyAmount = (pending.paidAmount * CANCEL_PENALTY_BPS) / 10_000;
         uint256 refundAmount = pending.paidAmount - penaltyAmount;
 
-        // Pull-based accounting (Fixes USDC blocklist bricking issue)
+        // Pull-based accounting: user claims refund later, protecting against USDC blocklist issues
         claimableRefunds[pending.minter] += refundAmount;
-        totalPenalties += penaltyAmount;
+        
+        // FIX: Penalties also become part of the owner's withdrawable revenue
+        totalRevenue += penaltyAmount;
         
         emit MintCancelled(tokenId, pending.minter, refundAmount, penaltyAmount);
     }
@@ -216,7 +228,6 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         _processCancellation(tokenId);
     }
 
-    // FIX: Anyone can clean up expired mints to free up supply
     function expirePendingMint(uint256 tokenId) external nonReentrant {
         PendingMint memory pending = pendingMints[tokenId];
         require(pending.minter != address(0), "No pending mint");
@@ -229,20 +240,31 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         uint256 amount = claimableRefunds[msg.sender];
         require(amount > 0, "No refund available");
         claimableRefunds[msg.sender] = 0;
-        require(IERC20(USDC_ADDRESS).transfer(msg.sender, amount), "Refund failed");
+        IERC20(USDC_ADDRESS).safeTransfer(msg.sender, amount);
     }
 
-    function generatePerfume(uint256 tokenId, uint256 seed, address creator)
-        internal view returns (Perfume memory)
-    {
-        uint8 rarity = determineRarity(seed);
-        string[3] memory top = selectUniqueNotes(topNotes, seed, 0);
-        string[3] memory heart = selectUniqueNotes(heartNotes, seed, 1);
-        string[3] memory base = selectUniqueNotes(baseNotes, seed, 2);
+    /// @notice Safely withdraws ALL earned revenue (successful mints + penalties).
+    /// @dev Mathematically guarantees that funds locked in claimableRefunds cannot be withdrawn by the owner.
+    function withdrawRevenue() external onlyOwner nonReentrant {
+        uint256 amount = totalRevenue;
+        require(amount > 0, "No revenue to withdraw");
+        
+        // Reset to 0 BEFORE transfer to prevent reentrancy
+        totalRevenue = 0;
+        
+        IERC20(USDC_ADDRESS).safeTransfer(owner(), amount);
+        emit RevenueWithdrawn(owner(), amount);
+    }
+
+    function _generatePerfume(uint256 tokenId, uint256 seed, address creator) internal view returns (Perfume memory) {
+        uint8 rarity = _determineRarity(seed);
+        string[3] memory top = _selectUniqueNotes(topNotes, seed, 0);
+        string[3] memory heart = _selectUniqueNotes(heartNotes, seed, 1);
+        string[3] memory base = _selectUniqueNotes(baseNotes, seed, 2);
         string memory name = mfwInspiredNames[seed % MAX_NOTES];
 
         uint8 pType = uint8((seed % 4));
-        uint8 concentration = getConcentrationForType(pType, seed);
+        uint8 concentration = _getConcentrationForType(pType, seed);
 
         return Perfume({
             tokenId: tokenId,
@@ -260,7 +282,7 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         });
     }
 
-    function determineRarity(uint256 seed) internal pure returns (uint8) {
+    function _determineRarity(uint256 seed) internal pure returns (uint8) {
         uint256 roll = seed % 100;
         if (roll < 10) return 3; // 10% Legendary
         if (roll < 30) return 2; // 20% Epic
@@ -268,9 +290,7 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         return 0;                // 40% Common
     }
 
-    function selectUniqueNotes(string[MAX_NOTES] storage notes, uint256 seed, uint256 offset)
-        internal view returns (string[3] memory)
-    {
+    function _selectUniqueNotes(string[MAX_NOTES] storage notes, uint256 seed, uint256 offset) internal view returns (string[3] memory) {
         string[3] memory selected;
         bool[MAX_NOTES] memory used;
         uint256 indicesSeed = uint256(keccak256(abi.encodePacked(seed, offset)));
@@ -286,13 +306,83 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         return selected;
     }
 
-    function getConcentrationForType(uint8 pType, uint256 seed) internal pure returns (uint8) {
+    function _getConcentrationForType(uint8 pType, uint256 seed) internal pure returns (uint8) {
         uint256 variance = seed % 11;
         if (pType == 0) return 20 + uint8(variance);
         if (pType == 1) return 15 + uint8(variance % 6);
         if (pType == 2) return 10 + uint8(variance % 6);
         return 5 + uint8(variance % 6);
     }
+
+    /// @notice Generates inline JSON Data URI for instant marketplace compatibility.
+    /// @dev Split into smaller string.concat blocks to prevent Yul viaIR stack depth errors.
+    function _buildDataURI(Perfume memory p) internal pure returns (string memory) {
+        string memory header = string.concat(
+            "data:application/json,{",
+            '"name":"', p.name, '",',
+            '"description":"ScentProtocol MFW 2026 Exclusive - ', p.name, '. ",',
+            '"attributes":['
+        );
+        
+        string memory attrs1 = string.concat(
+            '{"trait_type":"Gender","value":"', _genderLabel(p.gender), '"},',
+            '{"trait_type":"Type","value":"', _typeLabel(p.pType), '"},',
+            '{"trait_type":"Concentration","value":"', uint256(p.concentration).toString(), '%"},',
+            '{"trait_type":"Rarity","value":"', _rarityLabel(p.rarity), '"},'
+        );
+        
+        string memory attrs2 = string.concat(
+            '{"trait_type":"TopNote1","value":"', p.topNotes[0], '"},',
+            '{"trait_type":"TopNote2","value":"', p.topNotes[1], '"},',
+            '{"trait_type":"TopNote3","value":"', p.topNotes[2], '"},'
+        );
+        
+        string memory attrs3 = string.concat(
+            '{"trait_type":"HeartNote1","value":"', p.heartNotes[0], '"},',
+            '{"trait_type":"HeartNote2","value":"', p.heartNotes[1], '"},',
+            '{"trait_type":"HeartNote3","value":"', p.heartNotes[2], '"},'
+        );
+        
+        string memory attrs4 = string.concat(
+            '{"trait_type":"BaseNote1","value":"', p.baseNotes[0], '"},',
+            '{"trait_type":"BaseNote2","value":"', p.baseNotes[1], '"},',
+            '{"trait_type":"BaseNote3","value":"', p.baseNotes[2], '"},'
+        );
+        
+        string memory attrs5 = string.concat(
+            '{"trait_type":"Collection","value":"MFW2026"},',
+            '{"trait_type":"ExclusiveBadge","value":"', _boolToString(p.hasExclusiveBadge), '"}'
+        );
+        
+        return string.concat(header, attrs1, attrs2, attrs3, attrs4, attrs5, ']}');
+    }
+
+    // Helper function to prevent Yul stack depth errors during viaIR compilation
+    function _boolToString(bool b) internal pure returns (string memory) {
+        return b ? "true" : "false";
+    }
+
+    function _rarityLabel(uint8 rarity) internal pure returns (string memory) {
+        if (rarity == 1) return "Rare";
+        if (rarity == 2) return "Epic";
+        if (rarity == 3) return "Legendary";
+        return "Common";
+    }
+
+    function _typeLabel(uint8 pType) internal pure returns (string memory) {
+        if (pType == 1) return "EDP";
+        if (pType == 2) return "EDT";
+        if (pType == 3) return "EDC";
+        return "Parfum";
+    }
+
+    function _genderLabel(uint8 gender) internal pure returns (string memory) {
+        if (gender == 1) return "Male";
+        if (gender == 2) return "Female";
+        return "Unisex";
+    }
+
+    // ================= VIEW FUNCTIONS =================
 
     function getPerfume(uint256 tokenId) external view returns (Perfume memory) {
         require(_ownerOf(tokenId) != address(0), "Token does not exist");
@@ -315,18 +405,9 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         return MAX_SUPPLY - totalMinted - activePendingCount;
     }
 
-    // FIX: Safely withdraws ONLY accumulated penalties, leaving user refunds intact
-    function withdrawUSDC() external onlyOwner nonReentrant {
-        uint256 amount = totalPenalties;
-        require(amount > 0, "No penalties to withdraw");
-        totalPenalties = 0;
-        require(IERC20(USDC_ADDRESS).transfer(owner(), amount), "Transfer failed");
-    }
+    // ================= OVERRIDES =================
 
-    function _update(address to, uint256 tokenId, address auth)
-        internal override(ERC721)
-        returns (address)
-    {
+    function _update(address to, uint256 tokenId, address auth) internal override(ERC721) returns (address) {
         address from = _ownerOf(tokenId);
         if (from != address(0) && from != to) {
             uint256[] storage tokens = ownerTokens[from];
@@ -345,17 +426,11 @@ contract ScentProtocolMFW2026 is ERC721, ERC721URIStorage, ERC721Burnable, Ownab
         return updated;
     }
 
-    function tokenURI(uint256 tokenId)
-        public view override(ERC721, ERC721URIStorage)
-        returns (string memory)
-    {
+    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
         return super.tokenURI(tokenId);
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public view override(ERC721, ERC721URIStorage)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage, ERC2981) returns (bool) {
+        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
     }
 }
