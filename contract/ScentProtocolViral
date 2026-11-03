@@ -7,20 +7,20 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
 
-contract ScentProtocolViralV2 is 
-    ERC721, 
-    ERC721URIStorage, 
-    ERC721Burnable, 
-    Ownable2Step, 
-    ReentrancyGuard
-{
+/// @title ScentProtocol Viral V2
+/// @notice A generative NFT fragrance collection with Commit-Reveal minting and on-chain metadata.
+/// @dev Inherits ERC2981 for marketplace royalty support (5%).
+contract ScentProtocolViralV2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable2Step, ReentrancyGuard, ERC2981 {
     using Strings for uint256;
 
     uint256 private constant ARC_MAINNET_CHAIN_ID = 5042;
-    uint256 private constant MAX_SUPPLY = 10000;
-    uint256 private constant MAX_PER_WALLET = 1;
-    uint256 private constant REVEAL_BLOCKS = 5;
+    uint256 public constant MAX_SUPPLY = 10000;
+    uint256 public constant MAX_PER_WALLET = 1;
+    uint256 public constant REVEAL_BLOCKS = 5;
+    uint256 public constant REVEAL_DEADLINE = 1000;
     uint256 private constant MAX_NOTES = 10;
 
     struct Perfume {
@@ -40,6 +40,7 @@ contract ScentProtocolViralV2 is
     struct PendingMint {
         address minter;
         uint256 blockNumber;
+        bytes32 seedCommitment; // V3 Commit-Reveal logic: stores the hash of the user's seed
     }
 
     uint256 private nextTokenId;
@@ -54,28 +55,40 @@ contract ScentProtocolViralV2 is
     mapping(uint256 => PendingMint) public pendingMints;
     mapping(address => uint256[]) public ownerTokens;
     mapping(address => uint256) public walletMintCount;
+    mapping(address => uint256) public pendingTokenId; // Prevents multiple pending mints per wallet
     
     event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber);
     event PerfumeCreated(uint256 indexed tokenId, address indexed creator, uint8 rarity);
     event WalletMintCountReset(address indexed wallet);
     event EthWithdrawn(uint256 amount);
+    event MintExpiredCleared(uint256 indexed tokenId);
     
+    error ScentProtocol__WrongNetwork();
     error ScentProtocol__MaxSupplyReached();
     error ScentProtocol__MaxPerWalletReached();
+    error ScentProtocol__AlreadyPending();
+    error ScentProtocol__CommitmentMismatch();
     error ScentProtocol__TooEarly();
+    error ScentProtocol__TooLate();
     error ScentProtocol__NoPendingMint();
     error ScentProtocol__NotAuthorized();
     error ScentProtocol__TokenDoesNotExist();
     error ScentProtocol__NoBalance();
     error ScentProtocol__TransferFailed();
+    error ScentProtocol__MintNotExpired();
 
     constructor() ERC721("ScentProtocol Viral", "VSCENT") Ownable(msg.sender) {
-        require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be deployed on Arc Mainnet");
+        if (block.chainid != ARC_MAINNET_CHAIN_ID) {
+            revert ScentProtocol__WrongNetwork();
+        }
         nextTokenId = 1;
-        initializeNotePools();
+        _initializeNotePools();
+        
+        // Set default 5% royalty (500 basis points) for the creator
+        _setDefaultRoyalty(msg.sender, 500);
     }
 
-    function initializeNotePools() internal {
+    function _initializeNotePools() internal {
         topNotes = ["Bergamot", "Lemon", "Lavender", "Grapefruit", "Orange", "Mint", "Eucalyptus", "Basil", "Rosemary", "Thyme"];
         heartNotes = ["Rose", "Jasmine", "Lily", "Geranium", "Neroli", "Ylang-Ylang", "Chamomile", "Lavender", "Petitgrain", "Heliotrope"];
         baseNotes = ["Vanilla", "Sandalwood", "Cedarwood", "Vetiver", "Patchouli", "Amber", "Musk", "Tonka Bean", "Benzoin", "Oud"];
@@ -83,104 +96,104 @@ contract ScentProtocolViralV2 is
         nouns = ["Rose", "Ice", "Velvet", "Rain", "Wood", "Fire", "Dream", "Mist", "Bloom", "Soul"];
     }
 
-    function requestMint() external nonReentrant returns (uint256 tokenId) {
-        require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be on Arc Mainnet");
-        require(nextTokenId <= MAX_SUPPLY, "Max supply reached");
-        
-        // FIX: Check the number of ALREADY COMPLETED mints (via ownerTokens), not the counter
-        require(ownerTokens[msg.sender].length < MAX_PER_WALLET, "Max 1 per wallet");
+    /// @notice Step 1 of Commit-Reveal: User commits a hash of their seed to prevent manipulation.
+    function requestMint(bytes32 seedCommitment) external nonReentrant returns (uint256 tokenId) {
+        if (block.chainid != ARC_MAINNET_CHAIN_ID) revert ScentProtocol__WrongNetwork();
+        if (seedCommitment == bytes32(0)) revert ScentProtocol__CommitmentMismatch();
+        if (nextTokenId > MAX_SUPPLY) revert ScentProtocol__MaxSupplyReached();
+        if (ownerTokens[msg.sender].length >= MAX_PER_WALLET) revert ScentProtocol__MaxPerWalletReached();
+        if (pendingTokenId[msg.sender] != 0) revert ScentProtocol__AlreadyPending();
         
         tokenId = nextTokenId++;
-        
         pendingMints[tokenId] = PendingMint({
             minter: msg.sender,
-            blockNumber: block.number
+            blockNumber: block.number,
+            seedCommitment: seedCommitment
         });
+        pendingTokenId[msg.sender] = tokenId;
         
         emit MintRequested(tokenId, msg.sender, block.number);
         return tokenId;
     }
 
-    function revealAndMint(uint256 tokenId, uint256 userSeed) external nonReentrant {
+    /// @notice Step 2 of Commit-Reveal: User reveals the preimage to generate the NFT.
+    function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external nonReentrant {
         PendingMint storage pending = pendingMints[tokenId];
         
-        if (pending.minter == address(0)) {
-            revert ScentProtocol__NoPendingMint();
-        }
-        if (pending.minter != msg.sender) {
-            revert ScentProtocol__NotAuthorized();
-        }
-        if (block.number <= pending.blockNumber + REVEAL_BLOCKS) {
-            revert ScentProtocol__TooEarly();
-        }
+        if (pending.minter == address(0)) revert ScentProtocol__NoPendingMint();
+        if (pending.minter != msg.sender) revert ScentProtocol__NotAuthorized();
+        if (block.number <= pending.blockNumber + REVEAL_BLOCKS) revert ScentProtocol__TooEarly();
+        if (block.number > pending.blockNumber + REVEAL_DEADLINE) revert ScentProtocol__TooLate();
+        if (keccak256(abi.encodePacked(seedPreimage)) != pending.seedCommitment) revert ScentProtocol__CommitmentMismatch();
+        if (ownerTokens[msg.sender].length >= MAX_PER_WALLET) revert ScentProtocol__MaxPerWalletReached();
         
-        uint256 seed = uint256(keccak256(abi.encodePacked(
-            blockhash(block.number - 1),
-            block.timestamp,
-            userSeed,
-            pending.minter,
+        // Exact entropy formula from V3
+        uint256 entropy = uint256(keccak256(abi.encodePacked(
+            seedPreimage, 
+            blockhash(pending.blockNumber + REVEAL_BLOCKS), 
             tokenId
         )));
         
-        Perfume memory perfume = generatePerfume(tokenId, seed, pending.minter);
+        Perfume memory perfume = _generatePerfume(tokenId, entropy, pending.minter);
         
         _safeMint(pending.minter, tokenId);
-        _setTokenURI(tokenId, string(abi.encodePacked("scents://viral/", tokenId.toString())));
+        _setTokenURI(tokenId, _buildDataURI(perfume));
         
         perfumes[tokenId] = perfume;
         ownerTokens[pending.minter].push(tokenId);
-        
-        // FIX: Increment the counter only after a successful mint
         walletMintCount[pending.minter]++;
         
         emit PerfumeCreated(tokenId, pending.minter, perfume.rarity);
         
+        // Clean up state
         delete pendingMints[tokenId];
+        delete pendingTokenId[msg.sender];
     }
 
-    // ADMIN: Function to reset stuck users (owner only)
+    /// @notice Allows anyone to clear an expired mint request, freeing up the user's pending slot.
+    function clearExpiredMint(uint256 tokenId) external nonReentrant {
+        PendingMint storage pending = pendingMints[tokenId];
+        if (pending.minter == address(0)) revert ScentProtocol__NoPendingMint();
+        if (block.number <= pending.blockNumber + REVEAL_DEADLINE) revert ScentProtocol__MintNotExpired();
+        
+        address minter = pending.minter;
+        delete pendingMints[tokenId];
+        delete pendingTokenId[minter];
+        
+        emit MintExpiredCleared(tokenId);
+    }
+
+    /// @notice Admin function to reset stuck users' mint counts.
     function resetWalletMintCount(address wallet) external onlyOwner {
         walletMintCount[wallet] = 0;
         emit WalletMintCountReset(wallet);
     }
 
-    function generatePerfume(uint256 tokenId, uint256 seed, address creator) 
-        internal view returns (Perfume memory) 
-    {
-        uint8 rarity = determineRarity(seed);
-        string[3] memory top = selectUniqueNotes(topNotes, seed, 0);
-        string[3] memory heart = selectUniqueNotes(heartNotes, seed, 1);
-        string[3] memory base = selectUniqueNotes(baseNotes, seed, 2);
-        string memory name = generateName(seed);
-        uint8 pType = uint8((seed % 4));
-        uint8 concentration = getConcentrationForType(pType, seed);
-        
+    function _generatePerfume(uint256 tokenId, uint256 seed, address creator) internal view returns (Perfume memory) {
         return Perfume({
             tokenId: tokenId,
-            name: name,
+            name: _generateName(seed),
             gender: uint8(seed % 3),
-            pType: pType,
-            topNotes: top,
-            heartNotes: heart,
-            baseNotes: base,
-            concentration: concentration,
-            rarity: rarity,
+            pType: uint8(seed % 4),
+            topNotes: _selectUniqueNotes(topNotes, seed, 0),
+            heartNotes: _selectUniqueNotes(heartNotes, seed, 1),
+            baseNotes: _selectUniqueNotes(baseNotes, seed, 2),
+            concentration: _getConcentrationForType(uint8(seed % 4), seed),
+            rarity: _determineRarity(seed),
             createdAt: block.timestamp,
             creator: creator
         });
     }
 
-    function determineRarity(uint256 seed) internal pure returns (uint8) {
+    function _determineRarity(uint256 seed) internal pure returns (uint8) {
         uint256 roll = seed % 100;
-        if (roll < 15) return 3;
-        if (roll < 35) return 2;
-        if (roll < 65) return 1;
-        return 0;
+        if (roll < 15) return 3;   // 15% Legendary
+        if (roll < 35) return 2;   // 20% Epic
+        if (roll < 65) return 1;   // 30% Rare
+        return 0;                  // 35% Common
     }
 
-    function selectUniqueNotes(string[MAX_NOTES] storage notes, uint256 seed, uint256 offset) 
-        internal view returns (string[3] memory) 
-    {
+    function _selectUniqueNotes(string[MAX_NOTES] storage notes, uint256 seed, uint256 offset) internal view returns (string[3] memory) {
         string[3] memory selected;
         bool[MAX_NOTES] memory used;
         uint256 indicesSeed = uint256(keccak256(abi.encodePacked(seed, offset)));
@@ -192,7 +205,7 @@ contract ScentProtocolViralV2 is
                 index = ((indicesSeed >> (i * 64)) + attempts) % MAX_NOTES;
                 attempts++;
                 if (attempts > MAX_NOTES) {
-                    index = (i + offset) % MAX_NOTES;
+                    index = (i + offset) % MAX_NOTES; // Fallback to prevent infinite loops
                     break;
                 }
             } while (used[index]);
@@ -203,13 +216,11 @@ contract ScentProtocolViralV2 is
         return selected;
     }
 
-    function generateName(uint256 seed) internal view returns (string memory) {
-        uint256 adjIndex = seed % MAX_NOTES;
-        uint256 nounIndex = (seed >> 32) % MAX_NOTES;
-        return string(abi.encodePacked(adjectives[adjIndex], " ", nouns[nounIndex]));
+    function _generateName(uint256 seed) internal view returns (string memory) {
+        return string(abi.encodePacked(adjectives[seed % MAX_NOTES], " ", nouns[(seed >> 32) % MAX_NOTES]));
     }
 
-    function getConcentrationForType(uint8 pType, uint256 seed) internal pure returns (uint8) {
+    function _getConcentrationForType(uint8 pType, uint256 seed) internal pure returns (uint8) {
         uint256 variance = seed % 11;
         if (pType == 0) return 20 + uint8(variance);
         if (pType == 1) return 15 + uint8(variance % 6);
@@ -217,27 +228,72 @@ contract ScentProtocolViralV2 is
         return 5 + uint8(variance % 6);
     }
 
-    function _exists(uint256 tokenId) internal view returns (bool) {
-        return _ownerOf(tokenId) != address(0);
+    /// @notice Generates an inline JSON Data URI for instant marketplace compatibility.
+    function _buildDataURI(Perfume memory p) internal pure returns (string memory) {
+        return string(abi.encodePacked(
+            "data:application/json,{",
+            '"name":"', p.name, '",',
+            '"description":"ScentProtocol Viral fragrance - ', p.name, '. ",',
+            '"attributes":[',
+            '{"trait_type":"Gender","value":"', _genderLabel(p.gender), '"},',
+            '{"trait_type":"Type","value":"', _typeLabel(p.pType), '"},',
+            '{"trait_type":"Concentration","value":"', uint256(p.concentration).toString(), '%"},',
+            '{"trait_type":"Rarity","value":"', _rarityLabel(p.rarity), '"},',
+            '{"trait_type":"TopNote1","value":"', p.topNotes[0], '"},',
+            '{"trait_type":"TopNote2","value":"', p.topNotes[1], '"},',
+            '{"trait_type":"TopNote3","value":"', p.topNotes[2], '"},',
+            '{"trait_type":"HeartNote1","value":"', p.heartNotes[0], '"},',
+            '{"trait_type":"HeartNote2","value":"', p.heartNotes[1], '"},',
+            '{"trait_type":"HeartNote3","value":"', p.heartNotes[2], '"},',
+            '{"trait_type":"BaseNote1","value":"', p.baseNotes[0], '"},',
+            '{"trait_type":"BaseNote2","value":"', p.baseNotes[1], '"},',
+            '{"trait_type":"BaseNote3","value":"', p.baseNotes[2], '"},',
+            '{"trait_type":"Collection","value":"Viral"}',
+            ']}'
+        ));
     }
 
+    function _rarityLabel(uint8 rarity) internal pure returns (string memory) {
+        if (rarity == 1) return "Rare";
+        if (rarity == 2) return "Epic";
+        if (rarity == 3) return "Legendary";
+        return "Common";
+    }
+
+    function _typeLabel(uint8 pType) internal pure returns (string memory) {
+        if (pType == 1) return "EDP";
+        if (pType == 2) return "EDT";
+        if (pType == 3) return "EDC";
+        return "Parfum";
+    }
+
+    function _genderLabel(uint8 gender) internal pure returns (string memory) {
+        if (gender == 1) return "Male";
+        if (gender == 2) return "Female";
+        return "Unisex";
+    }
+
+    // ================= VIEW FUNCTIONS =================
+
     function getPerfume(uint256 tokenId) external view returns (Perfume memory) {
-        if (!_exists(tokenId)) {
-            revert ScentProtocol__TokenDoesNotExist();
-        }
+        if (_ownerOf(tokenId) == address(0)) revert ScentProtocol__TokenDoesNotExist();
         return perfumes[tokenId];
     }
 
-    function getOwnerTokens(address owner) external view returns (uint256[] memory) {
-        return ownerTokens[owner];
+    function getOwnerTokens(address owner) external view returns (uint256[] memory) { 
+        return ownerTokens[owner]; 
     }
-
-    function getNextTokenId() external view returns (uint256) {
-        return nextTokenId;
+    
+    function getNextTokenId() external view returns (uint256) { 
+        return nextTokenId; 
     }
-
-    function getPendingMint(uint256 tokenId) external view returns (PendingMint memory) {
-        return pendingMints[tokenId];
+    
+    function getPendingMint(uint256 tokenId) external view returns (PendingMint memory) { 
+        return pendingMints[tokenId]; 
+    }
+    
+    function getRemainingSupply() external view returns (uint256) { 
+        return MAX_SUPPLY - (nextTokenId - 1); 
     }
 
     function withdrawETH() external onlyOwner nonReentrant {
@@ -246,14 +302,16 @@ contract ScentProtocolViralV2 is
         
         (bool success, ) = payable(owner()).call{value: balance}("");
         if (!success) revert ScentProtocol__TransferFailed();
+        
         emit EthWithdrawn(balance);
     }
 
-    function _update(address to, uint256 tokenId, address auth) 
-        internal override(ERC721) returns (address) 
-    {
+    // ================= OVERRIDES =================
+
+    function _update(address to, uint256 tokenId, address auth) internal override(ERC721) returns (address) {
         address from = _ownerOf(tokenId);
         
+        // Remove token from previous owner's array on transfer (O(N) but N is very small, max 1 for Viral)
         if (from != address(0) && from != to) {
             uint256[] storage tokens = ownerTokens[from];
             for (uint256 i = 0; i < tokens.length; i++) {
@@ -267,6 +325,7 @@ contract ScentProtocolViralV2 is
         
         address updated = super._update(to, tokenId, auth);
         
+        // Add token to new owner's array
         if (to != address(0) && to != from) {
             ownerTokens[to].push(tokenId);
         }
@@ -278,7 +337,7 @@ contract ScentProtocolViralV2 is
         return super.tokenURI(tokenId);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage) returns (bool) {
-        return super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage, ERC2981) returns (bool) {
+        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
     }
 }
