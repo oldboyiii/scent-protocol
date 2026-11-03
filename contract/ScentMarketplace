@@ -1,181 +1,422 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-/**
- * @title ScentMarketplace
- * @notice Marketplace for trading NFT fragrances with USDC on Arc Mainnet
- * @dev Uses transferFrom instead of safeTransferFrom for Circle USDC compatibility
- */
-contract ScentMarketplace is ReentrancyGuard, Ownable2Step {
-    
-    // Arc Mainnet Chain ID for security
-    uint256 private constant ARC_MAINNET_CHAIN_ID = 5042;
+/// @title ScentProtocolMarketplace
+/// @notice Non-custodial ERC-721 listings and USDC-escrowed token offers on Arc.
+/// @dev Includes O(1) active listings tracking per collection for easy frontend fetching.
+contract ScentProtocolMarketplace is Ownable2Step, Pausable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
 
     struct Listing {
         address seller;
-        address nftContract;
         uint256 price;
-        bool active;
+        uint256 expiry;
+        uint16 feeBps;
     }
 
-    mapping(uint256 => Listing) public listings;
-    uint256[] public activeListings;
-    mapping(uint256 => uint256) private activeIndex;
-    
+    struct Offer {
+        uint256 price;
+        uint256 expiry;
+        uint16 feeBps;
+    }
+
+    uint16 public constant DEFAULT_PLATFORM_FEE_BPS = 200;
+    uint16 public constant MAX_PLATFORM_FEE_BPS = 500;
+    uint16 public constant MAX_ROYALTY_BPS = 1000;
+    uint256 public constant MAX_DURATION = 30 days;
+    uint256 public constant MAX_LISTING_DURATION = 30 days;
+    uint256 public constant ROYALTY_GAS = 100_000;
+    uint256 private constant BPS_DENOMINATOR = 10_000;
+    uint256 private constant ARC_MAINNET_CHAIN_ID = 5042;
+    uint256 private constant ARC_TESTNET_CHAIN_ID = 5042002;
+
     IERC20 public immutable usdc;
+    address public feeRecipient;
+    uint16 public platformFeeBps;
+    address public pauser;
+    uint256 public totalOfferEscrow;
 
-    event Listed(uint256 indexed tokenId, address indexed seller, address indexed nftContract, uint256 price);
-    event Cancelled(uint256 indexed tokenId, address indexed seller);
-    event Sold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
-
-    /**
-     * @notice Constructor
-     * @param _usdc Address of USDC token (Arc Mainnet: 0x3600000000000000000000000000000000000000)
-     */
-    constructor(address _usdc) Ownable(msg.sender) {
-        // NETWORK CHECK: Allow deployment only on Arc Mainnet
-        require(block.chainid == ARC_MAINNET_CHAIN_ID, "Must be deployed on Arc Mainnet");
-        
-        require(_usdc != address(0), "Invalid USDC address");
-        usdc = IERC20(_usdc);
-    }
-
-    /**
-     * @notice List an NFT for sale
-     * @param nftContract Address of NFT contract
-     * @param tokenId Token ID to list
-     * @param price Price in USDC
-     */
-    function list(address nftContract, uint256 tokenId, uint256 price) external nonReentrant {
-        require(price > 0, "Price must be greater than 0");
-        require(nftContract != address(0), "Invalid NFT contract address");
-        
-        IERC721 nft = IERC721(nftContract);
-        require(nft.ownerOf(tokenId) == msg.sender, "Not the token owner");
-        require(
-            nft.isApprovedForAll(msg.sender, address(this)) || nft.getApproved(tokenId) == address(this),
-            "Marketplace not approved for token transfer"
-        );
-
-        bool isFirstTime = !listings[tokenId].active;
-        
-        listings[tokenId] = Listing({
-            seller: msg.sender,
-            nftContract: nftContract,
-            price: price,
-            active: true
-        });
-
-        if (isFirstTime) {
-            activeIndex[tokenId] = activeListings.length;
-            activeListings.push(tokenId);
-        }
-
-        emit Listed(tokenId, msg.sender, nftContract, price);
-    }
-
-    /**
-     * @notice Cancel a listing
-     * @param tokenId Token ID to cancel
-     */
-    function cancel(uint256 tokenId) external nonReentrant {
-        Listing storage listing = listings[tokenId];
-        require(listing.active, "Listing is not active");
-        require(listing.seller == msg.sender, "Not the seller");
-
-        listing.active = false;
-
-        uint256 index = activeIndex[tokenId];
-        uint256 lastIndex = activeListings.length - 1;
-        
-        if (index != lastIndex) {
-            uint256 lastTokenId = activeListings[lastIndex];
-            activeListings[index] = lastTokenId;
-            activeIndex[lastTokenId] = index;
-        }
-        activeListings.pop();
-        delete activeIndex[tokenId];
-
-        emit Cancelled(tokenId, msg.sender);
-    }
-
-    /**
-     * @notice Buy a listed NFT
-     * @param tokenId Token ID to buy
-     */
-    function buy(uint256 tokenId) external nonReentrant {
-        Listing storage listing = listings[tokenId];
-        require(listing.active, "Listing is not active");
-
-        address seller = listing.seller;
-        address nftContract = listing.nftContract;
-        uint256 price = listing.price;
-
-        // Verify seller still owns the NFT
-        require(IERC721(nftContract).ownerOf(tokenId) == seller, "Seller no longer owns this NFT");
-
-        // Verify marketplace is approved to transfer NFT
-        require(
-            IERC721(nftContract).isApprovedForAll(seller, address(this)) || 
-            IERC721(nftContract).getApproved(tokenId) == address(this),
-            "Marketplace not approved by seller"
-        );
-
-        // Mark as inactive before transfers
-        listing.active = false;
-
-        // Remove from active listings array (O(1) operation)
-        uint256 index = activeIndex[tokenId];
-        uint256 lastIndex = activeListings.length - 1;
-        if (index != lastIndex) {
-            uint256 lastTokenId = activeListings[lastIndex];
-            activeListings[index] = lastTokenId;
-            activeIndex[lastTokenId] = index;
-        }
-        activeListings.pop();
-        delete activeIndex[tokenId];
-
-        // CRITICAL FIX: Use transferFrom instead of safeTransferFrom
-        // NativeFiatTokenV2_2 (Circle USDC on Arc) compatibility
-        usdc.transferFrom(msg.sender, seller, price);
-
-        // Transfer NFT to buyer
-        IERC721(nftContract).transferFrom(seller, msg.sender, tokenId);
-
-        emit Sold(tokenId, seller, msg.sender, price);
-    }
-
-    /**
-     * @notice Get all active listing token IDs
-     * @return Array of active token IDs
-     */
-    function getActiveListings() external view returns (uint256[] memory) {
-        return activeListings;
-    }
-
-    /**
-     * @notice Get total number of active listings
-     * @return Count of active listings
-     */
-    function getActiveCount() external view returns (uint256) {
-        return activeListings.length;
-    }
+    mapping(address => bool) public allowedCollection;
+    mapping(address => mapping(uint256 => Listing)) private _listings;
+    mapping(address => mapping(uint256 => mapping(address => Offer))) private _offers;
     
-    /**
-     * @notice Get listing details
-     * @param tokenId Token ID
-     * @return seller Seller address
-     * @return nftContract NFT contract address
-     * @return price Price in USDC
-     * @return active Listing status
-     */
-    function getListing(uint256 tokenId) external view returns (address seller, address nftContract, uint256 price, bool active) {
-        Listing storage l = listings[tokenId];
-        return (l.seller, l.nftContract, l.price, l.active);
+    // O(1) Active listings tracking per collection (merged from legacy contract)
+    mapping(address => uint256[]) private _activeListings;
+    mapping(address => mapping(uint256 => uint256)) private _activeIndex;
+
+    error ScentProtocol__WrongNetwork(uint256 chainId);
+    error ScentProtocol__ZeroAddress();
+    error InvalidUSDC(address token);
+    error InvalidRecipient(address recipient);
+    error InvalidCollection(address collection);
+    error CollectionNotAllowed(address collection);
+    error InvalidPrice(uint256 price);
+    error InvalidExpiry(uint256 expiry, uint256 maxDuration);
+    error FeeTooHigh(uint16 feeBps, uint16 maxFeeBps);
+    error NotTokenOwner(address collection, uint256 tokenId, address account);
+    error NotApproved(address collection, uint256 tokenId, address account);
+    error NotAuthorized(address caller);
+    error ListingNotFound(address collection, uint256 tokenId);
+    error ListingAlreadyExists(address collection, uint256 tokenId, address seller);
+    error ListingExpired(address collection, uint256 tokenId, uint256 expiry);
+    error OfferNotFound(address collection, uint256 tokenId, address offerer);
+    error OfferExpired(address collection, uint256 tokenId, address offerer, uint256 expiry);
+    error PriceGuardFailed(uint256 actual, uint256 bound);
+    error SelfTrade(address account);
+    error NoRescuableBalance(address token);
+    error OwnershipRenunciationDisabled();
+
+    event Listed(address indexed nft, uint256 indexed tokenId, address indexed seller, uint256 price, uint256 expiry);
+    event ListingUpdated(address indexed nft, uint256 indexed tokenId, address indexed seller, uint256 price, uint256 expiry);
+    event ListingCancelled(address indexed nft, uint256 indexed tokenId, address indexed seller);
+    event Sale(address indexed nft, uint256 indexed tokenId, address seller, address indexed buyer, uint256 price, uint256 fee, uint256 royalty);
+    event OfferMade(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price, uint256 expiry);
+    event OfferCancelled(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price);
+    event OfferAccepted(address indexed nft, uint256 indexed tokenId, address seller, address indexed offerer, uint256 price, uint256 fee, uint256 royalty);
+    event CollectionAllowed(address indexed nft, bool allowed);
+    event PlatformFeeSet(uint16 feeBps);
+    event FeeRecipientSet(address indexed recipient);
+    event PauserSet(address indexed pauser);
+    event TokenRescued(address indexed token, address indexed to, uint256 amount);
+
+    constructor(address usdc_, address feeRecipient_, uint16 feeBps_) Ownable(msg.sender) {
+        if (block.chainid != ARC_MAINNET_CHAIN_ID && block.chainid != ARC_TESTNET_CHAIN_ID) {
+            revert ScentProtocol__WrongNetwork(block.chainid);
+        }
+        if (usdc_ == address(0)) revert ScentProtocol__ZeroAddress();
+        if (usdc_.code.length == 0) revert InvalidUSDC(usdc_);
+        try IERC20Metadata(usdc_).decimals() returns (uint8 decimals_) {
+            if (decimals_ != 6) revert InvalidUSDC(usdc_);
+        } catch {
+            revert InvalidUSDC(usdc_);
+        }
+        _checkRecipient(feeRecipient_);
+        if (feeBps_ > MAX_PLATFORM_FEE_BPS) revert FeeTooHigh(feeBps_, MAX_PLATFORM_FEE_BPS);
+        usdc = IERC20(usdc_);
+        feeRecipient = feeRecipient_;
+        platformFeeBps = feeBps_;
+        pauser = msg.sender;
+        emit FeeRecipientSet(feeRecipient_);
+        emit PlatformFeeSet(feeBps_);
+        emit PauserSet(msg.sender);
+    }
+
+    function list(address nft, uint256 tokenId, uint256 price, uint256 expiry)
+        external nonReentrant whenNotPaused
+    {
+        _requireAllowed(nft);
+        _validateTerms(price, expiry, MAX_LISTING_DURATION);
+        _requireOwnerApproved(nft, tokenId, msg.sender);
+        
+        bool wasActive = isListingActive(nft, tokenId);
+        _listings[nft][tokenId] = Listing(msg.sender, price, expiry, platformFeeBps);
+        
+        if (!wasActive) {
+            _activeIndex[nft][tokenId] = _activeListings[nft].length;
+            _activeListings[nft].push(tokenId);
+        }
+        emit Listed(nft, tokenId, msg.sender, price, expiry);
+    }
+
+    function updateListing(address nft, uint256 tokenId, uint256 price, uint256 expiry)
+        external nonReentrant whenNotPaused
+    {
+        _requireAllowed(nft);
+        if (_listings[nft][tokenId].seller == address(0)) revert ListingNotFound(nft, tokenId);
+        if (_listings[nft][tokenId].seller != msg.sender) revert NotAuthorized(msg.sender);
+        _validateTerms(price, expiry, MAX_LISTING_DURATION);
+        _requireOwnerApproved(nft, tokenId, msg.sender);
+        _listings[nft][tokenId] = Listing(msg.sender, price, expiry, platformFeeBps);
+        emit ListingUpdated(nft, tokenId, msg.sender, price, expiry);
+    }
+
+    function cancelListing(address nft, uint256 tokenId) external nonReentrant {
+        Listing memory listing = _listings[nft][tokenId];
+        if (listing.seller == address(0)) revert ListingNotFound(nft, tokenId);
+        
+        delete _listings[nft][tokenId];
+        _removeFromActiveListings(nft, tokenId);
+        
+        if (msg.sender != listing.seller && block.timestamp < listing.expiry) {
+            if (_isOwner(nft, tokenId, listing.seller)) revert NotAuthorized(msg.sender);
+        }
+        emit ListingCancelled(nft, tokenId, listing.seller);
+    }
+
+    function buy(address nft, uint256 tokenId, uint256 expectedPrice)
+        external nonReentrant whenNotPaused
+    {
+        _requireAllowed(nft);
+        Listing memory listing = _listings[nft][tokenId];
+        if (listing.seller == address(0)) revert ListingNotFound(nft, tokenId);
+        if (block.timestamp >= listing.expiry) revert ListingExpired(nft, tokenId, listing.expiry);
+        if (listing.price > expectedPrice) revert PriceGuardFailed(listing.price, expectedPrice);
+        if (msg.sender == listing.seller) revert SelfTrade(msg.sender);
+        
+        delete _listings[nft][tokenId];
+        _removeFromActiveListings(nft, tokenId);
+        
+        _requireOwnerApproved(nft, tokenId, listing.seller);
+        usdc.safeTransferFrom(msg.sender, address(this), listing.price);
+        (uint256 fee, uint256 royalty) = _payout(nft, tokenId, listing.seller, listing.price, listing.feeBps);
+        IERC721(nft).safeTransferFrom(listing.seller, msg.sender, tokenId);
+        emit Sale(nft, tokenId, listing.seller, msg.sender, listing.price, fee, royalty);
+    }
+
+    function makeOffer(address nft, uint256 tokenId, uint256 price, uint256 expiry)
+        external nonReentrant whenNotPaused
+    {
+        _requireAllowed(nft);
+        _validateTerms(price, expiry, MAX_DURATION);
+        uint256 previousPrice = _offers[nft][tokenId][msg.sender].price;
+        delete _offers[nft][tokenId][msg.sender];
+        totalOfferEscrow -= previousPrice;
+        if (IERC721(nft).ownerOf(tokenId) == msg.sender) revert SelfTrade(msg.sender);
+        _offers[nft][tokenId][msg.sender] = Offer(price, expiry, platformFeeBps);
+        totalOfferEscrow += price;
+        if (previousPrice != 0) {
+            emit OfferCancelled(nft, tokenId, msg.sender, previousPrice);
+            usdc.safeTransfer(msg.sender, previousPrice);
+        }
+        usdc.safeTransferFrom(msg.sender, address(this), price);
+        emit OfferMade(nft, tokenId, msg.sender, price, expiry);
+    }
+
+    function cancelOffer(address nft, uint256 tokenId) external nonReentrant {
+        uint256 price = _offers[nft][tokenId][msg.sender].price;
+        if (price == 0) revert OfferNotFound(nft, tokenId, msg.sender);
+        delete _offers[nft][tokenId][msg.sender];
+        totalOfferEscrow -= price;
+        emit OfferCancelled(nft, tokenId, msg.sender, price);
+        usdc.safeTransfer(msg.sender, price);
+    }
+
+    function acceptOffer(address nft, uint256 tokenId, address offerer, uint256 minPrice)
+        external nonReentrant whenNotPaused
+    {
+        _requireAllowed(nft);
+        Offer memory offer = _offers[nft][tokenId][offerer];
+        if (offer.price == 0) revert OfferNotFound(nft, tokenId, offerer);
+        if (block.timestamp >= offer.expiry) revert OfferExpired(nft, tokenId, offerer, offer.expiry);
+        if (offer.price < minPrice) revert PriceGuardFailed(offer.price, minPrice);
+        if (offerer == msg.sender) revert SelfTrade(msg.sender);
+        
+        delete _offers[nft][tokenId][offerer];
+        totalOfferEscrow -= offer.price;
+        _clearListing(nft, tokenId); // This also removes from active listings
+        
+        _requireOwnerApproved(nft, tokenId, msg.sender);
+        (uint256 fee, uint256 royalty) = _payout(nft, tokenId, msg.sender, offer.price, offer.feeBps);
+        IERC721(nft).safeTransferFrom(msg.sender, offerer, tokenId);
+        emit OfferAccepted(nft, tokenId, msg.sender, offerer, offer.price, fee, royalty);
+    }
+
+    function setCollectionAllowed(address nft, bool allowed) external nonReentrant onlyOwner {
+        if (nft == address(0)) revert ScentProtocol__ZeroAddress();
+        if (allowed && (nft.code.length == 0 || !ERC165Checker.supportsInterface(nft, type(IERC721).interfaceId))) {
+            revert InvalidCollection(nft);
+        }
+        allowedCollection[nft] = allowed;
+        emit CollectionAllowed(nft, allowed);
+    }
+
+    function setPlatformFee(uint16 bps) external nonReentrant onlyOwner {
+        if (bps > MAX_PLATFORM_FEE_BPS) revert FeeTooHigh(bps, MAX_PLATFORM_FEE_BPS);
+        platformFeeBps = bps;
+        emit PlatformFeeSet(bps);
+    }
+
+    function setFeeRecipient(address recipient) external nonReentrant onlyOwner {
+        _checkRecipient(recipient);
+        feeRecipient = recipient;
+        emit FeeRecipientSet(recipient);
+    }
+
+    function setPauser(address account) external nonReentrant onlyOwner {
+        if (account == address(0)) revert ScentProtocol__ZeroAddress();
+        pauser = account;
+        emit PauserSet(account);
+    }
+
+    function pause() external nonReentrant {
+        _requirePauseAuthority();
+        _pause();
+    }
+
+    function unpause() external nonReentrant {
+        _requirePauseAuthority();
+        _unpause();
+    }
+
+    function rescueToken(address token, address to) external nonReentrant onlyOwner {
+        if (token == address(0)) revert ScentProtocol__ZeroAddress();
+        _checkRecipient(to);
+        uint256 amount = IERC20(token).balanceOf(address(this));
+        if (token == address(usdc)) {
+            if (amount <= totalOfferEscrow) revert NoRescuableBalance(token);
+            amount -= totalOfferEscrow;
+        }
+        if (amount == 0) revert NoRescuableBalance(token);
+        emit TokenRescued(token, to, amount);
+        IERC20(token).safeTransfer(to, amount);
+    }
+
+    function transferOwnership(address newOwner) public override nonReentrant onlyOwner {
+        super.transferOwnership(newOwner);
+    }
+
+    function acceptOwnership() public override nonReentrant {
+        address previousOwner = owner();
+        super.acceptOwnership();
+        if (pauser == previousOwner) {
+            pauser = msg.sender;
+            emit PauserSet(msg.sender);
+        }
+    }
+
+    function renounceOwnership() public override nonReentrant onlyOwner {
+        revert OwnershipRenunciationDisabled();
+    }
+
+    function getListing(address nft, uint256 tokenId) external view returns (Listing memory) {
+        return _listings[nft][tokenId];
+    }
+
+    function getOffer(address nft, uint256 tokenId, address offerer) external view returns (Offer memory) {
+        return _offers[nft][tokenId][offerer];
+    }
+
+    /// @notice Returns all currently active listing token IDs for a specific collection.
+    function getActiveListings(address nft) external view returns (uint256[] memory) {
+        return _activeListings[nft];
+    }
+
+    function isListingActive(address nft, uint256 tokenId) public view returns (bool) {
+        Listing memory listing = _listings[nft][tokenId];
+        if (paused() || !allowedCollection[nft] || listing.seller == address(0)) return false;
+        if (block.timestamp >= listing.expiry || !_isOwner(nft, tokenId, listing.seller)) return false;
+        return _isApproved(nft, tokenId, listing.seller);
+    }
+
+    function _requireAllowed(address nft) private view {
+        if (!allowedCollection[nft]) revert CollectionNotAllowed(nft);
+    }
+
+    function _validateTerms(uint256 price, uint256 expiry, uint256 maxDuration) private view {
+        if (price == 0) revert InvalidPrice(price);
+        if (expiry <= block.timestamp || expiry - block.timestamp > maxDuration) revert InvalidExpiry(expiry, maxDuration);
+    }
+
+    function _requireOwnerApproved(address nft, uint256 tokenId, address seller) private view {
+        if (!_isOwner(nft, tokenId, seller)) revert NotTokenOwner(nft, tokenId, seller);
+        if (!_isApproved(nft, tokenId, seller)) revert NotApproved(nft, tokenId, seller);
+    }
+
+    function _isOwner(address nft, uint256 tokenId, address account) private view returns (bool) {
+        try IERC721(nft).ownerOf(tokenId) returns (address tokenOwner) {
+            return tokenOwner == account;
+        } catch {
+            return false;
+        }
+    }
+
+    function _isApproved(address nft, uint256 tokenId, address seller) private view returns (bool) {
+        try IERC721(nft).getApproved(tokenId) returns (address approved) {
+            if (approved == address(this)) return true;
+        } catch {}
+        try IERC721(nft).isApprovedForAll(seller, address(this)) returns (bool approved) {
+            return approved;
+        } catch {
+            return false;
+        }
+    }
+
+    function _clearListing(address nft, uint256 tokenId) private {
+        address seller = _listings[nft][tokenId].seller;
+        if (seller != address(0)) {
+            delete _listings[nft][tokenId];
+            _removeFromActiveListings(nft, tokenId);
+            emit ListingCancelled(nft, tokenId, seller);
+        }
+    }
+
+    function _removeFromActiveListings(address nft, uint256 tokenId) private {
+        uint256 index = _activeIndex[nft][tokenId];
+        // Если индекс равен длине массива, значит элемент уже удален или не был добавлен
+        if (index < _activeListings[nft].length) {
+            uint256 lastIndex = _activeListings[nft].length - 1;
+            if (index != lastIndex) {
+                uint256 lastTokenId = _activeListings[nft][lastIndex];
+                _activeListings[nft][index] = lastTokenId;
+                _activeIndex[nft][lastTokenId] = index;
+            }
+            _activeListings[nft].pop();
+            delete _activeIndex[nft][tokenId];
+        }
+    }
+
+    function _payout(address nft, uint256 tokenId, address seller, uint256 price, uint16 feeBps)
+        private returns (uint256 fee, uint256 royalty)
+    {
+        fee = Math.mulDiv(price, feeBps, BPS_DENOMINATOR);
+        (address receiver, uint256 amount) = _royaltyQuote(nft, tokenId, seller, price);
+        usdc.safeTransfer(seller, price - fee - amount);
+        if (fee != 0) usdc.safeTransfer(feeRecipient, fee);
+        if (amount != 0) {
+            if (_tryRoyaltyTransfer(receiver, amount)) {
+                royalty = amount;
+            } else {
+                usdc.safeTransfer(seller, amount);
+            }
+        }
+    }
+
+    function _royaltyQuote(address nft, uint256 tokenId, address seller, uint256 price)
+        private view returns (address receiver, uint256 amount)
+    {
+        try IERC2981(nft).royaltyInfo{gas: ROYALTY_GAS}(tokenId, price)
+            returns (address recipient, uint256 quoted)
+        {
+            if (recipient == address(0) || recipient == seller || recipient == address(this)) return (address(0), 0);
+            receiver = recipient;
+            amount = Math.min(quoted, Math.mulDiv(price, MAX_ROYALTY_BPS, BPS_DENOMINATOR));
+        } catch {
+            return (address(0), 0);
+        }
+    }
+
+    function _tryRoyaltyTransfer(address receiver, uint256 amount) private returns (bool) {
+        (bool success, bytes memory result) = address(usdc).call(
+            abi.encodeCall(IERC20.transfer, (receiver, amount))
+        );
+        if (!success) return false;
+        if (result.length == 0) return address(usdc).code.length != 0;
+        if (result.length < 32) return false;
+        uint256 returned;
+        assembly ("memory-safe") {
+            returned := mload(add(result, 32))
+        }
+        return returned == 1;
+    }
+
+    function _checkRecipient(address recipient) private view {
+        if (recipient == address(0)) revert ScentProtocol__ZeroAddress();
+        if (recipient == address(this)) revert InvalidRecipient(recipient);
+    }
+
+    function _requirePauseAuthority() private view {
+        if (msg.sender != pauser && msg.sender != owner()) revert NotAuthorized(msg.sender);
     }
 }
