@@ -22,15 +22,15 @@ export default function InfoSection() {
             <ol className="space-y-3 text-white/70">
               <li className="flex gap-3">
                 <span className="text-arc-500 font-bold">1.</span>
-                <span>Choose gender and perfume type (Parfum, EDP, EDT, EDC)</span>
+                <span>Explore our collections (Genesis, Core, MFW, Viral) or use the AI Scent Advisor.</span>
               </li>
               <li className="flex gap-3">
                 <span className="text-arc-500 font-bold">2.</span>
-                <span>Pay 1 USDC — the smart contract generates a unique formula on-chain</span>
+                <span>Mint your unique fragrance (pricing varies, with exclusive free mints for early supporters).</span>
               </li>
               <li className="flex gap-3">
                 <span className="text-arc-500 font-bold">3.</span>
-                <span>AI writes a poetic description — your NFT is ready</span>
+                <span>Trade on the marketplace or use <strong className="text-white">Scent Alchemy</strong> to blend two NFTs into a rare Hybrid.</span>
               </li>
             </ol>
           </div>
@@ -46,12 +46,12 @@ export default function InfoSection() {
             <div className="text-xs text-white/50">Finality on Arc</div>
           </div>
           <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-scent-gold mb-1">9</div>
-            <div className="text-xs text-white/50">Notes Per Scent</div>
+            <div className="text-2xl font-bold text-scent-gold mb-1">5</div>
+            <div className="text-xs text-white/50">Active Collections</div>
           </div>
           <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-scent-gold mb-1">4</div>
-            <div className="text-xs text-white/50">Rarity Tiers</div>
+            <div className="text-2xl font-bold text-scent-gold mb-1">🔥</div>
+            <div className="text-xs text-white/50">Deflationary Alchemy</div>
           </div>
         </div>
 
