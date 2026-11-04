@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+// Updated to the newly deployed contract addresses
+const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
+const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const MFW_ABI = [
@@ -18,8 +19,9 @@ const MFW_ABI = [
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
+  "function hasExclusiveBadge(address) external view returns (bool)",
   "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool hasExclusiveBadge))",
-  "function pendingMints(uint256) external view returns (address minter, uint256 timestamp, uint256 paidAmount, bytes32 seedCommitment)",
+  "function pendingMints(uint256) external view returns (address minter, uint256 blockNumber, uint256 paidAmount, bytes32 seedCommitment)",
   "event PerfumeMinted(uint256 indexed tokenId, address indexed creator, uint256 price)",
   "event BadgeAwarded(address indexed recipient)",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
@@ -31,7 +33,6 @@ const USDC_ABI = [
 ];
 
 export default function MFW2026EventPage() {
-  // 1. Manage wallet address locally instead of using broken useWallet context
   const [address, setAddress] = useState<string | null>(null);
   const router = useRouter();
   
@@ -51,7 +52,6 @@ export default function MFW2026EventPage() {
   const maxSupply = 500;
   const maxPerWallet = 3;
 
-  // 2. Check wallet connection on mount and listen for changes (Works perfectly in Brave)
   useEffect(() => {
     const checkWallet = async () => {
       const w = window as any;
@@ -96,9 +96,8 @@ export default function MFW2026EventPage() {
         const genesisBalance = await genesisContract.balanceOf(address);
         setIsGenesisHolder(Number(genesisBalance) > 0);
         
-        // Note: hasBadge might not be in ABI, safely ignored if it fails
         try {
-          const userHasBadge = await mfwContract.hasBadge(address);
+          const userHasBadge = await mfwContract.hasExclusiveBadge(address);
           setHasBadge(userHasBadge);
         } catch {}
       } catch {}
@@ -114,32 +113,32 @@ export default function MFW2026EventPage() {
       const mintedCount = await mfwContract.getWalletMintedCount(address);
       setUserMinted(Number(mintedCount));
 
-      // Check for pending mints using timestamp
+      // Check for pending mints using blockNumber (matching new contract logic)
       try {
         const nextId = Number(await mfwContract.getNextTokenId());
-        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const currentBlock = await provider.getBlockNumber();
+        const REVEAL_BLOCKS = 5;
+        const REVEAL_DEADLINE = 1000;
         
         for (let i = Math.max(1, nextId - 20); i < nextId; i++) {
           try {
             const pending = await mfwContract.pendingMints(i);
             if (pending.minter.toLowerCase() === address.toLowerCase()) {
               setTokenId(i);
-              const pendingTimestamp = Number(pending.timestamp);
-              const secondsPassed = currentTimestamp - pendingTimestamp;
-              const REVEAL_MIN_WAIT = 30;
-              const REVEAL_MAX_WAIT = 3600; // 1 hour max window
+              const pendingBlock = Number(pending.blockNumber);
+              const blocksPassed = currentBlock - pendingBlock;
               
-              if (secondsPassed >= REVEAL_MIN_WAIT && secondsPassed <= REVEAL_MAX_WAIT) {
+              if (blocksPassed >= REVEAL_BLOCKS && blocksPassed <= REVEAL_DEADLINE) {
                 setCountdown(0);
                 setStep("requested");
                 setRevealExpired(false);
-              } else if (secondsPassed > REVEAL_MAX_WAIT) {
+              } else if (blocksPassed > REVEAL_DEADLINE) {
                 setStep("requested");
                 setRevealExpired(true);
                 setCountdown(0);
               } else {
-                const secondsLeft = REVEAL_MIN_WAIT - secondsPassed;
-                setCountdown(secondsLeft);
+                const blocksLeft = REVEAL_BLOCKS - blocksPassed;
+                setCountdown(blocksLeft * 2); // Approx 2 seconds per block
                 setStep("requested");
                 setRevealExpired(false);
               }
@@ -226,9 +225,13 @@ export default function MFW2026EventPage() {
         })
         .find((e: any) => e?.name === "MintRequested");
 
-      const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
+      const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       setTokenId(newTokenId);
-      setCountdown(30);
+      
+      // Save to localStorage to survive page refreshes between request and reveal
+      localStorage.setItem(`mfw_preimage_${newTokenId}`, preimageHex);
+      
+      setCountdown(10); // Fallback 10 seconds wait
       setRevealExpired(false);
 
       const timer = setInterval(() => {
@@ -253,7 +256,13 @@ export default function MFW2026EventPage() {
   const handleReveal = async () => {
     if (!address || tokenId === null) return;
 
-    const finalSeed = seedPreimage || ethers.hexlify(ethers.randomBytes(32));
+    // Retrieve preimage from state or localStorage
+    const storedPreimage = seedPreimage || localStorage.getItem(`mfw_preimage_${tokenId}`);
+    if (!storedPreimage) {
+      alert("Seed preimage not found. Please try minting again.");
+      setStep("idle");
+      return;
+    }
 
     setMinting(true);
     setStep("revealing");
@@ -263,8 +272,11 @@ export default function MFW2026EventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
 
-      const tx = await contract.revealAndMint(tokenId, finalSeed);
+      const tx = await contract.revealAndMint(tokenId, storedPreimage);
       await tx.wait();
+
+      // Cleanup localStorage after successful reveal
+      localStorage.removeItem(`mfw_preimage_${tokenId}`);
 
       if (isGenesisHolder || !hasBadge) {
         alert("🎉 Mint successful! You received the exclusive MFW 2026 Badge!");
@@ -287,7 +299,7 @@ export default function MFW2026EventPage() {
 
   const handleCancel = async () => {
     if (!tokenId) return;
-    if (!confirm("Cancel this pending mint? You will receive a 50% refund (0.5 USDC).")) return;
+    if (!confirm("Cancel this pending mint? You will receive a 50% refund.")) return;
 
     setMinting(true);
     try {
