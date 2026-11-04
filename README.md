@@ -1,6 +1,6 @@
 # ScentProtocol — Digital Perfume House 🧪
 
-ScentProtocol is a digital perfume house where users create unique, AI-generated fragrances. Every formula is minted as an NFT certificate of ownership on the Arc Mainnet blockchain. Built on Arc.
+ScentProtocol is the world's first digital perfume house on the blockchain, where users create, own, and trade unique, AI-generated fragrances. Every formula is minted as an NFT certificate of ownership on the Arc Mainnet. 
 
 🔗 **Live dApp:** [scent-protocol-pi.vercel.app](https://scent-protocol-pi.vercel.app)
 
@@ -8,12 +8,12 @@ ScentProtocol is a digital perfume house where users create unique, AI-generated
 
 ## 📖 The Concept
 
-ScentProtocol is the world's first digital perfume house on the blockchain. Every fragrance is a unique NFT — a digital certificate of ownership for an AI-generated formula. No two scents are ever the same.
+ScentProtocol is a multi-layered ecosystem of digital fragrances. No two scents are ever the same.
 
 **How It Works:**
-1. Choose gender and perfume type (Parfum, EDP, EDT, EDC) or use the AI Advisor.
-2. Pay 1 USDC (or mint free Viral editions) — the smart contract generates a unique formula on-chain.
-3. AI writes a poetic description — your NFT is ready.
+1. **Explore Collections:** Choose from our core collections (V3, Genesis, MFW 2026, Viral) or use the AI Scent Advisor to find your perfect match.
+2. **Mint or Blend:** Mint a new fragrance for a fixed USDC price (or claim free exclusive drops), or use **Scent Alchemy** to burn 2 existing NFTs and forge a mutated Hybrid with a chance for rarity upgrades.
+3. **Own & Trade:** Your NFT includes a poetic AI-generated description, a unique generative ScentCrest logo, and can be traded on our built-in marketplace with escrowed offers and creator royalties.
 
 ---
 
@@ -30,7 +30,7 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 
 | Component | Technology | Where |
 |-----------|-----------|-------|
-| Smart Contracts | Solidity 0.8.20 | Arc Mainnet |
+| Smart Contracts | Solidity 0.8.20 + Foundry | Arc Mainnet |
 | Frontend | Next.js 14 + Tailwind + TypeScript | Vercel |
 | AI Description | OpenAI GPT-4o-mini | Vercel Serverless Function |
 | Blockchain RPC | Public Arc Mainnet endpoint | Via ethers.js in browser |
@@ -42,11 +42,12 @@ ScentProtocol is the world's first digital perfume house on the blockchain. Ever
 
 | Contract | Address | Purpose |
 |----------|---------|---------|
-| **ScentProtocolMainnet** | [`0x8d456e033FF7220068CDc1C3F08D6BA6641D103e`](https://explorer.arc.io/address/0x8d456e033FF7220068CDc1C3F08D6BA6641D103e) | Main perfume creation & NFT minting logic |
-| **ScentProtocolMainnetGenesis** | [`0x807dF79Ec16CF51C07e7B522175EB408D6dE247E`](https://explorer.arc.io/address/0x807dF79Ec16CF51C07e7B522175EB408D6dE247E) | Exclusive Genesis collection (100 supply, commit-reveal) |
-| **ScentProtocolMFW2026** | [`0xBcF87E80C18CF5d0D8769703fDb891A16D279B50`](https://explorer.arc.io/address/0xBcF87E80C18CF5d0D8769703fDb891A16D279B50) | Milan Fashion Week 2026 exclusive drop (500 supply) |
-| **ScentProtocolViral** | [`0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb`](https://explorer.arc.io/address/0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb) | Viral "Wallet Scent" campaign (10k supply, free mint, 1 per wallet) |
-| **ScentProtocolMarketplace** | [`0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c`](https://explorer.arc.io/address/0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c) | Secondary marketplace for trading Scent NFTs |
+| **ScentProtocol V3** | [`0x87950a56456Df786A249F484e9E56dF00fF207cb`](https://explorer.arc.io/address/0x87950a56456Df786A249F484e9E56dF00fF207cb) | Core perfume creation & NFT minting logic |
+| **ScentProtocol Genesis** | [`0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6`](https://explorer.arc.io/address/0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6) | Exclusive Genesis collection (100 supply, commit-reveal) |
+| **ScentProtocol MFW 2026** | [`0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20`](https://explorer.arc.io/address/0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20) | Milan Fashion Week 2026 exclusive drop (500 supply) |
+| **ScentProtocol Viral** | [`0x55A3527C87190fa8456De46247b52214287e8688`](https://explorer.arc.io/address/0x55A3527C87190fa8456De46247b52214287e8688) | Viral "Wallet Scent" campaign (10k supply, free mint) |
+| **Scent Alchemy** | [`0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40`](https://explorer.arc.io/address/0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40) | Deflationary blending: Burn 2 NFTs to forge 1 Hybrid |
+| **ScentProtocol Marketplace** | [`0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120`](https://explorer.arc.io/address/0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120) | Secondary marketplace with escrowed offers & royalties |
 | **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc |
 
 ---
@@ -112,20 +113,19 @@ All contracts below are deployed and verified on Arc Testnet:
 - [x] Royalty enforcement on secondary sales
 - [x] Rarity-based filtering & search
 
-### 🔄 Phase 2: AI Agent & Mainnet (In Progress)
+### ✅ Phase 2: AI Agent & Mainnet (Completed)
 - [x] Personal AI advisor for scent recommendations
 - [x] Successful Mainnet deployment
 - [x] Limited Event Editions (Special Occasion Drops)
-- [x] **Auto-minting based on mood & context (Viral Wallet Scent)** 🆕
-- [ ] Natural language → fragrance pipeline
+- [x] Auto-minting based on mood & context (Viral Wallet Scent)
 
-### 🔮 Phase 3: Advanced On-Chain Mechanics
-- [ ] $0.01 scent previews (no NFT required)
-- [ ] Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance
+### 🔄 Phase 3: Advanced On-Chain Mechanics (In Progress)
+- [x] Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance
+- [ ] Natural language → fragrance pipeline
 - [ ] Evolving Scents: Dynamic metadata upgrades based on holding duration
 - [ ] Subscription 'Scent of the Month' & micro-governance
 
-### 🌐 Phase 4: Cross-Chain Expansion & Virtual Worlds
+### 🔮 Phase 4: Cross-Chain Expansion & Virtual Worlds
 - [ ] CCTP (Cross-Chain Transfer Protocol) integration for seamless multi-chain onboarding
 - [ ] Web2.5 creator onboarding from Ethereum, Base, and Arbitrum
 - [ ] Unified liquidity across chains — zero fragmentation
@@ -142,15 +142,24 @@ All contracts below are deployed and verified on Arc Testnet:
 
 ## 🚀 Quick Start (Frontend)
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
+```bash
+# Install dependencies
+npm install
 
-### 🔧 Deploy to Vercel
-1. Push repository to GitHub
-2. Import project on [vercel.com](https://vercel.com)
-3. Set `frontend` as Root Directory
-4. Add Environment Variables (see below)
-5. Click Deploy
+# Run development server
+npm run dev
+
+    Add Environment Variables (see below)
+    Click Deploy
 
 ### 🔐 Environment Variables (`.env.local`)
 *Note: These are configured for **Arc Mainnet**.*
 
+```env
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x87950a56456Df786A249F484e9E56dF00fF207cb
+NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.arc.io
+OPENAI_API_KEY=your_openai_api_key_here
+PINATA_API_KEY=your_pinata_api_key_here
+PINATA_SECRET_KEY=your_pinata_secret_key_here
+
+Built with ❤️ for the future of digital olfactory experiences.
