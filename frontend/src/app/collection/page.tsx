@@ -596,6 +596,38 @@ export default function CollectionPage() {
       <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">My Collection</h1>
       <p className="text-center text-white/50">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
 
+      {/* Scent Alchemy Lab CTA Banner */}
+      <Link href="/alchemy" className="block group">
+        <div className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-teal-900/40 to-slate-900/40 p-6 transition-all duration-300 hover:border-cyan-400/60 hover:shadow-[0_0_30px_rgba(34,211,238,0.15)]">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-cyan-500/20 transition-all" />
+          
+          <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-3xl shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+                🧪
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-cyan-300 flex items-center gap-2">
+                  Scent Alchemy Lab
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-[10px] text-cyan-300 border border-cyan-500/40 uppercase tracking-wider">New</span>
+                </h3>
+                <p className="text-sm text-white/60 mt-1 max-w-lg">
+                  Combine 2 of your existing Scent NFTs to forge a unique <span className="text-cyan-300 font-semibold">Hybrid</span>. 
+                  15% chance for a rarity upgrade. Cost: 0.1 USDC + Burn.
+                </p>
+              </div>
+            </div>
+            
+            <button className="flex-shrink-0 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105 transition-all flex items-center gap-2">
+              Enter the Lab
+              <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </Link>
+
       {/* BADGES ROW */}
       {(hasGenesisBadge || hasMFWBadge || hasViralBadge || hasHybridBadge) && (
         <div className="flex items-center justify-center gap-3 animate-fade-up flex-wrap">
