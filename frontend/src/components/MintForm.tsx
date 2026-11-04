@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useToast } from "@/components/ToastProvider";
-import { MintContext } from "@/components/AIAdvisor"; // Import MintContext interface
+import { MintContext } from "@/components/AIAdvisor";
 import {
   getContract,
   getUSDCContract,
@@ -11,16 +11,15 @@ import {
   PerfumeData,
 } from "@/utils/contract";
 
-// Updated interface: replaces defaultGender/defaultType with advisorContext
 interface MintFormProps {
   onMinted: (tokenId: number, perfume: PerfumeData, desc: string, mood?: string) => void;
-  advisorContext?: MintContext; // Optional: full context from AI Advisor (mood, notes, seedString)
+  advisorContext?: MintContext;
 }
 
 export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
-  // Initialize gender and pType from advisorContext if available, otherwise use defaults
   const [gender, setGender] = useState(advisorContext?.gender ?? 0);
   const [pType, setPType] = useState(advisorContext?.pType ?? 2);
+  const [mintPrice, setMintPrice] = useState<string>("1.00");
   
   const [step, setStep] = useState<"idle" | "requesting" | "waiting" | "revealing" | "success">("idle");
   const [tokenId, setTokenId] = useState<number | null>(null);
@@ -29,13 +28,30 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
 
   const { addToast, updateToast } = useToast();
 
-  // Update local state when advisorContext changes (e.g., user selects new scenario)
   useEffect(() => {
     if (advisorContext) {
       setGender(advisorContext.gender);
       setPType(advisorContext.pType);
     }
   }, [advisorContext]);
+
+  // Fetch dynamic mint price on mount
+  useEffect(() => {
+    const fetchPrice = async () => {
+      try {
+        const w = window as any;
+        if (w.ethereum) {
+          const provider = new ethers.BrowserProvider(w.ethereum);
+          const contract = getContract(provider);
+          const price = await contract.getMintPrice();
+          setMintPrice(ethers.formatUnits(price, 6));
+        }
+      } catch (e) {
+        console.error("Failed to fetch mint price", e);
+      }
+    };
+    fetchPrice();
+  }, []);
 
   // Countdown timer for the commit-reveal delay
   useEffect(() => {
@@ -73,18 +89,27 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
       const contract = getContract(signer);
       const usdc = getUSDCContract(signer);
 
-      const mintPrice = await contract.getMintPrice();
+      const currentMintPrice = await contract.getMintPrice();
       updateToast(toastId, "Checking USDC allowance...", "loading");
 
       const allowance = await usdc.allowance(userAddress, CONTRACT_ADDRESS);
-      if (allowance < mintPrice) {
+      if (allowance < currentMintPrice) {
         updateToast(toastId, "Approving USDC spend...", "loading");
-        const txApprove = await usdc.approve(CONTRACT_ADDRESS, mintPrice * BigInt(100));
+        // Approve MaxUint256 to avoid repeated approval transactions
+        const txApprove = await usdc.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
         await txApprove.wait();
       }
 
       updateToast(toastId, "Step 1/2: Requesting mint...", "loading");
-      const txRequest = await contract.requestMint();
+      
+      // SECURE COMMIT-REVEAL: Generate seed preimage and commitment
+      const seedPreimage = advisorContext?.seedString 
+        ? ethers.id(advisorContext.seedString) // deterministic bytes32 from AI Advisor
+        : ethers.hexlify(ethers.randomBytes(32)); // random bytes32
+      
+      const seedCommitment = ethers.keccak256(seedPreimage);
+      
+      const txRequest = await contract.requestMint(seedCommitment);
       const receiptRequest = await txRequest.wait();
 
       // Parse transaction logs to find the new tokenId
@@ -93,7 +118,7 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
         if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) continue;
         try {
           const parsed = contract.interface.parseLog({
-            topics: [...log.topics],
+            topics: [...log.topics] as string[],
             data: log.data,
           });
           if (parsed && parsed.name === "MintRequested") {
@@ -104,6 +129,9 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
       }
 
       if (newTokenId === 0) throw new Error("TokenId not found in transaction logs");
+
+      // CRITICAL: Save preimage to localStorage to survive page refreshes before reveal
+      localStorage.setItem(`mint_preimage_${newTokenId}`, seedPreimage);
 
       setTokenId(newTokenId);
       setStep("waiting");
@@ -137,13 +165,17 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
       const signer = await provider.getSigner();
       const contract = getContract(signer);
 
-      // CRITICAL: Use deterministic seed from advisorContext instead of random bytes
-      // This ensures the on-chain generated perfume matches the AI-selected mood/notes
-      const seedString = advisorContext?.seedString || `${Date.now()}-${Math.random()}`;
-      const userSeedHex = ethers.id(seedString); // keccak256 hash for the smart contract
-      
-      const txReveal = await contract.revealAndMint(tokenId, userSeedHex);
+      // Retrieve preimage from localStorage (survives refresh)
+      const storedPreimage = localStorage.getItem(`mint_preimage_${tokenId}`);
+      if (!storedPreimage) {
+        throw new Error("Seed preimage lost. Please restart the mint process.");
+      }
+
+      const txReveal = await contract.revealAndMint(tokenId, storedPreimage);
       await txReveal.wait();
+
+      // Clean up localStorage after successful reveal
+      localStorage.removeItem(`mint_preimage_${tokenId}`);
 
       updateToast(toastId, "Fetching your perfume data...", "loading");
       const rawPerfume = await contract.getPerfume(tokenId);
@@ -185,7 +217,6 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
       }
 
       const desc = generateDescription(perfume);
-      // Pass mood from advisorContext to onMinted for localStorage persistence
       onMinted(tokenId, perfume, desc, advisorContext?.mood);
       
       updateToast(toastId, `Scent #${tokenId} minted and secured successfully!`, "success");
@@ -331,7 +362,7 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
             onClick={handleRequestMint}
             className="w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all"
           >
-            Create for 1 USDC
+            Create for {mintPrice} USDC
           </button>
         </>
       )}
