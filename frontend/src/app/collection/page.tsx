@@ -6,13 +6,15 @@ import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
-import ScentCrest from "@/components/ScentCrest"; // <-- NEW: Import ScentCrest component
+import ScentCrest from "@/components/ScentCrest";
 
-const MARKETPLACE_ADDRESS = ethers.getAddress("0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c");
-const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
-const VIRAL_CONTRACT_ADDRESS = "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb"; // NEW: Viral Contract
+// --- UPDATED CONTRACT ADDRESSES ---
+const MARKETPLACE_ADDRESS = ethers.getAddress("0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120");
+const NFT_CONTRACT_ADDRESS = "0x87950a56456Df786A249F484e9E56dF00fF207cb"; // V3
+const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
+const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
+const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
+const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40"; // NEW: Alchemy Hybrids
 
 const MARKETPLACE_ABI = [
   "function list(address nftContract, uint256 tokenId, uint256 price)",
@@ -23,15 +25,15 @@ const MARKETPLACE_ABI = [
   "function usdc() view returns (address)"
 ];
 
+// Updated to match V3 struct exactly
 const NFT_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function setApprovalForAll(address operator, bool approved)",
   "function isApprovedForAll(address owner, address operator) view returns (bool)",
   "function balanceOf(address owner) view returns (uint256)",
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
+  "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isAlchemy, uint256 parentTokenA, uint256 parentTokenB))"
 ];
 
-// ABI specifically for the Viral contract
 const VIRAL_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function ownerOf(uint256 tokenId) view returns (address)",
@@ -39,87 +41,22 @@ const VIRAL_ABI = [
 ];
 
 const GENESIS_ABI = [
-  {
-    "inputs": [{"internalType": "address", "name": "owner", "type": "address"}],
-    "name": "balanceOf",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "ownerOf",
-    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "getPerfume",
-    "outputs": [{
-      "components": [
-        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
-        {"internalType": "string", "name": "name", "type": "string"},
-        {"internalType": "uint8", "name": "gender", "type": "uint8"},
-        {"internalType": "uint8", "name": "pType", "type": "uint8"},
-        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
-        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
-        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
-        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
-        {"internalType": "address", "name": "creator", "type": "address"},
-        {"internalType": "bool", "name": "isGenesis", "type": "bool"}
-      ],
-      "internalType": "struct ScentProtocolGenesis.Perfume",
-      "name": "",
-      "type": "tuple"
-    }],
-    "stateMutability": "view",
-    "type": "function"
-  }
+  "function balanceOf(address owner) view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis))"
 ];
 
 const MFW_ABI = [
-  {
-    "inputs": [{"internalType": "address", "name": "owner", "type": "address"}],
-    "name": "balanceOf",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "ownerOf",
-    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "getPerfume",
-    "outputs": [{
-      "components": [
-        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
-        {"internalType": "string", "name": "name", "type": "string"},
-        {"internalType": "uint8", "name": "gender", "type": "uint8"},
-        {"internalType": "uint8", "name": "pType", "type": "uint8"},
-        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
-        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
-        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
-        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
-        {"internalType": "address", "name": "creator", "type": "address"},
-        {"internalType": "bool", "name": "hasExclusiveBadge", "type": "bool"}
-      ],
-      "internalType": "struct ScentProtocolMFW2026.Perfume",
-      "name": "",
-      "type": "tuple"
-    }],
-    "stateMutability": "view",
-    "type": "function"
-  }
+  "function balanceOf(address owner) view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool hasExclusiveBadge))"
+];
+
+// NEW: ABI for Alchemy Hybrids
+const ALCHEMY_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function getHybridPerfume(uint256 hybridId) view returns (tuple(uint256 hybridId, uint256 parentTokenId1, uint256 parentTokenId2, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address alchemist))"
 ];
 
 interface StoredScent {
@@ -145,8 +82,8 @@ interface StoredScent {
 }
 
 type SortOption = "newest" | "oldest" | "name" | "rarity";
-// UPDATED: Added "viral" to the filter types
-type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral";
+// UPDATED: Added "hybrid" to filter types
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral" | "hybrid";
 
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
@@ -168,7 +105,6 @@ const MFW_STYLE = {
   hex: "#a855f7",
 };
 
-// NEW: Unique style for Viral NFTs matching the viral page theme
 const VIRAL_STYLE = {
   bg: "from-fuchsia-900/80 via-pink-900/70 to-purple-900/80",
   border: "border-fuchsia-500/50",
@@ -176,6 +112,16 @@ const VIRAL_STYLE = {
   text: "text-fuchsia-100",
   glow: "shadow-[0_0_40px_rgba(217,70,239,0.4)] hover:shadow-[0_0_60px_rgba(217,70,239,0.6)]",
   hex: "#d946ef",
+};
+
+// NEW: Unique style for Alchemy Hybrids (Mystical Cyan/Teal)
+const HYBRID_STYLE = {
+  bg: "from-cyan-900/80 via-teal-900/70 to-slate-900/80",
+  border: "border-cyan-500/50",
+  badge: "bg-cyan-500/40 text-cyan-100 border-cyan-400/60",
+  text: "text-cyan-100",
+  glow: "shadow-[0_0_40px_rgba(34,211,238,0.4)] hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]",
+  hex: "#22d3ee",
 };
 
 export default function CollectionPage() {
@@ -197,7 +143,8 @@ export default function CollectionPage() {
   // Badge states
   const [hasGenesisBadge, setHasGenesisBadge] = useState(false);
   const [hasMFWBadge, setHasMFWBadge] = useState(false);
-  const [hasViralBadge, setHasViralBadge] = useState(false); // NEW
+  const [hasViralBadge, setHasViralBadge] = useState(false);
+  const [hasHybridBadge, setHasHybridBadge] = useState(false); // NEW
 
   const { address, isConnected } = useAccount();
 
@@ -215,6 +162,7 @@ export default function CollectionPage() {
       setHasGenesisBadge(false);
       setHasMFWBadge(false);
       setHasViralBadge(false);
+      setHasHybridBadge(false);
 
       if (!address) return;
 
@@ -236,12 +184,18 @@ export default function CollectionPage() {
           setHasMFWBadge(Number(balance) > 0);
         } catch (error) { console.warn("Failed to check MFW badge:", error); }
 
-        // NEW: Check Viral badge
         try {
           const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
           const balance = await viralContract.balanceOf(address);
           setHasViralBadge(Number(balance) > 0);
         } catch (error) { console.warn("Failed to check Viral badge:", error); }
+
+        // NEW: Check Hybrid badge
+        try {
+          const hybridContract = new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider);
+          const balance = await hybridContract.balanceOf(address);
+          setHasHybridBadge(Number(balance) > 0);
+        } catch (error) { console.warn("Failed to check Hybrid badge:", error); }
 
       } catch (error) {
         console.warn("Badge check error:", error);
@@ -286,7 +240,7 @@ export default function CollectionPage() {
 
         const results: StoredScent[] = [];
 
-        // Part 1: Fetch ScentProtocol NFTs
+        // Part 1: Fetch ScentProtocol V3 NFTs
         try {
           let contract;
           if (w.ethereum) {
@@ -426,7 +380,7 @@ export default function CollectionPage() {
           }
         } catch (e) { console.error("MFW fetch error:", e); }
 
-        // NEW Part 4: Fetch Viral NFTs
+        // Part 4: Fetch Viral NFTs
         try {
           const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
           const viralBalance = await viralContract.balanceOf(address);
@@ -434,7 +388,7 @@ export default function CollectionPage() {
 
           if (viralBalanceNum > 0) {
             let foundCount = 0;
-            const maxId = 10000; // Max supply of viral contract
+            const maxId = 10000; 
 
             for (let tokenId = 1; tokenId <= maxId && foundCount < viralBalanceNum; tokenId++) {
               try {
@@ -471,6 +425,51 @@ export default function CollectionPage() {
           }
         } catch (e) { console.error("Viral fetch error:", e); }
 
+        // NEW Part 5: Fetch Hybrid (Alchemy) NFTs
+        try {
+          const hybridContract = new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider);
+          const hybridBalance = await hybridContract.balanceOf(address);
+          const hybridBalanceNum = Number(hybridBalance);
+
+          if (hybridBalanceNum > 0) {
+            let foundCount = 0;
+            const maxId = 1000; // Safe upper bound for hybrids
+
+            for (let tokenId = 1; tokenId <= maxId && foundCount < hybridBalanceNum; tokenId++) {
+              try {
+                const owner = await hybridContract.ownerOf(tokenId);
+                if (owner.toLowerCase() === address.toLowerCase()) {
+                  const data = await hybridContract.getHybridPerfume(tokenId);
+                  let isListed = false;
+                  if (activeTokenIds.has(tokenId)) {
+                    try {
+                      const listing = await marketplace.listings(tokenId);
+                      if (listing.active && listing.nftContract.toLowerCase() === ALCHEMY_CONTRACT_ADDRESS.toLowerCase()) {
+                        isListed = true;
+                      }
+                    } catch (e) { /* ignore */ }
+                  }
+                  results.push({
+                    tokenId, contractAddress: ALCHEMY_CONTRACT_ADDRESS, name: data.name, rarity: Number(data.rarity),
+                    timestamp: Number(data.createdAt) * 1000, isListed,
+                    perfume: {
+                      name: data.name, gender: Number(data.gender), pType: Number(data.pType),
+                      topNotes: Array.from(data.topNotes || []).map((n: any) => String(n)),
+                      heartNotes: Array.from(data.heartNotes || []).map((n: any) => String(n)),
+                      baseNotes: Array.from(data.baseNotes || []).map((n: any) => String(n)),
+                      concentration: Number(data.concentration), rarity: Number(data.rarity),
+                      createdAt: Number(data.createdAt), creator: data.alchemist, // Map alchemist to creator for UI consistency
+                    },
+                    description: undefined,
+                  });
+                  foundCount++;
+                }
+              } catch (e) {}
+              await new Promise(r => setTimeout(r, 50));
+            }
+          }
+        } catch (e) { console.error("Hybrid fetch error:", e); }
+
         setScents(results);
       } catch (e) {
         console.error("Collection fetch error:", e);
@@ -481,13 +480,14 @@ export default function CollectionPage() {
     fetchCollection();
   }, [address]);
 
-  // UPDATED: Added viral filter logic
+  // UPDATED: Added hybrid filter logic
   const filteredScents = scents.filter(s => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return s.contractAddress === GENESIS_CONTRACT_ADDRESS;
     if (filterBy === "mfw") return s.contractAddress === MFW_CONTRACT_ADDRESS;
     if (filterBy === "scents") return s.contractAddress === NFT_CONTRACT_ADDRESS;
     if (filterBy === "viral") return s.contractAddress === VIRAL_CONTRACT_ADDRESS;
+    if (filterBy === "hybrid") return s.contractAddress === ALCHEMY_CONTRACT_ADDRESS;
     return true;
   });
 
@@ -597,7 +597,7 @@ export default function CollectionPage() {
       <p className="text-center text-white/50">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
 
       {/* BADGES ROW */}
-      {(hasGenesisBadge || hasMFWBadge || hasViralBadge) && (
+      {(hasGenesisBadge || hasMFWBadge || hasViralBadge || hasHybridBadge) && (
         <div className="flex items-center justify-center gap-3 animate-fade-up flex-wrap">
           {hasGenesisBadge && (
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 backdrop-blur-md shadow-[0_0_15px_rgba(251,191,36,0.15)] hover:shadow-[0_0_25px_rgba(251,191,36,0.3)] transition-all cursor-default" title="Genesis Collection Holder">
@@ -611,11 +611,17 @@ export default function CollectionPage() {
               <span className="text-xs font-bold text-purple-300 uppercase tracking-wide">MFW 2026</span>
             </div>
           )}
-          {/* NEW: Viral Badge */}
           {hasViralBadge && (
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/30 backdrop-blur-md shadow-[0_0_15px_rgba(217,70,239,0.15)] hover:shadow-[0_0_25px_rgba(217,70,239,0.3)] transition-all cursor-default" title="Viral Scent Holder">
               <svg className="w-4 h-4 text-fuchsia-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
               <span className="text-xs font-bold text-fuchsia-300 uppercase tracking-wide">Viral Scent</span>
+            </div>
+          )}
+          {/* NEW: Hybrid Badge */}
+          {hasHybridBadge && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.15)] hover:shadow-[0_0_25px_rgba(34,211,238,0.3)] transition-all cursor-default" title="Alchemy Hybrid Holder">
+              <svg className="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
+              <span className="text-xs font-bold text-cyan-300 uppercase tracking-wide">Alchemy Hybrid</span>
             </div>
           )}
         </div>
@@ -630,7 +636,8 @@ export default function CollectionPage() {
               {filterBy === "scents" && "ScentProtocol"}
               {filterBy === "genesis" && "Genesis"}
               {filterBy === "mfw" && "MFW 2026"}
-              {filterBy === "viral" && "Viral Scent"} {/* NEW */}
+              {filterBy === "viral" && "Viral Scent"}
+              {filterBy === "hybrid" && "Alchemy Hybrids"} {/* NEW */}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
@@ -640,8 +647,9 @@ export default function CollectionPage() {
               <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
               <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
               <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button>
-              {/* NEW: Viral Filter Option */}
               <button onClick={() => { setFilterBy("viral"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "viral" ? "text-fuchsia-400 bg-white/5" : "text-white/70"}`}>Viral Scent</button>
+              {/* NEW: Hybrid Filter Option */}
+              <button onClick={() => { setFilterBy("hybrid"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "hybrid" ? "text-cyan-400 bg-white/5" : "text-white/70"}`}>Alchemy Hybrids</button>
             </div>
           )}
         </div>
@@ -674,17 +682,21 @@ export default function CollectionPage() {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
             const perfume = hasFullData ? s.perfume! : null;
             const rarity = perfume?.rarity ?? s.rarity ?? 0;
+            
             const isGenesis = s.contractAddress === GENESIS_CONTRACT_ADDRESS;
             const isMFW = s.contractAddress === MFW_CONTRACT_ADDRESS;
-            const isViral = s.contractAddress === VIRAL_CONTRACT_ADDRESS; // NEW
+            const isViral = s.contractAddress === VIRAL_CONTRACT_ADDRESS;
+            const isHybrid = s.contractAddress === ALCHEMY_CONTRACT_ADDRESS; // NEW
 
-            const style = isViral 
-              ? VIRAL_STYLE // NEW
-              : isMFW 
-                ? MFW_STYLE
-                : isGenesis 
-                  ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" }
-                  : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+            const style = isHybrid 
+              ? HYBRID_STYLE // NEW
+              : isViral 
+                ? VIRAL_STYLE 
+                : isMFW 
+                  ? MFW_STYLE
+                  : isGenesis 
+                    ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" }
+                    : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
               <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
@@ -695,28 +707,29 @@ export default function CollectionPage() {
                 {isMFW && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(168,85,247,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
                 )}
-                {/* NEW: Viral Shimmer Effect */}
                 {isViral && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(217,70,239,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
                 )}
+                {/* NEW: Hybrid Shimmer Effect */}
+                {isHybrid && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
+                )}
 
-                {!isGenesis && !isMFW && !isViral && (
+                {!isGenesis && !isMFW && !isViral && !isHybrid && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2s linear infinite", padding: "2px", WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }} />
                 )}
 
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                {!isGenesis && !isMFW && !isViral && (
+                {!isGenesis && !isMFW && !isViral && !isHybrid && (
                   <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s infinite" }} />
                 )}
 
                 <div className="relative flex items-start justify-between">
-                  <div className="flex items-center gap-3"> {/* Added flex and gap for alignment */}
-                    
-                    {/* NEW: Scent Crest Logo rendered dynamically */}
+                  <div className="flex items-center gap-3">
                     <ScentCrest 
-                     seed={`${(perfume?.creator || s.perfume?.creator || 'unknown')}-${perfume?.name || s.name || 'unknown'}`}
+                      seed={`${(perfume?.creator || s.perfume?.creator || 'unknown')}-${perfume?.name || s.name || 'unknown'}`}
                       name={perfume?.name || s.name || `Scent #${s.tokenId}`}
                       rarity={rarity}
                       size={60}
@@ -725,7 +738,7 @@ export default function CollectionPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-xs text-white/40 uppercase tracking-wider">
-                          {isGenesis ? "Genesis" : isMFW ? "MFW 2026" : isViral ? "Viral" : "Scent"} #{s.tokenId}
+                          {isGenesis ? "Genesis" : isMFW ? "MFW 2026" : isViral ? "Viral" : isHybrid ? "Hybrid" : "Scent"} #{s.tokenId}
                         </p>
                         {isGenesis && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
@@ -737,10 +750,15 @@ export default function CollectionPage() {
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none"><rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/><rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/><path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/><path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/></svg> MFW 2026
                           </span>
                         )}
-                        {/* NEW: Viral Badge in Card */}
                         {isViral && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Viral
+                          </span>
+                        )}
+                        {/* NEW: Hybrid Badge in Card */}
+                        {isHybrid && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg> Hybrid
                           </span>
                         )}
                       </div>
@@ -798,7 +816,7 @@ export default function CollectionPage() {
                           <button onClick={() => handleCancelListing(s.tokenId)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
                             {listingStatus === "listing" ? "Removing..." : "Remove"}
                           </button>
-                        ) : (
+        ) : (
                           <button onClick={() => handleListClick(s.tokenId, s.contractAddress)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all">
                             List for Sale
                           </button>
@@ -825,22 +843,25 @@ export default function CollectionPage() {
 
       {listingModal.open && (() => {
         const currentScent = scents.find(s => 
-  s.tokenId === listingModal.tokenId && 
-  s.contractAddress?.toLowerCase() === listingModal.contractAddress?.toLowerCase()
-);
+          s.tokenId === listingModal.tokenId && 
+          s.contractAddress?.toLowerCase() === listingModal.contractAddress?.toLowerCase()
+        );
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
         const isGenesisModal = currentScent?.contractAddress === GENESIS_CONTRACT_ADDRESS;
         const isMFWModal = currentScent?.contractAddress === MFW_CONTRACT_ADDRESS;
-        const isViralModal = currentScent?.contractAddress === VIRAL_CONTRACT_ADDRESS; // NEW
+        const isViralModal = currentScent?.contractAddress === VIRAL_CONTRACT_ADDRESS;
+        const isHybridModal = currentScent?.contractAddress === ALCHEMY_CONTRACT_ADDRESS; // NEW
         
-        const style = isViralModal // NEW
-          ? VIRAL_STYLE
-          : isMFWModal
-            ? MFW_STYLE
-            : isGenesisModal
-              ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" }
-              : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
-              
+        const style = isHybridModal // NEW
+          ? HYBRID_STYLE
+          : isViralModal 
+            ? VIRAL_STYLE
+            : isMFWModal
+              ? MFW_STYLE
+              : isGenesisModal
+                ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" }
+                : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+                
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setListingModal({ open: false, tokenId: null, contractAddress: null, price: "" })}>
             <div className={`w-full max-w-sm mx-4 p-6 relative rounded-2xl backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} overflow-hidden`} onClick={(e) => e.stopPropagation()}>
@@ -850,7 +871,7 @@ export default function CollectionPage() {
               <div className="relative">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-white">
-                    {isViralModal ? "List Viral" : isMFWModal ? "List MFW" : isGenesisModal ? "List Genesis" : "List Scent"} #{listingModal.tokenId}
+                    {isHybridModal ? "List Hybrid" : isViralModal ? "List Viral" : isMFWModal ? "List MFW" : isGenesisModal ? "List Genesis" : "List Scent"} #{listingModal.tokenId}
                   </h3>
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>{RARITY[rarity]}</span>
                 </div>
