@@ -7,14 +7,15 @@ import { useAccount, useChainId } from "wagmi";
 import ScentCrest from "@/components/ScentCrest";
 
 // ============================================================
-// VIRAL CONTRACT CONFIGURATION (UPDATED ADDRESS)
+// VIRAL CONTRACT CONFIGURATION (MATCHES SOLIDITY EXACTLY)
 // ============================================================
 const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
 const ARC_CHAIN_ID = 5042;
 
+// FIXED ABI: Now correctly expects bytes32 for commit-reveal
 const VIRAL_ABI = [
-  "function requestMint() external returns (uint256)",
-  "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
+  "function requestMint(bytes32 seedCommitment) external returns (uint256)",
+  "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
   "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))",
   "function walletMintCount(address) external view returns (uint256)",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
@@ -98,7 +99,7 @@ const ARCHETYPES: WalletArchetype[] = [
 ];
 
 // ============================================================
-// GET WALLET AGE (Via Etherscan API for 100% accuracy)
+// GET WALLET AGE
 // ============================================================
 async function getWalletAge(address: string): Promise<number> {
   try {
@@ -167,8 +168,6 @@ export default function WalletScentPage() {
   const [step, setStep] = useState<"idle" | "analyzing" | "result" | "minting" | "success">("idle");
   const [countdown, setCountdown] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
-  // NEW: Track if the wallet has already minted
   const [alreadyMinted, setAlreadyMinted] = useState(false);
 
   const isOnArcNetwork = chainId === ARC_CHAIN_ID;
@@ -185,7 +184,7 @@ export default function WalletScentPage() {
           setAlreadyMinted(true);
         }
       } catch (e) {
-        // Ignore errors (e.g., if user is on the wrong network initially)
+        // Ignore errors
       }
     };
     checkMintStatus();
@@ -211,7 +210,6 @@ export default function WalletScentPage() {
       const balance = await ethMainnetClient.getBalance({ address: address as `0x${string}` });
       const walletAgeTimestamp = await getWalletAge(address);
 
-      // Simulate analysis delay for better UX
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
       const walletArchetype = getWalletArchetype(txCount, balance, walletAgeTimestamp);
@@ -226,24 +224,12 @@ export default function WalletScentPage() {
     }
   };
 
+  // FIXED: Properly implements Commit-Reveal matching the Solidity contract
   const handleMint = async () => {
     if (!address || !archetype) return;
     if (!isOnArcNetwork) {
       setErrorMessage("Please switch to Arc Network to mint.");
       return;
-    }
-
-    // NEW: Double-check mint count right before transaction
-    try {
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
-      const count = await contract.walletMintCount(address);
-      if (count > 0) {
-        setErrorMessage("You've already minted your wallet's scent! Each wallet is limited to 1 mint.");
-        return;
-      }
-    } catch (e) {
-      console.warn("Could not verify mint count, proceeding with caution.");
     }
 
     setMinting(true);
@@ -255,8 +241,20 @@ export default function WalletScentPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
 
-      // Step 1: Request Mint
-      const tx = await contract.requestMint();
+      // 1. Check if already minted
+      const mintCount = await contract.walletMintCount(address);
+      if (mintCount > 0) {
+        throw new Error("You've already minted your wallet's scent!");
+      }
+
+      // 2. Generate deterministic seed and commitment
+      const seedPreimage = ethers.id(`${address.toLowerCase()}-${archetype.id}`);
+      const seedCommitment = ethers.keccak256(seedPreimage);
+
+      console.log("🔒 Committing seed...");
+      
+      // 3. Step 1: Request Mint (PASS THE COMMITMENT!)
+      const tx = await contract.requestMint(seedCommitment);
       const receipt = await tx.wait();
 
       const mintEvent = receipt.logs
@@ -268,11 +266,7 @@ export default function WalletScentPage() {
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       setTokenId(newTokenId);
 
-      // Step 2: Generate deterministic seed based on wallet and archetype
-      const seedString = `${address.toLowerCase()}-${archetype.id}`;
-      const userSeedHex = ethers.id(seedString);
-
-      // Step 3: Countdown for reveal
+      // 4. Countdown for reveal (Arc network is fast, 5 blocks is ~5-10 seconds)
       setCountdown(10);
       const timer = setInterval(() => {
         setCountdown((prev) => {
@@ -281,13 +275,15 @@ export default function WalletScentPage() {
         });
       }, 1000);
 
+      // Wait for the REVEAL_BLOCKS (5 blocks) to pass
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
-      // Step 4: Reveal and Mint
-      const revealTx = await contract.revealAndMint(newTokenId, userSeedHex);
+      // 5. Step 2: Reveal and Mint (PASS THE PREIMAGE!)
+      console.log("🔓 Revealing seed...");
+      const revealTx = await contract.revealAndMint(newTokenId, seedPreimage);
       await revealTx.wait();
 
-      // Step 5: Fetch and display the minted perfume data
+      // 6. Fetch and display the minted perfume data
       const perfumeData = await contract.getPerfume(newTokenId);
       setMintedPerfume({
         tokenId: Number(perfumeData.tokenId),
@@ -305,17 +301,16 @@ export default function WalletScentPage() {
 
       setStep("success");
     } catch (error: any) {
-      console.error("Mint failed:", error);
+      console.error("❌ Mint failed:", error);
       
-      // NEW: Enhanced error handling for better UX
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         setErrorMessage("Transaction rejected by user.");
-      } else if (error.code === "CALL_EXCEPTION") {
-        setErrorMessage("Transaction failed. You may have already minted this scent, or you might lack sufficient USDC for gas.");
-      } else if (error.message?.includes("Max 1 per wallet") || error.message?.includes("MaxPerWalletReached") || error.message?.includes("already")) {
+      } else if (error.reason?.includes("MaxPerWalletReached") || error.message?.includes("already")) {
         setErrorMessage("You've already minted your wallet's scent!");
+      } else if (error.code === "CALL_EXCEPTION") {
+        setErrorMessage("Transaction failed. Please ensure you are on Arc Network (Chain ID 5042) and have enough USDC for gas.");
       } else {
-        setErrorMessage(error.reason || error.shortMessage || error.message || "Mint failed. Please check your USDC balance for gas.");
+        setErrorMessage(error.reason || error.shortMessage || error.message || "Mint failed.");
       }
       setStep("result");
     } finally {
