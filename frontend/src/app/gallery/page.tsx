@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
-import ScentCrest from "@/components/ScentCrest"; // NEW: Import ScentCrest component
+import ScentCrest from "@/components/ScentCrest";
 
-const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
-const VIRAL_CONTRACT_ADDRESS = "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb"; // NEW
+// --- UPDATED CONTRACT ADDRESSES ---
+const NFT_CONTRACT_ADDRESS = "0x87950a56456Df786A249F484e9E56dF00fF207cb"; // V3
+const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
+const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
+const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
+const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40"; // NEW: Hybrids
+
 const CACHE_KEY = "scentprotocol_gallery_cache";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -69,7 +72,6 @@ const MFW_ABI = [
   }
 ];
 
-// NEW: ABI for Viral Contract (includes getNextTokenId for optimization)
 const VIRAL_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -97,6 +99,36 @@ const VIRAL_ABI = [
   "function getNextTokenId() external view returns (uint256)"
 ];
 
+// NEW: ABI for Alchemy Hybrids
+const ALCHEMY_ABI = [
+  {
+    "inputs": [{"internalType": "uint256", "name": "hybridId", "type": "uint256"}],
+    "name": "getHybridPerfume",
+    "outputs": [{
+      "components": [
+        {"internalType": "uint256", "name": "hybridId", "type": "uint256"},
+        {"internalType": "uint256", "name": "parentTokenId1", "type": "uint256"},
+        {"internalType": "uint256", "name": "parentTokenId2", "type": "uint256"},
+        {"internalType": "string", "name": "name", "type": "string"},
+        {"internalType": "uint8", "name": "gender", "type": "uint8"},
+        {"internalType": "uint8", "name": "pType", "type": "uint8"},
+        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
+        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
+        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
+        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
+        {"internalType": "address", "name": "alchemist", "type": "address"}
+      ],
+      "name": "",
+      "type": "tuple"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  "function nextHybridId() external view returns (uint256)"
+];
+
 interface GalleryItem {
   tokenId: number;
   contractAddress: string;
@@ -110,9 +142,9 @@ interface GalleryItem {
   creator: string;
 }
 
-// UPDATED: Added "viral" to filter types
+// UPDATED: Added "hybrid" to filter types
 type SortOption = "newest" | "oldest" | "name" | "rarity";
-type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral";
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral" | "hybrid";
 
 const RARITY_STYLE: Record<number, { 
   bg: string; 
@@ -165,7 +197,6 @@ const MFW_STYLE = {
   hex: "#a855f7",
 };
 
-// NEW: Style for Viral NFTs matching other pages
 const VIRAL_STYLE = {
   bg: "from-fuchsia-900/80 via-pink-900/70 to-purple-900/80",
   border: "border-fuchsia-500/50",
@@ -173,6 +204,16 @@ const VIRAL_STYLE = {
   text: "text-fuchsia-100",
   glow: "shadow-[0_0_40px_rgba(217,70,239,0.4)] hover:shadow-[0_0_60px_rgba(217,70,239,0.6)]",
   hex: "#d946ef",
+};
+
+// NEW: Style for Alchemy Hybrids (Mystical Cyan/Teal)
+const HYBRID_STYLE = {
+  bg: "from-cyan-900/80 via-teal-900/70 to-slate-900/80",
+  border: "border-cyan-500/50",
+  badge: "bg-cyan-500/40 text-cyan-100 border-cyan-400/60",
+  text: "text-cyan-100",
+  glow: "shadow-[0_0_40px_rgba(34,211,238,0.4)] hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]",
+  hex: "#22d3ee",
 };
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
@@ -214,12 +255,13 @@ export default function GalleryPage() {
         const nftContract = getContract(provider);
         const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
         const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
-        const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider); // NEW
+        const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
+        const alchemyContract = new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider); // NEW
         
         const results: GalleryItem[] = [];
         console.log("🔍 Fetching gallery data...");
         
-        // 1. Fetch Main ScentProtocol
+        // 1. Fetch Main ScentProtocol V3
         let nextTokenId = 1;
         try {
           nextTokenId = Number(await nftContract.getNextTokenId());
@@ -310,7 +352,7 @@ export default function GalleryPage() {
         const mfwResults = await Promise.all(mfwPromises);
         results.push(...mfwResults.filter((item): item is GalleryItem => item !== null));
 
-        // 4. Fetch Viral (Optimized: fetch up to getNextTokenId instead of hardcoded 10000)
+        // 4. Fetch Viral (Optimized: fetch up to getNextTokenId)
         let viralNextId = 1;
         try {
           viralNextId = Number(await viralContract.getNextTokenId());
@@ -344,6 +386,41 @@ export default function GalleryPage() {
         }
         const viralResults = await Promise.all(viralPromises);
         results.push(...viralResults.filter((item): item is GalleryItem => item !== null));
+
+        // 5. Fetch Alchemy Hybrids (Optimized: fetch up to nextHybridId)
+        let hybridNextId = 1;
+        try {
+          hybridNextId = Number(await alchemyContract.nextHybridId());
+        } catch (e) {
+          hybridNextId = 1000; // Fallback
+        }
+
+        const hybridPromises = [];
+        for (let tokenId = 1; tokenId < hybridNextId; tokenId++) {
+          hybridPromises.push(
+            alchemyContract.getHybridPerfume(tokenId)
+              .then((data: any) => {
+                if (data && data.name) {
+                  return {
+                    tokenId,
+                    contractAddress: ALCHEMY_CONTRACT_ADDRESS,
+                    name: data.name,
+                    rarity: Number(data.rarity),
+                    gender: Number(data.gender),
+                    pType: Number(data.pType),
+                    concentration: Number(data.concentration),
+                    topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                    createdAt: Number(data.createdAt),
+                    creator: data.alchemist, // Map alchemist to creator for UI consistency
+                  };
+                }
+                return null;
+              })
+              .catch(() => null)
+          );
+        }
+        const hybridResults = await Promise.all(hybridPromises);
+        results.push(...hybridResults.filter((item): item is GalleryItem => item !== null));
         
         console.log(`✅ Gallery loaded: ${results.length} total items found`);
         setItems(results);
@@ -379,12 +456,13 @@ export default function GalleryPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // UPDATED: Added viral filter logic
+  // UPDATED: Added hybrid filter logic
   const filteredItems = items.filter(item => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return item.contractAddress === GENESIS_CONTRACT_ADDRESS;
     if (filterBy === "mfw") return item.contractAddress === MFW_CONTRACT_ADDRESS;
     if (filterBy === "viral") return item.contractAddress === VIRAL_CONTRACT_ADDRESS;
+    if (filterBy === "hybrid") return item.contractAddress === ALCHEMY_CONTRACT_ADDRESS;
     return item.contractAddress === NFT_CONTRACT_ADDRESS;
   });
 
@@ -425,7 +503,8 @@ export default function GalleryPage() {
               {filterBy === "scents" && "ScentProtocol"}
               {filterBy === "genesis" && "Genesis"}
               {filterBy === "mfw" && "MFW 2026"}
-              {filterBy === "viral" && "Viral Scent"} {/* NEW */}
+              {filterBy === "viral" && "Viral Scent"}
+              {filterBy === "hybrid" && "Alchemy Hybrids"} {/* NEW */}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -438,8 +517,9 @@ export default function GalleryPage() {
               <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
               <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
               <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button>
-              {/* NEW: Viral Filter Option */}
               <button onClick={() => { setFilterBy("viral"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "viral" ? "text-fuchsia-400 bg-white/5" : "text-white/70"}`}>Viral Scent</button>
+              {/* NEW: Hybrid Filter Option */}
+              <button onClick={() => { setFilterBy("hybrid"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "hybrid" ? "text-cyan-400 bg-white/5" : "text-white/70"}`}>Alchemy Hybrids</button>
             </div>
           )}
         </div>
@@ -488,23 +568,25 @@ export default function GalleryPage() {
             const rarity = item.rarity;
             const isGenesis = item.contractAddress === GENESIS_CONTRACT_ADDRESS;
             const isMFW = item.contractAddress === MFW_CONTRACT_ADDRESS;
-            const isViral = item.contractAddress === VIRAL_CONTRACT_ADDRESS; // NEW
+            const isViral = item.contractAddress === VIRAL_CONTRACT_ADDRESS;
+            const isHybrid = item.contractAddress === ALCHEMY_CONTRACT_ADDRESS; // NEW
             
-            // UPDATED: Added support for Viral style
-            const style = isViral 
-              ? VIRAL_STYLE
-              : isMFW 
-                ? MFW_STYLE
-                : isGenesis 
-                  ? { 
-                      bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
-                      border: "border-amber-400/70", 
-                      badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
-                      text: "text-amber-100",
-                      glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
-                      hex: "#fbbf24"
-                    }
-                  : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+            const style = isHybrid 
+              ? HYBRID_STYLE
+              : isViral 
+                ? VIRAL_STYLE
+                : isMFW 
+                  ? MFW_STYLE
+                  : isGenesis 
+                    ? { 
+                        bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", 
+                        border: "border-amber-400/70", 
+                        badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", 
+                        text: "text-amber-100",
+                        glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]",
+                        hex: "#fbbf24"
+                      }
+                    : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
               <Link 
@@ -530,7 +612,6 @@ export default function GalleryPage() {
                     }} />
                   )}
 
-                  {/* NEW: Viral Shimmer Effect */}
                   {isViral && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
                       background: `linear-gradient(90deg, transparent, rgba(217,70,239,0.3), transparent)`,
@@ -539,7 +620,16 @@ export default function GalleryPage() {
                     }} />
                   )}
 
-                  {!isGenesis && !isMFW && !isViral && (
+                  {/* NEW: Hybrid Shimmer Effect */}
+                  {isHybrid && (
+                    <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
+                      background: `linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent)`,
+                      backgroundSize: "200% 100%",
+                      animation: "shimmer 2.5s linear infinite",
+                    }} />
+                  )}
+
+                  {!isGenesis && !isMFW && !isViral && !isHybrid && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
                       background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
                       backgroundSize: "200% 100%",
@@ -554,7 +644,7 @@ export default function GalleryPage() {
                   <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                  {!isGenesis && !isMFW && !isViral && (
+                  {!isGenesis && !isMFW && !isViral && !isHybrid && (
                     <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{
                       background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`,
                       backgroundSize: "200% 100%",
@@ -563,9 +653,7 @@ export default function GalleryPage() {
                   )}
 
                   <div className="relative flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3"> {/* Added flex and gap for alignment */}
-                      
-                      {/* NEW: Scent Crest Logo rendered dynamically */}
+                    <div className="flex items-center gap-3">
                       <ScentCrest 
                         seed={`${item.creator}-${item.name}`}
                         name={item.name}
@@ -576,7 +664,7 @@ export default function GalleryPage() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <p className="text-xs text-white/40 uppercase tracking-wider">
-                            {isViral ? "Viral" : isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{item.tokenId}
+                            {isHybrid ? "Hybrid" : isViral ? "Viral" : isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{item.tokenId}
                           </p>
                           {isGenesis && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
@@ -595,11 +683,17 @@ export default function GalleryPage() {
                               MFW 2026
                             </span>
                           )}
-                          {/* NEW: Viral Badge in Gallery Card */}
                           {isViral && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
                               <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                               Viral
+                            </span>
+                          )}
+                          {/* NEW: Hybrid Badge in Gallery Card */}
+                          {isHybrid && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
+                              Hybrid
                             </span>
                           )}
                         </div>
