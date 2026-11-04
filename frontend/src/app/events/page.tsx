@@ -20,8 +20,10 @@ interface EventItem {
   keyFacts?: { label: string; value: string }[];
 }
 
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
+// Updated to the newly deployed contract addresses
+const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
+const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
+
 const GENESIS_ABI = [
   "function getRemainingSupply() external view returns (uint256)"
 ];
