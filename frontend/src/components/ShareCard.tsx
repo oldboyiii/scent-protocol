@@ -16,7 +16,7 @@ interface Perfume {
 interface ShareCardProps {
   tokenId: number;
   perfume: Perfume;
-  contractAddress?: string; // NEW: To detect Viral scents
+  contractAddress?: string;
 }
 
 const GENDER = ["Male", "Female", "Unisex"];
@@ -43,13 +43,40 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
 
   const rarityHex = RARITY_HEX[perfume.rarity] || RARITY_HEX[0];
   const rarityBg = RARITY_BG[perfume.rarity] || RARITY_BG[0];
-  const isViral = contractAddress === "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb";
-  const url = `https://scent-protocol-pi.vercel.app/nft/${tokenId}`; // Updated to your actual domain if different
+  
+  // Updated addresses for all collections
+  const addr = contractAddress?.toLowerCase();
+  const isViral = addr === "0x55a3527c87190fa8456de46247b52214287e8688";
+  const isGenesis = addr === "0x37d6a1c730b8ddbb70ad765b39b1edc5dad12ef6";
+  const isMFW = addr === "0x2eb16402a50ee92bc3012038a0059ac4e9f7df20";
+  const isHybrid = addr === "0xd5c962b1dbaa6044e88b4c2bbe2dd5a257702e40";
 
-  const collectionName = isViral ? "Viral Scent" : "ScentProtocol";
+  let collectionName = "ScentProtocol";
+  let subLabel = "BUILT ON ARC";
+  let shortLabel = "SCENT";
+
+  if (isViral) {
+    collectionName = "Viral Scent";
+    subLabel = "VIRAL EXPERIMENT";
+    shortLabel = "VIRAL";
+  } else if (isGenesis) {
+    collectionName = "Genesis Collection";
+    subLabel = "FOUNDING EDITION";
+    shortLabel = "GENESIS";
+  } else if (isMFW) {
+    collectionName = "MFW 2026";
+    subLabel = "EXCLUSIVE EDITION";
+    shortLabel = "MFW";
+  } else if (isHybrid) {
+    collectionName = "Scent Alchemy";
+    subLabel = "HYBRID FORMULA";
+    shortLabel = "HYBRID";
+  }
+
+  const url = `https://scent-protocol-pi.vercel.app/nft/${tokenId}`;
   
   const tweetText = encodeURIComponent(
-    `🧪 ${perfume.name} — ${isViral ? "Viral " : ""}Digital Perfume NFT #${tokenId}\n\n` +
+    `🧪 ${perfume.name} — ${collectionName} Digital Perfume NFT #${tokenId}\n\n` +
     `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
     `Top: ${perfume.topNotes.join(", ")}\n` +
     `Heart: ${perfume.heartNotes.join(", ")}\n` +
@@ -61,7 +88,7 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
   const tweetUrl = `https://x.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(url)}`;
 
   const copyText =
-    `🧪 ${perfume.name} — ${isViral ? "Viral " : ""}Digital Perfume NFT #${tokenId}\n\n` +
+    `🧪 ${perfume.name} — ${collectionName} Digital Perfume NFT #${tokenId}\n\n` +
     `⚲ ${GENDER[perfume.gender]} · ${TYPE[perfume.pType]} · ${perfume.concentration}% · ${RARITY[perfume.rarity]}\n\n` +
     `Top: ${perfume.topNotes.join(", ")}\n` +
     `Heart: ${perfume.heartNotes.join(", ")}\n` +
@@ -106,10 +133,10 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
     // 4. Brand & Collection
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 36px 'Segoe UI', sans-serif";
-    ctx.fillText("ScentProtocol", 80, 100);
+    ctx.fillText(collectionName, 80, 100);
     ctx.fillStyle = rarityHex;
     ctx.font = "bold 24px 'Segoe UI', sans-serif";
-    ctx.fillText(isViral ? "VIRAL EXPERIMENT" : "BUILT ON ARC", 80, 135);
+    ctx.fillText(subLabel, 80, 135);
 
     // 5. Faux Crest (Circle with Initials)
     const initials = perfume.name
@@ -155,7 +182,7 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
     // 6. Token ID & Name
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = "bold 28px 'Segoe UI', sans-serif";
-    ctx.fillText(`${isViral ? "VIRAL" : "SCENT"} #${tokenId}`, 80, 210);
+    ctx.fillText(`${shortLabel} #${tokenId}`, 80, 210);
 
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 72px 'Segoe UI', sans-serif";
@@ -208,7 +235,7 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
     ctx.fillText(url, W - 80, H - 50);
 
     return canvas.toDataURL("image/png");
-  }, [perfume, tokenId, rarityHex, rarityBg, url, isViral]);
+  }, [perfume, tokenId, rarityHex, rarityBg, url, collectionName, subLabel, shortLabel]);
 
   const handleDownload = () => {
     const dataUrl = drawCard();
@@ -286,7 +313,7 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
                 }}
               />
               <p className="relative text-white/50 text-[10px] uppercase tracking-widest mb-1">
-                {isViral ? "VIRAL" : "SCENT"} #{tokenId}
+                {shortLabel} #{tokenId}
               </p>
               <h4 className="relative text-xl font-bold text-white mb-3">{perfume.name}</h4>
               <div className="relative flex flex-wrap gap-2 text-[10px] font-semibold text-white/80 mb-3">
