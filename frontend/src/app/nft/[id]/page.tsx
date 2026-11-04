@@ -412,23 +412,26 @@ export default function NFTDetailPage() {
   }, [userAddress, contractParam, id]);
 
   // NEW: Fetch active offers
-  useEffect(() => {
-    async function fetchOffersData() {
-      if (!contractParam || !id) return;
-      try {
-        const provider = (typeof window !== "undefined" && (window as any).ethereum)
-          ? new ethers.BrowserProvider((window as any).ethereum)
-          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
-        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-        
-        const filter = marketplace.filters.OfferMade(contractParam, id);
-        const events = await marketplace.queryFilter(filter);
-        
-        const validOffers = [];
-        const now = Math.floor(Date.now() / 1000);
-        
-        for (const event of events) {
+useEffect(() => {
+  async function fetchOffersData() {
+    if (!contractParam || !id) return;
+    try {
+      const provider = (typeof window !== "undefined" && (window as any).ethereum)
+        ? new ethers.BrowserProvider((window as any).ethereum)
+        : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+      const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+      
+      const filter = marketplace.filters.OfferMade(contractParam, id);
+      const events = await marketplace.queryFilter(filter);
+      
+      const validOffers = [];
+      const now = Math.floor(Date.now() / 1000);
+      
+      for (const event of events) {
+        // FIX: Check if event has args property (EventLog vs Log)
+        if ('args' in event && event.args) {
           const offerer = event.args.offerer;
+          
           try {
             const offer = await marketplace.getOffer(contractParam, id, offerer);
             if (offer.price > 0n && Number(offer.expiry) > now) {
@@ -440,13 +443,14 @@ export default function NFTDetailPage() {
             }
           } catch (e) { /* ignore */ }
         }
-        setOffers(validOffers);
-      } catch (e) {
-        console.error("Failed to fetch offers:", e);
       }
+      setOffers(validOffers);
+    } catch (e) {
+      console.error("Failed to fetch offers:", e);
     }
-    fetchOffersData();
-  }, [contractParam, id]);
+  }
+  fetchOffersData();
+}, [contractParam, id]);
 
   // NEW: Offer Handlers
   const handleMakeOffer = async () => {
