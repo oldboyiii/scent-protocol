@@ -16,6 +16,7 @@ interface NFTCardProps {
   createdAt: number;
   isGenesis?: boolean;
   isMFW?: boolean;
+  isHybrid?: boolean; // NEW: Alchemy Hybrid collection support
   isListed?: boolean;
   price?: string;
   seller?: string;
@@ -58,13 +59,21 @@ const RARITY_STYLE: Record<number, {
   },
 };
 
-// MFW统一紫色样式
 const MFW_STYLE = {
   bg: "from-purple-900/80 via-indigo-900/70 to-slate-900/80",
   border: "border-purple-500/50",
   badge: "bg-purple-500/40 text-purple-100 border-purple-400/60",
   glow: "shadow-[0_0_40px_rgba(168,85,247,0.4)] hover:shadow-[0_0_60px_rgba(168,85,247,0.6)]",
   hex: "#a855f7",
+};
+
+// NEW: Style for Alchemy Hybrid NFTs (Mystical Cyan/Teal)
+const HYBRID_STYLE = {
+  bg: "from-cyan-900/80 via-teal-900/70 to-slate-900/80",
+  border: "border-cyan-500/50",
+  badge: "bg-cyan-500/40 text-cyan-100 border-cyan-400/60",
+  glow: "shadow-[0_0_40px_rgba(34,211,238,0.4)] hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]",
+  hex: "#22d3ee",
 };
 
 const RARITY_LABELS = ["Common", "Rare", "Epic", "Legendary"];
@@ -85,12 +94,17 @@ export default function NFTCard({
   createdAt,
   isGenesis = false,
   isMFW = false,
+  isHybrid = false,
   isListed = false,
   price,
   seller,
 }: NFTCardProps) {
-  // MFW使用统一紫色样式，其他使用 rarity 样式
-  const style = isMFW ? MFW_STYLE : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+  // Determine style based on collection type
+  const style = isHybrid 
+    ? HYBRID_STYLE 
+    : isMFW 
+      ? MFW_STYLE 
+      : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
   return (
     <Link href={`/nft/${tokenId}`}>
@@ -151,8 +165,34 @@ export default function NFTCard({
           </>
         )}
 
-        {/* Standard Shimmer Effect (only for non-MFW/non-Genesis) */}
-        {!isMFW && !isGenesis && (
+        {/* NEW: Hybrid Collection Special Effects */}
+        {isHybrid && (
+          <>
+            {/* Animated Flask Watermark */}
+            <div className="absolute inset-0 flex items-start justify-center pointer-events-none opacity-5">
+              <svg className="w-64 h-64 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={0.5} d="M9 3v6l-6 9h18l-6-9V3H9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={0.5} d="M9 9h6" />
+              </svg>
+            </div>
+
+            {/* Cyan Border Glow Animation */}
+            <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-100 transition-opacity duration-500">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-cyan-500/20 animate-pulse" />
+            </div>
+
+            {/* Flask Icon Animation on Top */}
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-16 h-16 opacity-100 group-hover:opacity-100 transition-all duration-700 drop-shadow-[0_0_15px_rgba(34,211,238,0.8)]">
+               <svg className="w-full h-full text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v6l-6 9h18l-6-9V3H9z" />
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 9h6" />
+               </svg>
+            </div>
+          </>
+        )}
+
+        {/* Standard Shimmer Effect (only for non-special collections) */}
+        {!isMFW && !isGenesis && !isHybrid && (
           <div
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
             style={{
@@ -166,7 +206,7 @@ export default function NFTCard({
         {/* Top Gradient Line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {/* Header with MFW Bottle Badge & Genesis Arc Logo */}
+        {/* Header with Badges */}
         <div className="relative flex items-start justify-between mb-4">
           <div className="flex items-center gap-2">
             {/* MFW Bottle Badge */}
@@ -194,10 +234,25 @@ export default function NFTCard({
                 </div>
               </div>
             )}
+
+            {/* NEW: Flask Icon for Hybrid */}
+            {isHybrid && (
+              <div className="relative group/hybrid" title="Scent Alchemy Hybrid">
+                <div className="w-7 h-7 rounded-full bg-cyan-500/30 border border-cyan-400/60 flex items-center justify-center drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]">
+                  <svg className="w-4 h-4 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v6l-6 9h18l-6-9V3H9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h6" />
+                  </svg>
+                </div>
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/90 text-cyan-300 text-[10px] rounded opacity-0 group-hover/hybrid:opacity-100 transition-opacity whitespace-nowrap z-10">
+                  Alchemy Hybrid
+                </div>
+              </div>
+            )}
             
             <div>
               <p className="text-xs text-white/40 uppercase tracking-wider">
-                Scent #{tokenId}
+                {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
               </p>
               <h3 className="text-xl font-bold text-white mt-1 truncate max-w-[200px]">
                 {name}
@@ -234,6 +289,21 @@ export default function NFTCard({
               </svg>
               <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
                 Genesis Collection
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* NEW: Hybrid Badge */}
+        {isHybrid && (
+          <div className="relative mb-4">
+            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-cyan-500/20 border border-cyan-500/40">
+              <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v6l-6 9h18l-6-9V3H9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h6" />
+              </svg>
+              <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
+                Scent Alchemy Hybrid
               </span>
             </div>
           </div>
@@ -308,8 +378,8 @@ export default function NFTCard({
         </div>
 
         {/* Bottom Decoration */}
-        {(isGenesis || isMFW) && (
-          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-${isMFW ? 'purple' : 'amber'}-500/50 to-transparent`} />
+        {(isGenesis || isMFW || isHybrid) && (
+          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-${isHybrid ? 'cyan' : isMFW ? 'purple' : 'amber'}-500/50 to-transparent`} />
         )}
       </div>
 
