@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 import { getContract } from "@/utils/contract";
-import { useAccount } from "wagmi"; //
+import { useAccount } from "wagmi";
 import ScentCrest from "@/components/ScentCrest";
 
 // --- UPDATED CONTRACT ADDRESSES ---
@@ -609,24 +609,44 @@ export default function MarketplacePage() {
                     </div>
                   )}
 
+                  {/* UPDATED: Action buttons with Make Offer option */}
                   <div className="relative flex items-center justify-between pt-2 gap-2">
-                    <span className="text-sm text-white/50">View Details →</span>
+                    {/* Link to NFT details page with offers tab */}
+                    <Link 
+                      href={`/nft/${listing.tokenId}?from=marketplace&contract=${listing.contractAddress}`} 
+                      className="text-sm text-white/50 hover:text-white transition-colors flex-1 truncate"
+                    >
+                      View Details & Offers →
+                    </Link>
+                    
+                    {/* Conditionally render buttons based on ownership */}
                     {isOwner ? (
+                      // Owner sees Cancel button
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCancelListing(listing); }}
                         disabled={isActioning}
-                        className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-sm font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className="px-3 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 whitespace-nowrap"
                       >
-                        {isActioning ? "Cancelling..." : "Cancel Listing"}
+                        {isActioning ? "Cancelling..." : "Cancel"}
                       </button>
                     ) : (
-                      <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBuy(listing); }}
-                        disabled={isActioning}
-                        className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                      >
-                        {isActioning ? "Buying..." : "Buy Now"}
-                      </button>
+                      // Non-owner sees Make Offer and Buy Now buttons
+                      <div className="flex gap-2">
+                        {/* NEW: Button to navigate to NFT details for making an offer */}
+                        <Link 
+                          href={`/nft/${listing.tokenId}?contract=${listing.contractAddress}`}
+                          className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-xs font-bold hover:bg-white/20 transition-all whitespace-nowrap"
+                        >
+                          Make Offer
+                        </Link>
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleBuy(listing); }}
+                          disabled={isActioning}
+                          className="px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 whitespace-nowrap"
+                        >
+                          {isActioning ? "Buying..." : "Buy Now"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
