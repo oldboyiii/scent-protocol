@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
-const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+// Updated to new deployed contract addresses
+const CONTRACT_MAP: Record<string, string> = {
+  "0x87950a56456df786a249f484e9e56df00ff207cb": "ScentProtocol V3",
+  "0x37d6a1c730b8ddbb70ad765b39b1edc5dad12ef6": "Genesis",
+  "0x55a3527c87190fa8456de46247b52214287e8688": "Viral",
+  "0x2eb16402a50ee92bc3012038a0059ac4e9f7df20": "MFW 2026",
+  "0xd5c962b1dbaa6044e88b4c2bbe2dd5a257702e40": "Alchemy Hybrids",
+};
 
 const RARITY_NAMES = ["Common", "Rare", "Epic", "Legendary"];
 const GENDER_NAMES = ["Unisex", "Male", "Female", "Other"];
@@ -18,17 +24,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const isGenesis = contractAddress.toLowerCase() === GENESIS_CONTRACT_ADDRESS.toLowerCase();
-    const isMainnet = contractAddress.toLowerCase() === NFT_CONTRACT_ADDRESS.toLowerCase();
+    const normalizedAddress = contractAddress.toLowerCase();
+    const collectionName = CONTRACT_MAP[normalizedAddress];
 
-    if (!isGenesis && !isMainnet) {
+    if (!collectionName) {
       return NextResponse.json(
         { success: false, error: "Unknown contract address" },
         { status: 400 }
       );
     }
 
-    const collectionName = isGenesis ? "Genesis" : "ScentProtocol";
     const rarityValue = Number(perfumeData.rarity);
     const genderValue = Number(perfumeData.gender);
     const pTypeValue = Number(perfumeData.pType);
@@ -79,7 +84,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         pinataContent: metadata,
         pinataMetadata: {
-          name: `ScentProtocol_${collectionName}_Token_${tokenId}`,
+          name: `ScentProtocol_${collectionName.replace(/\s+/g, '_')}_Token_${tokenId}`,
           keyvalues: {
             contract: contractAddress,
             tokenId: String(tokenId),
