@@ -8,9 +8,9 @@ import dynamic from "next/dynamic";
 import { ReactNode } from "react";
 
 // Dynamic import for Providers with SSR completely disabled.
-// This prevents "indexedDB is not defined" errors during Vercel builds.
+// We map the named export 'Providers' to 'default' to satisfy Next.js dynamic import requirements.
 const Providers = dynamic(
-  () => import("@/components/Providers") as Promise<{ default: React.ComponentType<{ children: ReactNode }> }>,
+  () => import("@/components/Providers").then((mod) => ({ default: mod.Providers })),
   {
     ssr: false,
     loading: () => (
