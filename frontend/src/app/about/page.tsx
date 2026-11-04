@@ -29,27 +29,43 @@ export default function AboutPage() {
 
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">The Ecosystem</h2>
         <p>
-          ScentProtocol has evolved into a multi-layered ecosystem with four distinct collections:
+          ScentProtocol has evolved into a multi-layered ecosystem with five distinct pillars:
         </p>
-        <ul className="list-disc list-inside space-y-2 ml-4">
-          <li><span className="text-amber-400 font-semibold">ScentProtocol Mainnet</span> — The core collection. AI-generated perfumes minted for 1 USDC.</li>
-          <li><span className="text-amber-400 font-semibold">Genesis Collection</span> — 100 exclusive NFTs with commit-reveal mechanics.</li>
-          <li><span className="text-purple-400 font-semibold">MFW 2026</span> — Milan Fashion Week exclusive drop (500 supply).</li>
-          <li><span className="text-fuchsia-400 font-semibold">Viral Scent</span> — Free-to-mint campaign that analyzes your wallet history to generate a unique "Wallet Scent" archetype.</li>
+        <ul className="list-disc list-inside space-y-3 ml-4">
+          <li>
+            <span className="text-amber-400 font-semibold">ScentProtocol V3 (Mainnet)</span> — The core collection of AI-generated perfumes.
+          </li>
+          <li>
+            <span className="text-amber-400 font-semibold">Genesis Collection</span> — 100 exclusive, free-to-mint founding NFTs with commit-reveal mechanics and enhanced rarity rates.
+          </li>
+          <li>
+            <span className="text-purple-400 font-semibold">MFW 2026</span> — Milan Fashion Week exclusive paid drop (500 supply), granting holders a limited-edition digital badge.
+          </li>
+          <li>
+            <span className="text-fuchsia-400 font-semibold">Viral Scent</span> — A free-to-mint campaign (10k supply) that analyzes your wallet history to generate a unique "Wallet Scent" archetype.
+          </li>
+          <li>
+            <span className="text-cyan-400 font-semibold">Scent Alchemy (Hybrids)</span> — A deflationary blending mechanic. Burn 2 existing NFTs to forge 1 mutated Hybrid, featuring a 15% chance to upgrade its rarity tier.
+          </li>
         </ul>
+
+        <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">AI Scent Advisor</h2>
+        <p>
+          Navigating digital perfumery is highly personal. The <span className="text-fuchsia-400">AI Scent Advisor</span> analyzes your on-chain activity, wallet history, and stated preferences to recommend the perfect fragrance archetype. It also acts as your digital sommelier, suggesting optimal NFT combinations to maximize your chances of a rarity upgrade during Scent Alchemy.
+        </p>
 
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">ScentCrest: Generative Branding</h2>
         <p>
           Every NFT features a <span className="text-fuchsia-400">ScentCrest</span> — a unique, 
           generative brand logo with custom initials and geometric patterns, rendered client-side 
-          using the NFT's unique seed. No external APIs. 100% deterministic. Looks like a luxury 
-          perfume label.
+          using the NFT's unique seed. No external APIs. 100% deterministic. Designed to look like a 
+          luxury perfume label.
         </p>
 
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">Built on Arc</h2>
         <p>
-          Arc&apos;s sub-second finality and USDC-native gas make minting seamless. No ETH needed,
-          no long waits — just pure digital perfumery.
+          Arc&apos;s sub-second finality and USDC-native environment make minting and trading seamless. 
+          No ETH needed, no long waits — just pure, accessible digital perfumery.
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-10">
@@ -58,12 +74,12 @@ export default function AboutPage() {
             { label: "Finality", value: "<1s" },
             { label: "Notes Per Scent", value: "9" },
             { label: "Rarity Tiers", value: "4" },
-            { label: "Collections", value: "4" },
-            { label: "Viral Supply", value: "10k" },
-            { label: "Gas Token", value: "USDC" },
+            { label: "Active Collections", value: "5" },
+            { label: "Alchemy Upgrade", value: "15%" },
+            { label: "Primary Gas/Price", value: "USDC" },
             { label: "Chain", value: "Arc" },
           ].map((s) => (
-            <div key={s.label} className="glass-card p-4 text-center">
+            <div key={s.label} className="glass-card p-4 text-center rounded-xl bg-white/5 border border-white/10">
               <div className="text-2xl font-bold text-amber-400">{s.value}</div>
               <div className="text-xs text-white/50 mt-1">{s.label}</div>
             </div>
@@ -73,8 +89,8 @@ export default function AboutPage() {
         <div className="mt-12 p-6 rounded-xl bg-gradient-to-br from-fuchsia-500/10 to-purple-500/10 border border-fuchsia-500/30">
           <h3 className="text-xl font-bold text-fuchsia-300 mb-3">🔮 The Future: An Internet You Can Smell</h3>
           <p className="text-white/80">
-            ScentProtocol is more than NFTs — it's the first step toward a digital olfactory internet. 
-            Read our vision for the future of digital scent technology.
+            ScentProtocol is more than NFTs — it's the foundational layer for a digital olfactory internet. 
+            Read our vision for the future of digital scent technology and how we plan to bridge the gap between Web3 and physical perfumery.
           </p>
           <a href="/vision" className="inline-block mt-4 px-6 py-2 rounded-lg bg-fuchsia-500/20 border border-fuchsia-500/50 text-fuchsia-300 hover:bg-fuchsia-500/30 transition-colors">
             Read the Vision →
