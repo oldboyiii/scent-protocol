@@ -1,0 +1,302 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
+
+/**
+ * @title Interface for the main ScentProtocol contract.
+ * @notice This interface MUST exactly match the struct layout of the target main contract (e.g., ScentProtocolV3).
+ * @dev We only need burn, ownerOf, and getPerfume. No transferFrom is needed, as burn() handles authorized destruction.
+ */
+interface IScentProtocolMain {
+    function burn(uint256 tokenId) external;
+    function ownerOf(uint256 tokenId) external view returns (address);
+    function getPerfume(uint256 tokenId) external view returns (
+        uint256, string memory, uint8, uint8, 
+        string[3] memory, string[3] memory, string[3] memory, 
+        uint8, uint8, uint256, address, bool, uint256, uint256
+    );
+}
+
+/**
+ * @title ScentAlchemy
+ * @notice A dedicated contract for blending two ScentProtocol NFTs into a unique, mutated Hybrid.
+ * @dev Operates independently. Features deflationary burning, rarity mutation, and ERC2981 royalties.
+ */
+contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard, ERC2981 {
+    using SafeERC20 for IERC20;
+    using Strings for uint256;
+
+    // --- State Variables ---
+    IScentProtocolMain public immutable mainContract;
+    IERC20 public immutable usdc;
+    
+    uint256 public blendFee;           // Fee in USDC (e.g., 100000 for 0.1 USDC) charged per blend
+    address public feeRecipient;       // Address that receives the blend fees and royalties
+    uint256 public nextHybridId;       // Auto-incrementing ID for new hybrid NFTs
+    bool public isPaused;              // Emergency pause switch
+
+    // --- Data Structures ---
+    struct HybridPerfume {
+        uint256 hybridId;
+        uint256 parentTokenId1;
+        uint256 parentTokenId2;
+        string name;
+        uint8 gender;
+        uint8 pType;
+        string[3] topNotes;
+        string[3] heartNotes;
+        string[3] baseNotes;
+        uint8 concentration;
+        uint8 rarity;
+        uint256 createdAt;
+        address alchemist;
+    }
+
+    // --- Mappings ---
+    mapping(uint256 => HybridPerfume) public hybridPerfumes;
+    mapping(address => uint256[]) public ownerHybrids;
+
+    // --- Events ---
+    event ScentBlended(uint256 indexed hybridId, uint256 burnedToken1, uint256 burnedToken2, address indexed alchemist, uint8 newRarity);
+    event BlendFeeUpdated(uint256 newFee);
+    event FeeRecipientUpdated(address newRecipient);
+    event Paused(bool status);
+
+    // --- Custom Errors (Gas efficient) ---
+    error Alchemy__SameToken();
+    error Alchemy__NotOwner();
+    error Alchemy__Paused();
+    error Alchemy__ZeroAddress();
+    error Alchemy__NoFeesToWithdraw();
+
+    // --- Note Pools for Mutation ---
+    string[10] private topNotes = ["Bergamot", "Lemon", "Lavender", "Grapefruit", "Orange", "Mint", "Eucalyptus", "Basil", "Rosemary", "Thyme"];
+    string[10] private heartNotes = ["Rose", "Jasmine", "Lily", "Geranium", "Neroli", "Ylang-Ylang", "Chamomile", "Lavender", "Petitgrain", "Heliotrope"];
+    string[10] private baseNotes = ["Vanilla", "Sandalwood", "Cedarwood", "Vetiver", "Patchouli", "Amber", "Musk", "Tonka Bean", "Benzoin", "Oud"];
+    string[10] private adjectives = ["Hybrid", "Mutated", "Fused", "Alchemical", "Twisted", "Resonant", "Echoing", "Dual", "Synthesized", "Chimeric"];
+    string[10] private nouns = ["Elixir", "Fusion", "Anomaly", "Paradox", "Convergence", "Harmony", "Discord", "Essence", "Spectrum", "Nexus"];
+
+    /**
+     * @notice Initializes the Alchemy contract.
+     * @param _mainContractAddress Address of the deployed main contract (e.g., ScentProtocolV3).
+     * @param _usdcAddress Address of the USDC token on Arc (0x3600...0000).
+     * @param _feeRecipient Address to receive blending fees and royalties.
+     * @param _blendFee Initial fee for blending in USDC (e.g., 100000 for 0.1 USDC).
+     */
+    constructor(
+        address _mainContractAddress,
+        address _usdcAddress,
+        address _feeRecipient,
+        uint256 _blendFee
+    ) ERC721("ScentProtocol: Hybrids", "HYBRID") Ownable(msg.sender) {
+        if (_mainContractAddress == address(0) || _usdcAddress == address(0) || _feeRecipient == address(0)) {
+            revert Alchemy__ZeroAddress();
+        }
+        
+        mainContract = IScentProtocolMain(_mainContractAddress);
+        usdc = IERC20(_usdcAddress);
+        feeRecipient = _feeRecipient;
+        blendFee = _blendFee;
+        nextHybridId = 1;
+        isPaused = false;
+
+        // Set 5% royalty for the hybrid collection
+        _setDefaultRoyalty(_feeRecipient, 500);
+    }
+
+    /**
+     * @notice The core function: Burns 2 NFTs from the main contract and mints 1 Hybrid.
+     * @dev REQUIRES the user to have called approve(ScentAlchemy, tokenId) on the MAIN contract for both tokens.
+     * @param tokenId1 The first NFT to blend.
+     * @param tokenId2 The second NFT to blend.
+     */
+    function blend(uint256 tokenId1, uint256 tokenId2) external nonReentrant {
+        if (isPaused) revert Alchemy__Paused();
+        if (tokenId1 == tokenId2) revert Alchemy__SameToken();
+        
+        // 1. Verify ownership in the main contract
+        if (mainContract.ownerOf(tokenId1) != msg.sender || mainContract.ownerOf(tokenId2) != msg.sender) {
+            revert Alchemy__NotOwner();
+        }
+
+        // 2. Collect the blending fee in USDC
+        if (blendFee > 0) {
+            usdc.safeTransferFrom(msg.sender, address(this), blendFee);
+        }
+
+        // 3. BURN tokens directly. 
+        // This works because the user must have approved THIS contract (ScentAlchemy) 
+        // on the main contract prior to calling this function. Saves ~20k+ gas vs transferFrom.
+        mainContract.burn(tokenId1);
+        mainContract.burn(tokenId2);
+
+        // 4. Fetch parent data to create the hybrid
+        (, string memory name1, , , string[3] memory top1, string[3] memory heart1, string[3] memory base1, , uint8 rarity1, , , , , ) = mainContract.getPerfume(tokenId1);
+        (, string memory name2, , , string[3] memory top2, string[3] memory heart2, string[3] memory base2, , uint8 rarity2, , , , , ) = mainContract.getPerfume(tokenId2);
+
+        // 5. Generate a deterministic mutation seed
+        uint256 hybridSeed = uint256(keccak256(abi.encodePacked(
+            name1, name2, msg.sender, block.timestamp, blockhash(block.number - 1), tokenId1, tokenId2
+        )));
+
+        // 6. Mutate the notes (1 from Parent A, 1 from Parent B, 1 random from pool)
+        string[3] memory newTop = [top1[0], top2[0], topNotes[hybridSeed % 10]];
+        string[3] memory newHeart = [heart1[1], heart2[1], heartNotes[(hybridSeed >> 4) % 10]];
+        string[3] memory newBase = [base1[2], base2[2], baseNotes[(hybridSeed >> 8) % 10]];
+        
+        // 7. Generate Hybrid Name
+        string memory adj = adjectives[hybridSeed % 10];
+        string memory noun = nouns[(hybridSeed >> 4) % 10];
+        string memory hybridName = string.concat(adj, " ", noun);
+
+        // 8. Calculate Mutated Rarity (15% chance to upgrade by 1 tier, capped at 3)
+        uint8 baseRarity = rarity1 > rarity2 ? rarity1 : rarity2;
+        uint8 mutationChance = uint8(hybridSeed % 100);
+        uint8 finalRarity = (mutationChance < 15 && baseRarity < 3) ? baseRarity + 1 : baseRarity;
+
+        // 9. Mint the new Hybrid NFT
+        uint256 newHybridId = nextHybridId++;
+        
+        // 10. Save hybrid data on-chain BEFORE external calls (Checks-Effects-Interactions pattern)
+        hybridPerfumes[newHybridId] = HybridPerfume({
+            hybridId: newHybridId,
+            parentTokenId1: tokenId1,
+            parentTokenId2: tokenId2,
+            name: hybridName,
+            gender: uint8(hybridSeed % 3),
+            pType: uint8((hybridSeed >> 2) % 4),
+            topNotes: newTop,
+            heartNotes: newHeart,
+            baseNotes: newBase,
+            concentration: uint8(20 + (hybridSeed % 11)), // Hybrids are potent (20-30%)
+            rarity: finalRarity,
+            createdAt: block.timestamp,
+            alchemist: msg.sender
+        });
+        
+        ownerHybrids[msg.sender].push(newHybridId);
+        
+        // 11. Set Data URI (Ensures marketplace visibility without external servers)
+        _setTokenURI(newHybridId, _buildHybridDataURI(hybridPerfumes[newHybridId]));
+
+        // 12. Execute mint
+        _safeMint(msg.sender, newHybridId);
+
+        emit ScentBlended(newHybridId, tokenId1, tokenId2, msg.sender, finalRarity);
+    }
+
+    // --- View Functions ---
+    function getHybridPerfume(uint256 hybridId) external view returns (HybridPerfume memory) {
+        return hybridPerfumes[hybridId];
+    }
+
+    function getOwnerHybrids(address owner) external view returns (uint256[] memory) {
+        return ownerHybrids[owner];
+    }
+
+    // --- Admin Functions ---
+    function setBlendFee(uint256 _newFee) external onlyOwner {
+        blendFee = _newFee;
+        emit BlendFeeUpdated(_newFee);
+    }
+
+    function setFeeRecipient(address _newRecipient) external onlyOwner {
+        if (_newRecipient == address(0)) revert Alchemy__ZeroAddress();
+        feeRecipient = _newRecipient;
+        _setDefaultRoyalty(_newRecipient, 500); // Update royalty receiver as well
+        emit FeeRecipientUpdated(_newRecipient);
+    }
+
+    function togglePause() external onlyOwner {
+        isPaused = !isPaused;
+        emit Paused(isPaused);
+    }
+
+    function withdrawFees() external onlyOwner nonReentrant {
+        uint256 balance = usdc.balanceOf(address(this));
+        if (balance == 0) revert Alchemy__NoFeesToWithdraw();
+        usdc.safeTransfer(feeRecipient, balance);
+    }
+
+    // --- Data URI Builder (Chunked to prevent Yul viaIR Stack Too Deep errors) ---
+    function _buildHybridDataURI(HybridPerfume memory p) internal pure returns (string memory) {
+        string memory header = string.concat(
+            "data:application/json,{",
+            '"name":"', p.name, '",',
+            '"description":"ScentProtocol Alchemical Hybrid - ', p.name, '. ",',
+            '"attributes":['
+        );
+        
+        string memory attrs1 = string.concat(
+            '{"trait_type":"Gender","value":"', _genderLabel(p.gender), '"},',
+            '{"trait_type":"Type","value":"', _typeLabel(p.pType), '"},',
+            '{"trait_type":"Concentration","value":"', uint256(p.concentration).toString(), '%"},',
+            '{"trait_type":"Rarity","value":"', _rarityLabel(p.rarity), '"},'
+        );
+        
+        string memory attrs2 = string.concat(
+            '{"trait_type":"TopNote1","value":"', p.topNotes[0], '"},',
+            '{"trait_type":"TopNote2","value":"', p.topNotes[1], '"},',
+            '{"trait_type":"TopNote3","value":"', p.topNotes[2], '"},'
+        );
+        
+        string memory attrs3 = string.concat(
+            '{"trait_type":"HeartNote1","value":"', p.heartNotes[0], '"},',
+            '{"trait_type":"HeartNote2","value":"', p.heartNotes[1], '"},',
+            '{"trait_type":"HeartNote3","value":"', p.heartNotes[2], '"},'
+        );
+        
+        string memory attrs4 = string.concat(
+            '{"trait_type":"BaseNote1","value":"', p.baseNotes[0], '"},',
+            '{"trait_type":"BaseNote2","value":"', p.baseNotes[1], '"},',
+            '{"trait_type":"BaseNote3","value":"', p.baseNotes[2], '"},'
+        );
+        
+        string memory attrs5 = string.concat(
+            '{"trait_type":"Collection","value":"Hybrid"},',
+            '{"trait_type":"Parent1","value":"', uint256(p.parentTokenId1).toString(), '"},',
+            '{"trait_type":"Parent2","value":"', uint256(p.parentTokenId2).toString(), '"}',
+            ']}'
+        );
+        
+        return string.concat(header, attrs1, attrs2, attrs3, attrs4, attrs5);
+    }
+
+    function _rarityLabel(uint8 rarity) internal pure returns (string memory) {
+        if (rarity == 1) return "Rare";
+        if (rarity == 2) return "Epic";
+        if (rarity == 3) return "Legendary";
+        return "Common";
+    }
+
+    function _typeLabel(uint8 pType) internal pure returns (string memory) {
+        if (pType == 1) return "EDP";
+        if (pType == 2) return "EDT";
+        if (pType == 3) return "EDC";
+        return "Parfum";
+    }
+
+    function _genderLabel(uint8 gender) internal pure returns (string memory) {
+        if (gender == 1) return "Male";
+        if (gender == 2) return "Female";
+        return "Unisex";
+    }
+
+    // --- Standard Overrides ---
+    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
+        return super.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage, ERC2981) returns (bool) {
+        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
+    }
+}
