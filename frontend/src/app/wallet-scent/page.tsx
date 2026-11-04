@@ -7,9 +7,9 @@ import { useAccount, useChainId } from "wagmi";
 import ScentCrest from "@/components/ScentCrest";
 
 // ============================================================
-// VIRAL CONTRACT CONFIGURATION
+// VIRAL CONTRACT CONFIGURATION (UPDATED ADDRESS)
 // ============================================================
-const VIRAL_CONTRACT_ADDRESS = "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb";
+const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
 const ARC_CHAIN_ID = 5042;
 
 const VIRAL_ABI = [
@@ -17,7 +17,7 @@ const VIRAL_ABI = [
   "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
   "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))",
   "function walletMintCount(address) external view returns (uint256)",
-  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
+  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
 ];
 
 // ============================================================
@@ -83,7 +83,7 @@ const ARCHETYPES: WalletArchetype[] = [
     heartNotes: ["Curiosity", "Wonder", "Hope"],
     baseNotes: ["Innocence", "Discovery", "Future"],
     dnaColors: ["#90e0ef", "#00b4d8", "#0096c7", "#0077b6", "#023e8a"],
-    twitterText: "Just discovered I smell like 'fresh apple and curiosity'. Welcome to crypto! ",
+    twitterText: "Just discovered I smell like 'fresh apple and curiosity'. Welcome to crypto! 🍏",
   },
   {
     id: "defi-degen",
@@ -190,6 +190,7 @@ export default function WalletScentPage() {
       const balance = await ethMainnetClient.getBalance({ address: address as `0x${string}` });
       const walletAgeTimestamp = await getWalletAge(address);
 
+      // Simulate analysis delay for better UX
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
       const walletArchetype = getWalletArchetype(txCount, balance, walletAgeTimestamp);
@@ -216,10 +217,11 @@ export default function WalletScentPage() {
     setErrorMessage(null);
 
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
 
+      // Step 1: Request Mint
       const tx = await contract.requestMint();
       const receipt = await tx.wait();
 
@@ -229,12 +231,14 @@ export default function WalletScentPage() {
         })
         .find((e: any) => e?.name === "MintRequested");
 
-      const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
+      const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       setTokenId(newTokenId);
 
+      // Step 2: Generate deterministic seed based on wallet and archetype
       const seedString = `${address.toLowerCase()}-${archetype.id}`;
       const userSeedHex = ethers.id(seedString);
 
+      // Step 3: Countdown for reveal
       setCountdown(10);
       const timer = setInterval(() => {
         setCountdown((prev) => {
@@ -245,18 +249,20 @@ export default function WalletScentPage() {
 
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
+      // Step 4: Reveal and Mint
       const revealTx = await contract.revealAndMint(newTokenId, userSeedHex);
       await revealTx.wait();
 
+      // Step 5: Fetch and display the minted perfume data
       const perfumeData = await contract.getPerfume(newTokenId);
       setMintedPerfume({
         tokenId: Number(perfumeData.tokenId),
         name: perfumeData.name,
         gender: Number(perfumeData.gender),
         pType: Number(perfumeData.pType),
-        topNotes: Array.from(perfumeData.topNotes),
-        heartNotes: Array.from(perfumeData.heartNotes),
-        baseNotes: Array.from(perfumeData.baseNotes),
+        topNotes: Array.from(perfumeData.topNotes || []),
+        heartNotes: Array.from(perfumeData.heartNotes || []),
+        baseNotes: Array.from(perfumeData.baseNotes || []),
         concentration: Number(perfumeData.concentration),
         rarity: Number(perfumeData.rarity),
         createdAt: Number(perfumeData.createdAt),
@@ -268,7 +274,7 @@ export default function WalletScentPage() {
       console.error("Mint failed:", error);
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         setErrorMessage("Transaction rejected by user.");
-      } else if (error.message?.includes("Max 1 per wallet")) {
+      } else if (error.message?.includes("Max 1 per wallet") || error.message?.includes("MaxPerWalletReached")) {
         setErrorMessage("You've already minted your wallet's scent!");
       } else {
         setErrorMessage(error.reason || error.shortMessage || error.message || "Mint failed");
@@ -416,7 +422,6 @@ export default function WalletScentPage() {
             </div>
           )}
 
-          {/* UPDATED: Success state with NEW Premium Card (VIRAL PINK THEME) */}
           {step === "success" && mintedPerfume && (
             <div className="space-y-6">
               <div className="text-center">
@@ -429,7 +434,7 @@ export default function WalletScentPage() {
                 <p className="text-white/60">Token ID: #{tokenId}</p>
               </div>
 
-              {/* NEW PREMIUM PERFUME CARD - VIRAL PINK THEME */}
+              {/* PREMIUM PERFUME CARD - VIRAL PINK THEME */}
               <div 
                 className="relative rounded-2xl p-6 backdrop-blur-xl border overflow-hidden"
                 style={{
@@ -449,13 +454,12 @@ export default function WalletScentPage() {
                 />
 
                 <div className="relative flex items-center gap-4 mb-4">
-                  {/* Scent Crest Logo - Forced to Epic (2) for pink/purple Viral theme */}
                   <ScentCrest
-  seed={`${mintedPerfume.creator}-${mintedPerfume.name}`}
-  name={mintedPerfume.name}
-  rarity={mintedPerfume.rarity}  //
-  size={70}
-/>
+                    seed={`${mintedPerfume.creator}-${mintedPerfume.name}`}
+                    name={mintedPerfume.name}
+                    rarity={mintedPerfume.rarity}
+                    size={70}
+                  />
                   <div>
                     <p className="text-xs text-fuchsia-300/80 uppercase tracking-wider mb-1">Viral Scent #{mintedPerfume.tokenId}</p>
                     <h4 className="text-xl font-bold text-white">{mintedPerfume.name}</h4>
