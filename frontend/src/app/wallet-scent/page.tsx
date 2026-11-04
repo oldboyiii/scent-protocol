@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useAccount, useChainId } from "wagmi";
@@ -167,8 +167,29 @@ export default function WalletScentPage() {
   const [step, setStep] = useState<"idle" | "analyzing" | "result" | "minting" | "success">("idle");
   const [countdown, setCountdown] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // NEW: Track if the wallet has already minted
+  const [alreadyMinted, setAlreadyMinted] = useState(false);
 
   const isOnArcNetwork = chainId === ARC_CHAIN_ID;
+
+  // Check mint status when wallet connects
+  useEffect(() => {
+    const checkMintStatus = async () => {
+      if (!address) return;
+      try {
+        const provider = new ethers.BrowserProvider((window as any).ethereum);
+        const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
+        const count = await contract.walletMintCount(address);
+        if (count > 0) {
+          setAlreadyMinted(true);
+        }
+      } catch (e) {
+        // Ignore errors (e.g., if user is on the wrong network initially)
+      }
+    };
+    checkMintStatus();
+  }, [address]);
 
   const analyzeWallet = async () => {
     if (!address) return;
@@ -210,6 +231,19 @@ export default function WalletScentPage() {
     if (!isOnArcNetwork) {
       setErrorMessage("Please switch to Arc Network to mint.");
       return;
+    }
+
+    // NEW: Double-check mint count right before transaction
+    try {
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
+      const count = await contract.walletMintCount(address);
+      if (count > 0) {
+        setErrorMessage("You've already minted your wallet's scent! Each wallet is limited to 1 mint.");
+        return;
+      }
+    } catch (e) {
+      console.warn("Could not verify mint count, proceeding with caution.");
     }
 
     setMinting(true);
@@ -272,12 +306,16 @@ export default function WalletScentPage() {
       setStep("success");
     } catch (error: any) {
       console.error("Mint failed:", error);
+      
+      // NEW: Enhanced error handling for better UX
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         setErrorMessage("Transaction rejected by user.");
-      } else if (error.message?.includes("Max 1 per wallet") || error.message?.includes("MaxPerWalletReached")) {
+      } else if (error.code === "CALL_EXCEPTION") {
+        setErrorMessage("Transaction failed. You may have already minted this scent, or you might lack sufficient USDC for gas.");
+      } else if (error.message?.includes("Max 1 per wallet") || error.message?.includes("MaxPerWalletReached") || error.message?.includes("already")) {
         setErrorMessage("You've already minted your wallet's scent!");
       } else {
-        setErrorMessage(error.reason || error.shortMessage || error.message || "Mint failed");
+        setErrorMessage(error.reason || error.shortMessage || error.message || "Mint failed. Please check your USDC balance for gas.");
       }
       setStep("result");
     } finally {
@@ -404,6 +442,11 @@ export default function WalletScentPage() {
               <div className="flex flex-col gap-3 pt-4">
                 {!isOnArcNetwork ? (
                   <div className="w-full px-6 py-3 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold text-center">Switch to Arc Network</div>
+                ) : alreadyMinted ? (
+                  <div className="w-full px-6 py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-semibold text-center flex items-center justify-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    You have already minted your Viral Scent!
+                  </div>
                 ) : (
                   <button onClick={handleMint} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50">
                     {minting ? "Minting..." : "Mint This Scent (Free)"}
