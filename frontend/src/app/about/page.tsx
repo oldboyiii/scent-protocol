@@ -36,10 +36,10 @@ export default function AboutPage() {
             <span className="text-amber-400 font-semibold">ScentProtocol V3 (Mainnet)</span> — The core collection of AI-generated perfumes.
           </li>
           <li>
-            <span className="text-amber-400 font-semibold">Genesis Collection</span> — 100 exclusive, free-to-mint founding NFTs with commit-reveal mechanics and enhanced rarity rates.
+            <span className="text-amber-400 font-semibold">Genesis Collection</span> — 100 exclusive, free-to-mint founding NFTs with commit-reveal mechanics.
           </li>
           <li>
-            <span className="text-purple-400 font-semibold">MFW 2026</span> — Milan Fashion Week exclusive paid drop (500 supply), granting holders a limited-edition digital badge.
+            <span className="text-purple-400 font-semibold">MFW 2026</span> — Milan Fashion Week exclusive drop (500 supply).
           </li>
           <li>
             <span className="text-fuchsia-400 font-semibold">Viral Scent</span> — A free-to-mint campaign (10k supply) that analyzes your wallet history to generate a unique "Wallet Scent" archetype.
@@ -51,15 +51,15 @@ export default function AboutPage() {
 
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">AI Scent Advisor</h2>
         <p>
-          Navigating digital perfumery is highly personal. The <span className="text-fuchsia-400">AI Scent Advisor</span> analyzes your on-chain activity, wallet history, and stated preferences to recommend the perfect fragrance archetype. It also acts as your digital sommelier, suggesting optimal NFT combinations to maximize your chances of a rarity upgrade during Scent Alchemy.
+          Navigating digital perfumery is highly personal. The <span className="text-fuchsia-400">AI Scent Advisor</span> helps you find your perfect match by analyzing ready-made scenarios (like a CEO meeting, beach sunset, or gala night), your current mood, or even real-time weather and location data. It instantly generates a tailored fragrance profile with specific top, heart, and base notes, acting as your personal digital sommelier.
         </p>
 
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">ScentCrest: Generative Branding</h2>
         <p>
           Every NFT features a <span className="text-fuchsia-400">ScentCrest</span> — a unique, 
           generative brand logo with custom initials and geometric patterns, rendered client-side 
-          using the NFT's unique seed. No external APIs. 100% deterministic. Designed to look like a 
-          luxury perfume label.
+          using the NFT's unique seed. No external APIs. 100% deterministic. Looks like a luxury 
+          perfume label.
         </p>
 
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">Built on Arc</h2>
@@ -75,8 +75,8 @@ export default function AboutPage() {
             { label: "Notes Per Scent", value: "9" },
             { label: "Rarity Tiers", value: "4" },
             { label: "Active Collections", value: "5" },
+            { label: "Viral Supply", value: "10k" },
             { label: "Alchemy Upgrade", value: "15%" },
-            { label: "Primary Gas/Price", value: "USDC" },
             { label: "Chain", value: "Arc" },
           ].map((s) => (
             <div key={s.label} className="glass-card p-4 text-center rounded-xl bg-white/5 border border-white/10">
