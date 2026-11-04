@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useAccount } from "wagmi";
-import { getAlchemyContract, getUSDCContract, getContract, CONTRACT_ADDRESS, PerfumeData } from "@/utils/contract";
-import { COLLECTIONS, getCollectionByAddress } from "@/utils/collection";
+import { getAlchemyContract, getUSDCContract, getContract, CONTRACT_ADDRESS } from "@/utils/contract";
+import { getCollectionByAddress } from "@/utils/collection";
+import AlchemyReveal from "@/components/AlchemyReveal"; // NEW: Import the reveal animation
 
 const ALCHEMY_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
@@ -28,6 +29,9 @@ export default function AlchemyPage() {
   const [activeSlot, setActiveSlot] = useState<1 | 2>(1);
   const [userNFTs, setUserNFTs] = useState<SelectedNFT[]>([]);
   const [isLoadingNFTs, setIsLoadingNFTs] = useState(false);
+  
+  // NEW: State for the success reveal animation
+  const [showReveal, setShowReveal] = useState(false);
 
   // Fetch user's NFTs from the main contract when modal opens
   const loadUserNFTs = async () => {
@@ -118,12 +122,9 @@ export default function AlchemyPage() {
         await approveTx.wait();
       }
 
-      // 3. Ensure NFTs are approved for the Alchemy contract to burn them
-      // (Note: In a production app, you'd check isApprovedForAll for each specific contract)
-      
-      // 4. Execute Blend
-      // Using the robust signature: blend(address nft1, uint256 id1, address nft2, uint256 id2)
-      // If your contract uses blend(uint256, uint256), adjust accordingly.
+      // 3. Execute Blend
+      // IMPORTANT: Ensure this signature matches your smart contract exactly!
+      // If your contract uses blend(uint256, uint256), remove the address arguments.
       const blendTx = await alchemyContract.blend(
         slot1.contractAddress,
         slot1.tokenId,
@@ -134,9 +135,8 @@ export default function AlchemyPage() {
       
       await blendTx.wait();
 
-      // Success: Redirect to the newly minted hybrid (we can fetch the nextHybridId or just redirect to collection)
-      alert("🧪 Alchemy Successful! A new Hybrid has been forged.");
-      window.location.href = "/collection";
+      // NEW: Trigger the beautiful reveal animation instead of alert
+      setShowReveal(true);
       
     } catch (err: any) {
       console.error("Alchemy failed:", err);
@@ -156,7 +156,7 @@ export default function AlchemyPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 relative z-10">
       <Link href="/collection" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-cyan-400 transition-colors">
         ← Back to Collection
       </Link>
@@ -255,6 +255,17 @@ export default function AlchemyPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* NEW: Alchemy Success Reveal Animation */}
+      {showReveal && slot1 && slot2 && (
+        <AlchemyReveal 
+          parent1Name={slot1.name} 
+          parent2Name={slot2.name} 
+          onComplete={() => {
+            window.location.href = "/collection";
+          }} 
+        />
       )}
     </div>
   );
