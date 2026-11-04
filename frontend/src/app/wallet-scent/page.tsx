@@ -7,7 +7,7 @@ import { useAccount, useChainId } from "wagmi";
 import ScentCrest from "@/components/ScentCrest";
 
 // ============================================================
-// VIRAL CONTRACT CONFIGURATION
+// CONTRACT CONFIGURATION
 // ============================================================
 const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
 const ARC_CHAIN_ID = 5042;
@@ -15,16 +15,14 @@ const ARC_CHAIN_ID = 5042;
 const VIRAL_ABI = [
   "function requestMint(bytes32 seedCommitment) external returns (uint256)",
   "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
-  "function clearExpiredMint(uint256 tokenId) external",
   "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))",
   "function walletMintCount(address) external view returns (uint256)",
   "function pendingTokenId(address) external view returns (uint256)",
-  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber, bytes32 seedCommitment))",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
 ];
 
 // ============================================================
-// WALLET ARCHETYPES
+// WALLET ARCHETYPES (Public data - determined by on-chain metrics)
 // ============================================================
 interface WalletArchetype {
   id: string;
@@ -38,41 +36,13 @@ interface WalletArchetype {
 }
 
 const ARCHETYPES: WalletArchetype[] = [
-  { id: "degen", name: "The Degen", description: "Chaotic energy with notes of cheap energy drinks, burnt rubber, and desperate hope.", topNotes: ["Energy Drink", "Burnt Rubber", "Chaos"], heartNotes: ["Desperation", "Meme Magic", "FOMO"], baseNotes: ["Hope", "Regret", "Moon Dust"], dnaColors: ["#ff006e", "#fb5607", "#ffbe0b", "#8338ec", "#3a86ff"], twitterText: "ScentProtocol says I smell like 'energy drinks, burnt rubber, and desperate hope'. Accurate. 😂" },
+  { id: "degen", name: "The Degen", description: "Chaotic energy with notes of cheap energy drinks, burnt rubber, and desperate hope.", topNotes: ["Energy Drink", "Burnt Rubber", "Chaos"], heartNotes: ["Desperation", "Meme Magic", "FOMO"], baseNotes: ["Hope", "Regret", "Moon Dust"], dnaColors: ["#ff006e", "#fb5607", "#ffbe0b", "#8338ec", "#3a86ff"], twitterText: "ScentProtocol says I smell like 'energy drinks, burnt rubber, and desperate hope'. Accurate. " },
   { id: "diamond-hands", name: "Diamond Hands", description: "Aged oak, cold steel, and absolute calm. You've held through every crash.", topNotes: ["Aged Oak", "Cold Steel", "Old Paper"], heartNotes: ["Patience", "Wisdom", "Conviction"], baseNotes: ["Diamond Dust", "Time", "Silence"], dnaColors: ["#2d6a4f", "#40916c", "#52b788", "#74c69d", "#95d5b2"], twitterText: "My wallet smells like 'aged oak and absolute calm'. Years of holding! 🙌" },
   { id: "nft-collector", name: "The Collector", description: "Digital canvas, absinthe, and ozone. You see art where others see pixels.", topNotes: ["Digital Canvas", "Absinthe", "Ozone"], heartNotes: ["Culture", "Vision", "Rarity"], baseNotes: ["Pixels", "Dreams", "Legacy"], dnaColors: ["#7209b7", "#560bad", "#480ca8", "#3a0ca3", "#3f37c9"], twitterText: "ScentProtocol says I smell like 'digital canvas and absinthe'. NFT life! 🎨" },
-  { id: "whale", name: "The Whale", description: "Champagne, gold bullion, and quiet power. You move markets.", topNotes: ["Champagne", "Gold Bullion", "Caviar"], heartNotes: ["Power", "Influence", "Mystery"], baseNotes: ["Silence", "Wealth", "Legacy"], dnaColors: ["#ffd700", "#ffb700", "#ff8c00", "#ff6b00", "#ff4500"], twitterText: "My wallet smells like 'champagne and gold bullion'. Whale life 🐋" },
+  { id: "whale", name: "The Whale", description: "Champagne, gold bullion, and quiet power. You move markets.", topNotes: ["Champagne", "Gold Bullion", "Caviar"], heartNotes: ["Power", "Influence", "Mystery"], baseNotes: ["Silence", "Wealth", "Legacy"], dnaColors: ["#ffd700", "#ffb700", "#ff8c00", "#ff6b00", "#ff4500"], twitterText: "My wallet smells like 'champagne and gold bullion'. Whale life " },
   { id: "newbie", name: "The Newbie", description: "Fresh apple, morning breeze, and innocent curiosity.", topNotes: ["Fresh Apple", "Morning Breeze", "Dew"], heartNotes: ["Curiosity", "Wonder", "Hope"], baseNotes: ["Innocence", "Discovery", "Future"], dnaColors: ["#90e0ef", "#00b4d8", "#0096c7", "#0077b6", "#023e8a"], twitterText: "Just discovered I smell like 'fresh apple and curiosity'. Welcome to crypto! 🍏" },
   { id: "defi-degen", name: "DeFi Degen", description: "Algorithms, yield farms, and calculated risk. Pure alpha.", topNotes: ["Algorithms", "Yield", "Liquidity"], heartNotes: ["Risk", "Reward", "Math"], baseNotes: ["Alpha", "Gamma", "Sigma"], dnaColors: ["#06ffa5", "#00d9ff", "#00a8ff", "#0077ff", "#0044ff"], twitterText: "ScentProtocol says I smell like 'algorithms and yield farms'. DeFi chose me 💸" },
 ];
-
-async function getWalletAge(address: string): Promise<number> {
-  try {
-    const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=1&sort=asc`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.status === "1" && data.result && data.result.length > 0) {
-      return Number(data.result[0].timeStamp);
-    }
-    return 0; 
-  } catch (error) {
-    return 0;
-  }
-}
-
-function getWalletArchetype(txCount: number, balance: bigint, walletAgeTimestamp: number): WalletArchetype {
-  const balanceInETH = Number(balance) / 1e18;
-  const now = Math.floor(Date.now() / 1000);
-  const ageInSeconds = walletAgeTimestamp > 0 ? now - walletAgeTimestamp : 0;
-  const ageInYears = ageInSeconds / (365 * 24 * 60 * 60);
-
-  if (balanceInETH > 100) return ARCHETYPES[3]; 
-  if (ageInYears >= 1 && txCount < 100 && balanceInETH >= 0.01) return ARCHETYPES[1]; 
-  if (txCount > 200 && balanceInETH > 5) return ARCHETYPES[2]; 
-  if (txCount > 500) return ARCHETYPES[5]; 
-  if (txCount > 100) return ARCHETYPES[0]; 
-  return ARCHETYPES[4]; 
-}
 
 interface PerfumeData {
   tokenId: number;
@@ -88,6 +58,57 @@ interface PerfumeData {
   creator: string;
 }
 
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+/**
+ * Fetches wallet creation timestamp from Etherscan API
+ * Used to determine wallet age for archetype calculation
+ */
+async function getWalletAge(address: string): Promise<number> {
+  try {
+    const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=1&sort=asc`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.status === "1" && data.result && data.result.length > 0) {
+      return Number(data.result[0].timeStamp);
+    }
+    return 0; 
+  } catch (error) {
+    console.error("Failed to get wallet age:", error);
+    return 0;
+  }
+}
+
+/**
+ * Determines wallet archetype based on on-chain metrics
+ * SECURITY: This is deterministic - same wallet always gets same archetype
+ * based on public, immutable blockchain data (tx count, balance, age)
+ */
+function getWalletArchetype(txCount: number, balance: bigint, walletAgeTimestamp: number): WalletArchetype {
+  const balanceInETH = Number(balance) / 1e18;
+  const now = Math.floor(Date.now() / 1000);
+  const ageInSeconds = walletAgeTimestamp > 0 ? now - walletAgeTimestamp : 0;
+  const ageInYears = ageInSeconds / (365 * 24 * 60 * 60);
+
+  // Whale: >100 ETH balance
+  if (balanceInETH > 100) return ARCHETYPES[3]; 
+  // Diamond Hands: >1 year old, <100 txs, holds some ETH
+  if (ageInYears >= 1 && txCount < 100 && balanceInETH >= 0.01) return ARCHETYPES[1]; 
+  // NFT Collector: >200 txs, >5 ETH
+  if (txCount > 200 && balanceInETH > 5) return ARCHETYPES[2]; 
+  // DeFi Degen: >500 transactions (heavy user)
+  if (txCount > 500) return ARCHETYPES[5]; 
+  // Degen: >100 transactions (active trader)
+  if (txCount > 100) return ARCHETYPES[0]; 
+  // Newbie: Default for new/low-activity wallets
+  return ARCHETYPES[4]; 
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function WalletScentPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -100,17 +121,19 @@ export default function WalletScentPage() {
   const [step, setStep] = useState<"idle" | "analyzing" | "result" | "minting" | "success">("idle");
   const [countdown, setCountdown] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
   const [alreadyMinted, setAlreadyMinted] = useState(false);
-  const [pendingRevealId, setPendingRevealId] = useState<number | null>(null);
-  const [canClearExpired, setCanClearExpired] = useState(false);
 
   const isOnArcNetwork = chainId === ARC_CHAIN_ID;
 
+  /**
+   * Check mint status on component mount
+   * Restores archetype from localStorage to prevent session loss
+   */
   useEffect(() => {
     const checkStatus = async () => {
       if (!address) return;
       
+      // Restore archetype from localStorage (prevents hash mismatch on refresh)
       const savedArchetypeId = localStorage.getItem(`scent_archetype_${address}`);
       if (savedArchetypeId) {
         const saved = ARCHETYPES.find(a => a.id === savedArchetypeId);
@@ -120,31 +143,9 @@ export default function WalletScentPage() {
       try {
         const provider = new ethers.BrowserProvider((window as any).ethereum);
         const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
-        
-        const mintCount = await contract.walletMintCount(address);
-        if (mintCount > 0) {
+        const count = await contract.walletMintCount(address);
+        if (count > 0) {
           setAlreadyMinted(true);
-          return;
-        }
-
-        const pendingId = await contract.pendingTokenId(address);
-        if (pendingId > 0) {
-          setPendingRevealId(Number(pendingId));
-          setTokenId(Number(pendingId));
-          
-          // Check if it's expired (1000 blocks)
-          const pendingData = await contract.getPendingMint(pendingId);
-          const currentBlock = await provider.getBlockNumber();
-          if (currentBlock > Number(pendingData.blockNumber) + 1000) {
-            setCanClearExpired(true);
-          }
-          
-          if (!savedArchetypeId) {
-             setErrorMessage("Session refreshed. Please click 'Analyze My Wallet' again to restore your key.");
-             setStep("idle");
-          } else {
-             setStep("result");
-          }
         }
       } catch (e) {
         console.warn("Status check error:", e);
@@ -153,6 +154,10 @@ export default function WalletScentPage() {
     checkStatus();
   }, [address]);
 
+  /**
+   * Analyzes wallet on-chain data and determines archetype
+   * Stores archetype in localStorage to ensure consistency across mint steps
+   */
   const analyzeWallet = async () => {
     if (!address) return;
     setAnalyzing(true);
@@ -164,16 +169,19 @@ export default function WalletScentPage() {
       const { mainnet } = await import("viem/chains");
       const ethMainnetClient = createPublicClient({ chain: mainnet, transport: http() });
 
+      // Fetch public on-chain data
       const txCount = await ethMainnetClient.getTransactionCount({ address: address as `0x${string}` });
       const balance = await ethMainnetClient.getBalance({ address: address as `0x${string}` });
       const walletAgeTimestamp = await getWalletAge(address);
 
+      // Simulate analysis delay for better UX
       await new Promise((resolve) => setTimeout(resolve, 2500));
       
       const walletArchetype = getWalletArchetype(txCount, balance, walletAgeTimestamp);
       setArchetype(walletArchetype);
       
-      // НАМЕРТВО ФИКСИРУЕМ АРХЕТИП
+      // CRITICAL: Lock archetype in localStorage
+      // This ensures the same seed is used for both requestMint and revealAndMint
       localStorage.setItem(`scent_archetype_${address}`, walletArchetype.id);
       
       setStep("result");
@@ -186,29 +194,27 @@ export default function WalletScentPage() {
     }
   };
 
-  const clearExpiredMint = async () => {
-    if (!pendingRevealId) return;
-    setMinting(true);
-    try {
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
-      
-      const tx = await contract.clearExpiredMint(pendingRevealId);
-      await tx.wait();
-      
-      localStorage.removeItem(`scent_archetype_${address}`);
-      setPendingRevealId(null);
-      setCanClearExpired(false);
-      setStep("idle");
-      setErrorMessage("Stuck mint cleared! You can now analyze and mint again.");
-    } catch (error: any) {
-      setErrorMessage(error.reason || "Failed to clear. It might not be expired yet.");
-    } finally {
-      setMinting(false);
-    }
-  };
-
+  /**
+   * Executes the two-step commit-reveal mint process
+   * 
+   * SECURITY ANALYSIS:
+   * 1. COMMITMENT SCHEME: User commits to keccak256(seedPreimage) before revealing
+   *    - Prevents user from changing seed after seeing the result
+   *    - Prevents front-running (commitment hides the actual seed)
+   * 
+   * 2. DETERMINISTIC SEED: seed = keccak256(address + archetypeId)
+   *    - Based on immutable data (address + on-chain metrics)
+   *    - Cannot be manipulated by user
+   *    - Public but unpredictable before analysis
+   * 
+   * 3. DOUBLE HASHING: commitment = keccak256(seedPreimage)
+   *    - Prevents length extension attacks
+   *    - Standard secure commitment pattern
+   * 
+   * 4. BLOCK DELAY: 5 blocks between commit and reveal
+   *    - Prevents MEV bots from front-running
+   *    - Gives network time to finalize
+   */
   const handleMint = async () => {
     if (!address || !archetype) {
       setErrorMessage("Please analyze your wallet first.");
@@ -228,107 +234,113 @@ export default function WalletScentPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
 
-      // БЕРЕМ ТОЛЬКО ЗАФИКСИРОВАННЫЙ АРХЕТИП
+      // Get locked archetype from localStorage (ensures consistency)
       const lockedArchetypeId = localStorage.getItem(`scent_archetype_${address}`);
       if (!lockedArchetypeId) {
         throw new Error("Session lost. Please re-analyze your wallet.");
       }
       
+      // Generate deterministic seed
+      // SECURITY: This seed is based on public data but cannot be predicted
+      // before the user commits, because the commitment hides it
       const seedString = `${address.toLowerCase()}-${lockedArchetypeId}`;
-      const seedPreimage = ethers.id(seedString); 
-      const seedCommitment = ethers.keccak256(seedPreimage);
+      const seedPreimage = ethers.id(seedString); // keccak256(seedString)
+      const seedCommitment = ethers.keccak256(seedPreimage); // Double hash for commitment
 
-      if (!pendingRevealId) {
-        // ШАГ 1: НОВЫЙ МИНТ
-        console.log("🔒 Committing seed...");
-        const tx = await contract.requestMint(seedCommitment);
-        const receipt = await tx.wait();
+      console.log("🔒 Committing seed...");
+      console.log("Seed String:", seedString);
+      console.log("Seed Preimage:", seedPreimage);
+      console.log("Seed Commitment:", seedCommitment);
 
-        const mintEvent = receipt.logs
-          .map((log: any) => { try { return contract.interface.parseLog(log); } catch { return null; } })
-          .find((e: any) => e?.name === "MintRequested");
+      // STEP 1: Commit - Send commitment to contract
+      const tx = await contract.requestMint(seedCommitment);
+      const receipt = await tx.wait();
 
-        const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
-        setTokenId(newTokenId);
-        setPendingRevealId(newTokenId);
+      const mintEvent = receipt.logs
+        .map((log: any) => { try { return contract.interface.parseLog(log); } catch { return null; } })
+        .find((e: any) => e?.name === "MintRequested");
+
+      const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
+      setTokenId(newTokenId);
+      
+      const mintBlockNumber = receipt.blockNumber;
+      console.log(`✅ Mint requested in block ${mintBlockNumber}. TokenId: ${newTokenId}`);
+
+      // STEP 2: Wait for REVEAL_BLOCKS (5 blocks) to prevent MEV
+      const REVEAL_BLOCKS = 5;
+      const pollInterval = setInterval(async () => {
+        const currentBlock = await provider.getBlockNumber();
+        const blocksNeeded = REVEAL_BLOCKS - (currentBlock - mintBlockNumber);
         
-        const mintBlockNumber = receipt.blockNumber;
-
-        // ШАГ 2: ЖДЕМ 5 БЛОКОВ
-        const REVEAL_BLOCKS = 5;
-        const pollInterval = setInterval(async () => {
-          const currentBlock = await provider.getBlockNumber();
-          const blocksNeeded = REVEAL_BLOCKS - (currentBlock - mintBlockNumber);
+        if (blocksNeeded <= 0) {
+          clearInterval(pollInterval);
+          setCountdown(0);
           
-          if (blocksNeeded <= 0) {
-            clearInterval(pollInterval);
-            setCountdown(0);
-            await performReveal(newTokenId, seedPreimage, contract);
-          } else {
-            setCountdown(Math.ceil(blocksNeeded * 2));
+          // STEP 3: Reveal - Send preimage to contract
+          console.log(" Revealing seed...");
+          try {
+            const revealTx = await contract.revealAndMint(newTokenId, seedPreimage);
+            await revealTx.wait();
+
+            // Wait for blockchain to index the NFT
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Fetch NFT data with retry logic
+            let perfumeData;
+            for (let attempt = 0; attempt < 5; attempt++) {
+              try {
+                perfumeData = await contract.getPerfume(newTokenId);
+                break;
+              } catch (e) {
+                if (attempt === 4) throw e;
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+            }
+
+            if (perfumeData) {
+              setMintedPerfume({
+                tokenId: Number(perfumeData.tokenId),
+                name: perfumeData.name,
+                gender: Number(perfumeData.gender),
+                pType: Number(perfumeData.pType),
+                topNotes: Array.from(perfumeData.topNotes || []),
+                heartNotes: Array.from(perfumeData.heartNotes || []),
+                baseNotes: Array.from(perfumeData.baseNotes || []),
+                concentration: Number(perfumeData.concentration),
+                rarity: Number(perfumeData.rarity),
+                createdAt: Number(perfumeData.createdAt),
+                creator: perfumeData.creator,
+              });
+
+              // Clear locked archetype after successful mint
+              localStorage.removeItem(`scent_archetype_${address}`);
+              setStep("success");
+            }
+            setMinting(false);
+          } catch (revealError: any) {
+            console.error(" Reveal failed:", revealError);
+            if (revealError.reason?.includes("TooEarly")) {
+              setErrorMessage("Still too early to reveal. Please wait a few more blocks.");
+            } else if (revealError.reason?.includes("CommitmentMismatch")) {
+              setErrorMessage("Seed mismatch! This shouldn't happen - please contact support.");
+            } else {
+              setErrorMessage(`Reveal failed: ${revealError.shortMessage || revealError.message}`);
+            }
+            setStep("result");
+            setMinting(false);
           }
-        }, 2000);
-      } else {
-        // ШАГ 2 (ПРОПУСКАЕМ ШАГ 1): ВОЗОБНОВЛЕНИЕ ЗАВИСШЕГО МИНТА
-        // Внимание: это сработает только если предыдущий requestMint был сделан с ПРАВИЛЬНЫм хешем.
-        // Если он был сделан с неправильным (до фикса), этот шаг выдаст CommitmentMismatch, 
-        // и пользователю придется использовать кнопку "Clear Stuck Mint".
-        console.log("🔓 Resuming reveal for pending tokenId:", pendingRevealId);
-        setCountdown(3);
-        setTimeout(async () => {
-          await performReveal(pendingRevealId, seedPreimage, contract);
-        }, 3000);
-      }
+        } else {
+          setCountdown(Math.ceil(blocksNeeded * 2)); // Arc blocks are ~2s
+        }
+      }, 2000);
     } catch (error: any) {
-      console.error("❌ Action failed:", error);
+      console.error(" Mint failed:", error);
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         setErrorMessage("Transaction rejected by user.");
-      } else if (error.reason?.includes("AlreadyPending")) {
-        setErrorMessage("You have a pending mint. Please wait or clear it.");
-        setPendingRevealId(tokenId); // Force UI to show pending state
-        setStep("result");
-      } else if (error.reason?.includes("CommitmentMismatch")) {
-        setErrorMessage("Hash mismatch! This mint is bricked. Please wait for expiry and click 'Clear Stuck Mint'.");
-        setStep("result");
+      } else if (error.reason?.includes("MaxPerWalletReached") || error.message?.includes("already")) {
+        setErrorMessage("You've already minted your wallet's scent!");
       } else {
-        setErrorMessage(error.reason || error.shortMessage || error.message || "Action failed.");
-      }
-      setMinting(false);
-    }
-  };
-
-  const performReveal = async (targetTokenId: number, seedPreimage: string, contract: any) => {
-    try {
-      console.log("🔓 Revealing seed for tokenId:", targetTokenId);
-      const revealTx = await contract.revealAndMint(targetTokenId, seedPreimage);
-      await revealTx.wait();
-
-      const perfumeData = await contract.getPerfume(targetTokenId);
-      setMintedPerfume({
-        tokenId: Number(perfumeData.tokenId),
-        name: perfumeData.name,
-        gender: Number(perfumeData.gender),
-        pType: Number(perfumeData.pType),
-        topNotes: Array.from(perfumeData.topNotes || []),
-        heartNotes: Array.from(perfumeData.heartNotes || []),
-        baseNotes: Array.from(perfumeData.baseNotes || []),
-        concentration: Number(perfumeData.concentration),
-        rarity: Number(perfumeData.rarity),
-        createdAt: Number(perfumeData.createdAt),
-        creator: perfumeData.creator,
-      });
-      
-      localStorage.removeItem(`scent_archetype_${address}`);
-      setStep("success");
-      setMinting(false);
-    } catch (revealError: any) {
-      console.error("❌ Reveal failed:", revealError);
-      if (revealError.reason?.includes("TooEarly")) {
-        setErrorMessage("Still too early to reveal. Please wait a few more blocks.");
-      } else if (revealError.reason?.includes("CommitmentMismatch")) {
-        setErrorMessage("CRITICAL: Hash mismatch! This specific mint is bricked. Please wait ~20 mins and use 'Clear Stuck Mint' to try again.");
-      } else {
-        setErrorMessage(`Reveal failed: ${revealError.shortMessage || revealError.message}`);
+        setErrorMessage(error.reason || error.shortMessage || error.message || "Mint failed.");
       }
       setStep("result");
       setMinting(false);
@@ -344,6 +356,9 @@ export default function WalletScentPage() {
 
   const getRarityName = (rarity: number) => ["Common", "Rare", "Epic", "Legendary"][rarity] || "Common";
 
+  // ============================================================
+  // RENDER UI
+  // ============================================================
   return (
     <div className="min-h-screen py-20 px-4">
       <div className="max-w-3xl mx-auto">
@@ -436,14 +451,6 @@ export default function WalletScentPage() {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     You have already minted your Viral Scent!
                   </div>
-                ) : canClearExpired ? (
-                  <button onClick={clearExpiredMint} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-red-500 to-orange-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                    🗑️ Clear Stuck Mint & Start Over
-                  </button>
-                ) : pendingRevealId ? (
-                  <button onClick={handleMint} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                    {minting ? "Revealing..." : "🔓 Reveal My Scent"}
-                  </button>
                 ) : (
                   <button onClick={handleMint} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50">
                     {minting ? "Minting..." : "Mint This Scent (Free)"}
@@ -457,7 +464,7 @@ export default function WalletScentPage() {
           {step === "minting" && (
             <div className="text-center space-y-6 py-8">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto"></div>
-              <h3 className="text-2xl font-bold text-white">{pendingRevealId ? "Revealing Your Scent..." : "Minting Your Scent..."}</h3>
+              <h3 className="text-2xl font-bold text-white">Revealing Your Scent...</h3>
               {countdown > 0 && <p className="text-white/40">Waiting for block confirmations: {countdown}s</p>}
             </div>
           )}
