@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP, RARITY_COLORS } from "@/utils/contract";
+import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP } from "@/utils/contract";
 import ScentCrest from "@/components/ScentCrest";
 
 interface PerfumeCardProps {
@@ -9,6 +9,9 @@ interface PerfumeCardProps {
   perfume: PerfumeData;
   aiDescription?: string;
   highlight?: boolean;
+  isGenesis?: boolean;
+  isMFW?: boolean;
+  isHybrid?: boolean;
 }
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
@@ -18,8 +21,39 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
-export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight = false }: PerfumeCardProps) {
-  const style = RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0];
+const MFW_STYLE = {
+  bg: "from-purple-900/80 via-indigo-900/70 to-slate-900/80",
+  border: "border-purple-500/50",
+  badge: "bg-purple-500/40 text-purple-100 border-purple-400/60",
+  text: "text-purple-100",
+  glow: "shadow-[0_0_40px_rgba(168,85,247,0.4)] hover:shadow-[0_0_60px_rgba(168,85,247,0.6)]",
+  hex: "#a855f7",
+};
+
+const HYBRID_STYLE = {
+  bg: "from-cyan-900/80 via-teal-900/70 to-slate-900/80",
+  border: "border-cyan-500/50",
+  badge: "bg-cyan-500/40 text-cyan-100 border-cyan-400/60",
+  text: "text-cyan-100",
+  glow: "shadow-[0_0_40px_rgba(34,211,238,0.4)] hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]",
+  hex: "#22d3ee",
+};
+
+export default function PerfumeCard({ 
+  tokenId, 
+  perfume, 
+  aiDescription, 
+  highlight = false,
+  isGenesis = false,
+  isMFW = false,
+  isHybrid = false
+}: PerfumeCardProps) {
+  // Determine style: Collection-specific styles take precedence over rarity
+  const style = isHybrid 
+    ? HYBRID_STYLE 
+    : isMFW 
+      ? MFW_STYLE 
+      : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]);
 
   return (
     <Link href={`/nft/${tokenId}`}>
@@ -37,8 +71,8 @@ export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight
           }} />
         )}
 
-        {/* Hover shimmer for regular cards */}
-        {!highlight && (
+        {/* Hover shimmer for regular cards (only if not a special collection with its own effects) */}
+        {!highlight && !isMFW && !isGenesis && !isHybrid && (
           <div 
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
             style={{
@@ -53,14 +87,31 @@ export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight
           />
         )}
 
+        {/* Special Collection Overlays */}
+        {isMFW && (
+          <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-100 transition-opacity duration-500">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-purple-500/20 animate-pulse" />
+          </div>
+        )}
+        {isGenesis && (
+          <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 animate-pulse" />
+          </div>
+        )}
+        {isHybrid && (
+          <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-100 transition-opacity duration-500">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-cyan-500/20 animate-pulse" />
+          </div>
+        )}
+
         {/* Glass shine overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        {/* Header - NOW WITH SCENT CREST */}
+        {/* Header */}
         <div className="relative flex justify-between items-start mb-4">
           <div className="flex items-center gap-3">
-            {/* NEW: Scent Crest Logo */}
+            {/* Scent Crest Logo */}
             <ScentCrest
               seed={`${perfume.creator}-${perfume.name}`}
               name={perfume.name}
@@ -68,7 +119,9 @@ export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight
               size={60}
             />
             <div>
-              <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{tokenId}</p>
+              <p className="text-xs text-white/40 uppercase tracking-wider">
+                {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
+              </p>
               <h3 className="text-xl font-bold text-white mt-1 group-hover:text-amber-300 transition-colors">
                 {perfume.name}
               </h3>
@@ -78,6 +131,39 @@ export default function PerfumeCard({ tokenId, perfume, aiDescription, highlight
             {RARITY_MAP[perfume.rarity]}
           </span>
         </div>
+
+        {/* Collection Badge (if applicable) */}
+        {isMFW && (
+          <div className="relative mb-4">
+            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-purple-500/20 border border-purple-500/40">
+              <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-xs font-bold text-purple-300 uppercase tracking-wider">MFW 2026 Exclusive</span>
+            </div>
+          </div>
+        )}
+        {isGenesis && (
+          <div className="relative mb-4">
+            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border border-amber-500/40">
+              <svg viewBox="0 0 32 32" className="w-4 h-4 text-amber-400" fill="none">
+                <path d="M4 26 Q16 2 28 26" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+              <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">Genesis Collection</span>
+            </div>
+          </div>
+        )}
+        {isHybrid && (
+          <div className="relative mb-4">
+            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-cyan-500/20 border border-cyan-500/40">
+              <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v6l-6 9h18l-6-9V3H9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h6" />
+              </svg>
+              <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">Scent Alchemy Hybrid</span>
+            </div>
+          </div>
+        )}
 
         {/* Meta info */}
         <div className="relative flex flex-wrap gap-2 text-xs mb-4">
