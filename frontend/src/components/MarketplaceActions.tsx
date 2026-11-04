@@ -31,7 +31,8 @@ export default function MarketplaceActions({
         const provider = signer.provider;
         if (!provider) return;
 
-        const data = await checkIfListed(provider, tokenId);
+        // UPDATED: Now passes nftContractAddress to match new contract mapping
+        const data = await checkIfListed(provider, nftContractAddress, tokenId);
         setIsListed(data.active);
         if (data.active) {
           setListingPrice(ethers.formatUnits(data.price, 6));
@@ -41,14 +42,16 @@ export default function MarketplaceActions({
       }
     };
     checkListing();
-  }, [tokenId]);
+  }, [tokenId, nftContractAddress]);
 
   const handleList = async () => {
     if (!listingPrice || parseFloat(listingPrice) <= 0) return;
     setLoading(true);
     try {
       const signer = await getArcSigner();
-      await listNFT(signer, nftContractAddress, tokenId, listingPrice);
+      // UPDATED: Added default 30-day expiry (in seconds)
+      const expiry = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
+      await listNFT(signer, nftContractAddress, tokenId, listingPrice, expiry);
       setIsListed(true);
       setShowListForm(false);
       alert(`Successfully listed Scent #${tokenId} for ${listingPrice} USDC!`);
@@ -65,7 +68,8 @@ export default function MarketplaceActions({
     setLoading(true);
     try {
       const signer = await getArcSigner();
-      await buyNFT(signer, tokenId, listingPrice);
+      // UPDATED: Now passes nftContractAddress for slippage protection
+      await buyNFT(signer, nftContractAddress, tokenId, listingPrice);
       alert(`Successfully purchased Scent #${tokenId}!`);
       window.location.reload(); 
     } catch (error: any) {
@@ -80,7 +84,8 @@ export default function MarketplaceActions({
     setLoading(true);
     try {
       const signer = await getArcSigner();
-      await cancelListing(signer, tokenId);
+      // UPDATED: Now passes nftContractAddress
+      await cancelListing(signer, nftContractAddress, tokenId);
       setIsListed(false);
       alert(`Successfully cancelled listing for Scent #${tokenId}`);
     } catch (error: any) {
