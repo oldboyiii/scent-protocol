@@ -4,15 +4,17 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+// Updated to the newly deployed Genesis contract address
+const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 
+// Updated ABI for Commit-Reveal mechanism
 const GENESIS_ABI = [
-  "function requestMint() external returns (uint256)",
-  "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
+  "function requestMint(bytes32 seedCommitment) external returns (uint256)",
+  "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
-  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber))",
+  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber, bytes32 seedCommitment))",
   "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis))",
   "error ScentProtocol__TooEarly()",
   "error ScentProtocol__NoPendingMint()",
@@ -30,6 +32,9 @@ export default function GenesisEventPage() {
   const [step, setStep] = useState<"idle" | "requested" | "revealed">("idle");
   const [tokenId, setTokenId] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
+  
+  // Store preimage locally to survive page refreshes between request and reveal
+  const [seedPreimage, setSeedPreimage] = useState<string | null>(null);
   
   const maxSupply = 100;
   const maxPerWallet = 1;
@@ -100,6 +105,12 @@ export default function GenesisEventPage() {
         const blocksPassed = currentBlock - Number(p.blockNumber);
         const blocksRemaining = Math.max(0, 5 - blocksPassed);
         setCountdown(blocksRemaining * 2);
+        
+        // Try to restore preimage from localStorage
+        const storedPreimage = localStorage.getItem(`genesis_preimage_${foundPending}`);
+        if (storedPreimage) {
+          setSeedPreimage(storedPreimage);
+        }
         return;
       }
 
@@ -129,8 +140,22 @@ export default function GenesisEventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
-      console.log("Calling requestMint...");
-      const tx = await contract.requestMint();
+      // 1. Generate cryptographically secure 32-byte random preimage
+      const randomArray = new Uint8Array(32);
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(randomArray);
+      } else {
+        for (let i = 0; i < 32; i++) {
+          randomArray[i] = Math.floor(Math.random() * 256);
+        }
+      }
+      const preimageHex = "0x" + Array.from(randomArray, b => b.toString(16).padStart(2, "0")).join("");
+      
+      // 2. Hash it to get the commitment
+      const commitment = ethers.keccak256(preimageHex);
+
+      console.log("Calling requestMint with commitment...");
+      const tx = await contract.requestMint(commitment);
       console.log("Transaction sent:", tx.hash);
       
       const receipt = await tx.wait();
@@ -146,7 +171,12 @@ export default function GenesisEventPage() {
         })
         .find((e: any) => e?.name === "MintRequested");
 
-      const newTokenId = mintEvent ? Number(mintEvent.args[0]) : 1;
+      const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
+      
+      // 3. Save preimage to localStorage so it survives page refreshes
+      localStorage.setItem(`genesis_preimage_${newTokenId}`, preimageHex);
+      setSeedPreimage(preimageHex);
+      
       setTokenId(newTokenId);
       setStep("requested");
       setCountdown(10);
@@ -186,18 +216,25 @@ export default function GenesisEventPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
+      // Retrieve preimage from state or localStorage
+      const storedPreimage = seedPreimage || localStorage.getItem(`genesis_preimage_${tokenId}`);
+      if (!storedPreimage) {
+        throw new Error("Seed preimage not found. Please try minting again.");
+      }
+
       console.log("=== PREPARING REVEAL ===");
       console.log("tokenId:", tokenId, "type:", typeof tokenId);
-      
-      const userSeedHex = ethers.hexlify(ethers.randomBytes(32));
-      console.log("userSeedHex:", userSeedHex);
+      console.log("seedPreimage:", storedPreimage);
       
       console.log("Calling revealAndMint...");
-      const tx = await contract.revealAndMint(tokenId, userSeedHex);
+      const tx = await contract.revealAndMint(tokenId, storedPreimage);
       console.log("Reveal transaction sent:", tx.hash);
       
       await tx.wait();
       console.log("Reveal confirmed");
+
+      // Cleanup localStorage after successful reveal
+      localStorage.removeItem(`genesis_preimage_${tokenId}`);
 
       const perfumeData = await contract.getPerfume(tokenId);
       
@@ -343,7 +380,7 @@ export default function GenesisEventPage() {
                 </p>
                 <p className="text-white/50 text-sm mt-2">
                   {countdown > 0 
-                    ? `⏳ Wait ${countdown} seconds before reveal...`
+                    ? ` Wait ${countdown} seconds before reveal...`
                     : "✅ Ready for reveal!"}
                 </p>
               </div>
