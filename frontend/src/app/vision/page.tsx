@@ -97,31 +97,32 @@ export default function VisionPage() {
           <h2 className="text-2xl font-bold text-amber-400 mb-4">The Road to Olfactory Internet</h2>
           <div className="space-y-6">
             <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-              <h3 className="text-lg font-bold text-fuchsia-400 mb-2">Phase 1: Digital Formulas (Now)</h3>
+              <h3 className="text-lg font-bold text-fuchsia-400 mb-2">Phase 1: Digital Formulas & On-Chain Ownership (Now)</h3>
               <p className="text-sm">
-                ScentProtocol mints unique fragrance formulas as NFTs. Each scent is a verifiable, ownable digital asset. 
-                This is the "MP3 moment" for smell — the first time scent can be owned and traded digitally.
+                ScentProtocol has already launched a multi-collection ecosystem (V3, Genesis, MFW 2026, Viral). 
+                Each fragrance is a verifiable, ownable digital asset with a robust marketplace supporting direct sales and binding escrowed offers. 
+                This is the "MP3 moment" for smell.
               </p>
             </div>
             <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-              <h3 className="text-lg font-bold text-fuchsia-400 mb-2">Phase 2: Scent Streaming (2026-2028)</h3>
+              <h3 className="text-lg font-bold text-cyan-400 mb-2">Phase 2: Scent Alchemy & AI Personalization (2024-2025)</h3>
               <p className="text-sm">
-                As olfactory displays become consumer-ready, NFT owners will be able to "play" their scents through 
-                connected devices. Imagine browsing an NFT gallery and actually smelling each piece.
+                Introducing deflationary mechanics and smart discovery. Users can now burn two existing NFTs in the <span className="text-cyan-400 font-semibold">Scent Alchemy</span> lab to forge a mutated Hybrid with a chance for rarity upgrades. 
+                Coupled with our <span className="text-cyan-400 font-semibold">AI Scent Advisor</span>, the protocol intelligently matches users to fragrances based on mood, weather, and on-chain behavior.
               </p>
             </div>
             <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-              <h3 className="text-lg font-bold text-fuchsia-400 mb-2">Phase 3: Olfactory Social Networks (2028-2030)</h3>
+              <h3 className="text-lg font-bold text-fuchsia-400 mb-2">Phase 3: Scent Streaming & Hardware Integration (2026-2028)</h3>
               <p className="text-sm">
-                Social platforms will integrate scent. You'll "smell" your friend's vacation photos, 
-                receive scented messages, or wear a digital fragrance as your avatar's signature in virtual worlds.
+                As olfactory displays become consumer-ready, NFT owners will be able to "play" their scents through connected devices. 
+                Imagine browsing an NFT gallery or a virtual world and actually smelling each piece in real-time.
               </p>
             </div>
             <div className="p-6 rounded-xl bg-white/5 border border-white/10">
               <h3 className="text-lg font-bold text-fuchsia-400 mb-2">Phase 4: Full Olfactory Internet (2030+)</h3>
               <p className="text-sm">
                 A decentralized network of scent creators, distributors, and consumers. 
-                Digital perfumers will be as common as digital artists today. Scent will be a new medium of human expression.
+                Digital perfumers will be as common as digital artists today. Scent will become a fundamental, programmable medium of human expression and connection.
               </p>
             </div>
           </div>
@@ -136,7 +137,8 @@ export default function VisionPage() {
           <ul className="list-disc list-inside space-y-2 ml-4 mt-4">
             <li>A <span className="text-amber-400">standardized format</span> for scent formulas (we have it)</li>
             <li>A way to <span className="text-amber-400">prove ownership</span> and authenticity (blockchain)</li>
-            <li>A <span className="text-amber-400">marketplace</span> for scent creators and collectors (we have it)</li>
+            <li>A <span className="text-amber-400">liquid marketplace</span> with advanced features like escrowed offers and creator royalties (we have it)</li>
+            <li><span className="text-amber-400">Deflationary mechanics</span> and AI-driven discovery to sustain long-term ecosystem value (Scent Alchemy & AI Advisor)</li>
             <li>A <span className="text-amber-400">community</span> of early adopters who understand digital scent (that's you)</li>
           </ul>
           <p className="mt-4">
