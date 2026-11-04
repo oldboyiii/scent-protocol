@@ -5,13 +5,15 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getArcSigner } from "@/utils/marketplace";
 import { getContract } from "@/utils/contract";
-import ScentCrest from "@/components/ScentCrest"; // NEW: Import ScentCrest component
+import ScentCrest from "@/components/ScentCrest";
 
-const MARKETPLACE_ADDRESS = ethers.getAddress("0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c");
-const NFT_CONTRACT_ADDRESS = "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
-const MFW_CONTRACT_ADDRESS = "0xBcF87E80C18CF5d0D8769703fDb891A16D279B50";
-const VIRAL_CONTRACT_ADDRESS = "0x5b2835bcd2fB197Ea68b9C9cc52F6Fc267bc65bb"; // NEW
+// --- UPDATED CONTRACT ADDRESSES ---
+const MARKETPLACE_ADDRESS = ethers.getAddress("0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120");
+const NFT_CONTRACT_ADDRESS = "0x87950a56456Df786A249F484e9E56dF00fF207cb"; // V3
+const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
+const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
+const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
+const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40"; // NEW: Hybrids
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const MARKETPLACE_ABI = [
@@ -31,7 +33,7 @@ const USDC_ABI = [
 ];
 
 const NFT_ABI = [
-  "function getPerfume(uint256 tokenId) view returns (string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator)"
+  "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isAlchemy, uint256 parentTokenA, uint256 parentTokenB))"
 ];
 
 const GENESIS_ABI = [
@@ -90,7 +92,6 @@ const MFW_ABI = [
   }
 ];
 
-// NEW: ABI for Viral Contract
 const VIRAL_ABI = [
   {
     "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
@@ -117,9 +118,38 @@ const VIRAL_ABI = [
   }
 ];
 
+// NEW: ABI for Alchemy Hybrids
+const ALCHEMY_ABI = [
+  {
+    "inputs": [{"internalType": "uint256", "name": "hybridId", "type": "uint256"}],
+    "name": "getHybridPerfume",
+    "outputs": [{
+      "components": [
+        {"internalType": "uint256", "name": "hybridId", "type": "uint256"},
+        {"internalType": "uint256", "name": "parentTokenId1", "type": "uint256"},
+        {"internalType": "uint256", "name": "parentTokenId2", "type": "uint256"},
+        {"internalType": "string", "name": "name", "type": "string"},
+        {"internalType": "uint8", "name": "gender", "type": "uint8"},
+        {"internalType": "uint8", "name": "pType", "type": "uint8"},
+        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
+        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
+        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
+        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
+        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
+        {"internalType": "address", "name": "alchemist", "type": "address"}
+      ],
+      "name": "",
+      "type": "tuple"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
+
 type SortOption = "priceLow" | "priceHigh" | "rarity" | "newest";
-// UPDATED: Added "viral" to filter types
-type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral";
+// UPDATED: Added "hybrid" to filter types
+type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral" | "hybrid";
 
 interface ListingData {
   tokenId: number;
@@ -159,7 +189,6 @@ const MFW_STYLE = {
   hex: "#a855f7",
 };
 
-// NEW: Style for Viral NFTs matching the collection/detail pages
 const VIRAL_STYLE = {
   bg: "from-fuchsia-900/80 via-pink-900/70 to-purple-900/80",
   border: "border-fuchsia-500/50",
@@ -167,6 +196,16 @@ const VIRAL_STYLE = {
   text: "text-fuchsia-100",
   glow: "shadow-[0_0_40px_rgba(217,70,239,0.4)] hover:shadow-[0_0_60px_rgba(217,70,239,0.6)]",
   hex: "#d946ef",
+};
+
+// NEW: Style for Alchemy Hybrids (Mystical Cyan/Teal)
+const HYBRID_STYLE = {
+  bg: "from-cyan-900/80 via-teal-900/70 to-slate-900/80",
+  border: "border-cyan-500/50",
+  badge: "bg-cyan-500/40 text-cyan-100 border-cyan-400/60",
+  text: "text-cyan-100",
+  glow: "shadow-[0_0_40px_rgba(34,211,238,0.4)] hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]",
+  hex: "#22d3ee",
 };
 
 export default function MarketplacePage() {
@@ -191,7 +230,8 @@ export default function MarketplacePage() {
       const nftContract = getContract(provider);
       const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
       const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
-      const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider); // NEW
+      const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
+      const alchemyContract = new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider); // NEW
 
       const activeCount = await marketplace.getActiveCount();
 
@@ -259,7 +299,7 @@ export default function MarketplacePage() {
                 contractAddress = MFW_CONTRACT_ADDRESS;
               }
             } catch (e) { console.warn(`Failed to get MFW data for ${tokenId}:`, e); }
-          } else if (nftContractAddr.toLowerCase() === VIRAL_CONTRACT_ADDRESS.toLowerCase()) { // NEW
+          } else if (nftContractAddr.toLowerCase() === VIRAL_CONTRACT_ADDRESS.toLowerCase()) {
             try {
               const data: any = await viralContract.getPerfume(tokenId);
               if (data && data.name) {
@@ -274,6 +314,21 @@ export default function MarketplacePage() {
                 contractAddress = VIRAL_CONTRACT_ADDRESS;
               }
             } catch (e) { console.warn(`Failed to get Viral data for ${tokenId}:`, e); }
+          } else if (nftContractAddr.toLowerCase() === ALCHEMY_CONTRACT_ADDRESS.toLowerCase()) { // NEW
+            try {
+              const data: any = await alchemyContract.getHybridPerfume(tokenId);
+              if (data && data.name) {
+                perfume = {
+                  name: data.name, gender: Number(data.gender), pType: Number(data.pType),
+                  concentration: Number(data.concentration), rarity: Number(data.rarity),
+                  topNotes: data.topNotes ? Array.from(data.topNotes).map((n: any) => String(n)) : [],
+                  heartNotes: data.heartNotes ? Array.from(data.heartNotes).map((n: any) => String(n)) : [],
+                  baseNotes: data.baseNotes ? Array.from(data.baseNotes).map((n: any) => String(n)) : [],
+                  createdAt: Number(data.createdAt), creator: data.alchemist, // Map alchemist to creator for UI consistency
+                };
+                contractAddress = ALCHEMY_CONTRACT_ADDRESS;
+              }
+            } catch (e) { console.warn(`Failed to get Hybrid data for ${tokenId}:`, e); }
           }
 
           if (perfume) {
@@ -314,12 +369,13 @@ export default function MarketplacePage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // UPDATED: Added viral filter logic
+  // UPDATED: Added hybrid filter logic
   const filteredListings = listings.filter(listing => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return listing.contractAddress === GENESIS_CONTRACT_ADDRESS;
     if (filterBy === "mfw") return listing.contractAddress === MFW_CONTRACT_ADDRESS;
     if (filterBy === "viral") return listing.contractAddress === VIRAL_CONTRACT_ADDRESS;
+    if (filterBy === "hybrid") return listing.contractAddress === ALCHEMY_CONTRACT_ADDRESS;
     return listing.contractAddress === NFT_CONTRACT_ADDRESS;
   });
 
@@ -405,7 +461,8 @@ export default function MarketplacePage() {
               {filterBy === "scents" && "ScentProtocol"}
               {filterBy === "genesis" && "Genesis"}
               {filterBy === "mfw" && "MFW 2026"}
-              {filterBy === "viral" && "Viral Scent"} {/* NEW */}
+              {filterBy === "viral" && "Viral Scent"}
+              {filterBy === "hybrid" && "Alchemy Hybrids"} {/* NEW */}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
@@ -415,8 +472,9 @@ export default function MarketplacePage() {
               <button onClick={() => { setFilterBy("scents"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "scents" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>ScentProtocol</button>
               <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
               <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button>
-              {/* NEW: Viral Filter Option */}
               <button onClick={() => { setFilterBy("viral"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "viral" ? "text-fuchsia-400 bg-white/5" : "text-white/70"}`}>Viral Scent</button>
+              {/* NEW: Hybrid Filter Option */}
+              <button onClick={() => { setFilterBy("hybrid"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "hybrid" ? "text-cyan-400 bg-white/5" : "text-white/70"}`}>Alchemy Hybrids</button>
             </div>
           )}
         </div>
@@ -455,16 +513,18 @@ export default function MarketplacePage() {
             const rarity = listing.rarity;
             const isGenesis = listing.contractAddress === GENESIS_CONTRACT_ADDRESS;
             const isMFW = listing.contractAddress === MFW_CONTRACT_ADDRESS;
-            const isViral = listing.contractAddress === VIRAL_CONTRACT_ADDRESS; // NEW
+            const isViral = listing.contractAddress === VIRAL_CONTRACT_ADDRESS;
+            const isHybrid = listing.contractAddress === ALCHEMY_CONTRACT_ADDRESS; // NEW
             
-            // UPDATED: Style logic now includes Viral
-            const style = isViral 
-              ? VIRAL_STYLE
-              : isMFW 
-                ? MFW_STYLE
-                : isGenesis 
-                  ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" }
-                  : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+            const style = isHybrid 
+              ? HYBRID_STYLE
+              : isViral 
+                ? VIRAL_STYLE
+                : isMFW 
+                  ? MFW_STYLE
+                  : isGenesis 
+                    ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" }
+                    : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
                   
             const isBuying = buyingId === listing.tokenId;
 
@@ -482,26 +542,27 @@ export default function MarketplacePage() {
                   {isMFW && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(168,85,247,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
                   )}
-                  {/* NEW: Viral Shimmer Effect */}
                   {isViral && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(217,70,239,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
                   )}
+                  {/* NEW: Hybrid Shimmer Effect */}
+                  {isHybrid && (
+                    <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
+                  )}
 
-                  {!isGenesis && !isMFW && !isViral && (
+                  {!isGenesis && !isMFW && !isViral && !isHybrid && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2s linear infinite", padding: "2px", WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }} />
                   )}
 
                   <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                  {!isGenesis && !isMFW && !isViral && (
+                  {!isGenesis && !isMFW && !isViral && !isHybrid && (
                     <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s infinite" }} />
                   )}
 
                   <div className="relative flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3"> {/* Added flex and gap for alignment */}
-                      
-                      {/* NEW: Scent Crest Logo rendered dynamically */}
+                    <div className="flex items-center gap-3">
                       <ScentCrest 
                         seed={`${listing.creator}-${listing.name}`}
                         name={listing.name}
@@ -512,7 +573,7 @@ export default function MarketplacePage() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <p className="text-xs text-white/40 uppercase tracking-wider">
-                            {isViral ? "Viral" : isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{listing.tokenId}
+                            {isHybrid ? "Hybrid" : isViral ? "Viral" : isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{listing.tokenId}
                           </p>
                           {isGenesis && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
@@ -529,10 +590,15 @@ export default function MarketplacePage() {
                               </svg> MFW 2026
                             </span>
                           )}
-                          {/* NEW: Viral Badge in Marketplace Card */}
                           {isViral && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
                               <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Viral
+                            </span>
+                          )}
+                          {/* NEW: Hybrid Badge in Marketplace Card */}
+                          {isHybrid && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg> Hybrid
                             </span>
                           )}
                         </div>
