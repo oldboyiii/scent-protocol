@@ -149,8 +149,25 @@ npm install
 # Run development server
 npm run dev
 
+Open http://localhost:3000
+ to see the app.
+
+🔧 Deploy to Vercel
+
+    Push repository to GitHub
+    Import project on vercel.com
+    Set frontend as Root Directory
+    Add Environment Variables (see below)
+    Click Deploy
+
+🔐 Environment Variables (.env.local)
+Note: These are configured for Arc Mainnet.
+
+env
 NEXT_PUBLIC_CONTRACT_ADDRESS=0x87950a56456Df786A249F484e9E56dF00fF207cb
 NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.arc.io
 OPENAI_API_KEY=your_openai_api_key_here
 PINATA_API_KEY=your_pinata_api_key_here
 PINATA_SECRET_KEY=your_pinata_secret_key_here
+
+Built with ❤️ for the future of digital olfactory experiences.
