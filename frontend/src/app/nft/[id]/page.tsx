@@ -460,14 +460,14 @@ export default function NFTDetailPage() {
   const style = isHybrid ? HYBRID_STYLE : isViral ? VIRAL_STYLE : isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
 
   return (
-    // REDUCED CONTAINER SIZE: max-w-2xl, py-8, space-y-6
+    // Main container
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6 relative z-10">
       <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer">
         ← Back
       </button>
 
-      {/* REDUCED CARD PADDING: p-6 instead of p-8 */}
-      <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
+      {/* Increased card padding and minimum height for a more rectangular shape */}
+      <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 min-h-[650px]`}>
         
         {(isGenesis || isMFW || isViral || isHybrid) && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
@@ -494,7 +494,6 @@ export default function NFTDetailPage() {
 
         <div className="relative flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            {/* REDUCED CREST SIZE: 64 instead of 80 */}
             <ScentCrest seed={`${perfume.creator}-${perfume.name}`} name={perfume.name} rarity={perfume.rarity} size={64} />
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -525,7 +524,6 @@ export default function NFTDetailPage() {
                   </span>
                 )}
               </div>
-              {/* REDUCED TITLE SIZE: text-2xl md:text-3xl */}
               <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">
                 {perfume.name}
               </h1>
@@ -536,18 +534,18 @@ export default function NFTDetailPage() {
           </span>
         </div>
 
-        <div className="relative flex flex-wrap gap-2 text-xs mb-4">
+        {/* Increased bottom margin for the tags row */}
+        <div className="relative flex flex-wrap gap-2 text-xs mb-6">
           <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/80 border border-white/10">{GENDER[perfume.gender]}</span>
           <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/80 border border-white/10">{TYPE[perfume.pType]}</span>
           <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/80 border border-white/10">{perfume.concentration}%</span>
         </div>
 
-        {/* REDUCED SPACING: space-y-3 */}
-        <div className="relative space-y-3 mb-4">
+        {/* Increased vertical spacing between notes sections */}
+        <div className="relative space-y-5 mb-6">
           <div>
             <span className={`text-[10px] uppercase tracking-wider ${labelColor}`}>Top Notes</span>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {/* REDUCED TAG SIZE: px-2 py-0.5 text-xs */}
               {perfume.topNotes.map((n: string) => (
                 <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>
               ))}
@@ -571,8 +569,8 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
-        {/* REDUCED DESCRIPTION PADDING: p-3, text-sm */}
-        <div className={`relative rounded-lg p-3 text-white/70 italic border-l-2 mb-4 text-sm ${descBg}`}>
+        {/* Increased padding and bottom margin for the description box */}
+        <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-6 text-sm ${descBg}`}>
           {description}
         </div>
 
@@ -615,7 +613,7 @@ export default function NFTDetailPage() {
         </div>
       </div>
 
-      {/* Marketplace Actions Section (Also slightly reduced) */}
+      {/* Marketplace Actions Section */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-xl">
         <div className="flex gap-4 border-b border-white/10 mb-4">
           <button 
