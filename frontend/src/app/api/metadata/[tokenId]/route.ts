@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
 
 // Updated to Arc Mainnet defaults
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x8d456e033FF7220068CDc1C3F08D6BA6641D103e";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x87950a56456Df786A249F484e9E56dF00fF207cb";
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.mainnet.arc.io";
 
 // Updated ABI to match ScentProtocolV2 (tokenId is now the first element in the tuple)
