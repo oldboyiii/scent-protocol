@@ -6,23 +6,23 @@ export const metadata = {
 const faqs = [
   {
     q: "What collections exist in ScentProtocol?",
-    a: "Our ecosystem features 4 unique collections:\n\n• ScentProtocol Mainnet: The core collection. AI-generated perfumes minted for 1 USDC.\n• Genesis Collection: The first 100 exclusive NFTs with a unique commit-reveal minting mechanic.\n• MFW 2026: A limited series of 500 NFTs dedicated to Milan Fashion Week 2026.\n• Viral Scent: A Free Mint experiment (10,000 supply limit) that analyzes your wallet history to create a scent matching your crypto archetype.",
+    a: "Our ecosystem features 5 distinct pillars:\n\n• ScentProtocol V3 (Mainnet): The core collection of AI-generated perfumes.\n• Genesis Collection: The first 100 exclusive, free-to-mint founding NFTs with a unique commit-reveal mechanic.\n• MFW 2026: A limited series of 500 NFTs dedicated to Milan Fashion Week 2026.\n• Viral Scent: A free-to-mint experiment (10k supply) that analyzes your wallet history to create a scent matching your crypto archetype.\n• Scent Alchemy (Hybrids): A deflationary mechanic where you burn 2 existing NFTs to forge 1 mutated Hybrid, with a 15% chance to upgrade its rarity tier.",
   },
   {
     q: "How much does minting cost?",
-    a: "It depends on the collection:\n• ScentProtocol Mainnet: 1 USDC per mint (covers formula generation and gas). No per-wallet limit — mint as many as you like.\n• Viral Scent: Completely free (Free Mint), limited to 1 NFT per wallet.\n• Genesis Collection: Limited to 1 NFT per wallet, with its own unique pricing.\n• MFW 2026: Has its own unique conditions and prices, listed on the collection page.",
+    a: "It depends on the collection:\n• ScentProtocol V3: 1 USDC per mint (no per-wallet limit).\n• Genesis Collection: Free (limited to 1 per wallet).\n• Viral Scent: Free (limited to 1 per wallet).\n• MFW 2026: 5 USDC (or 1 USDC if you hold a Genesis NFT), up to 3 per wallet.\n• Scent Alchemy: Requires burning 2 existing Scent NFTs + a 0.1 USDC blending fee.",
   },
   {
     q: "What exactly do I get when I mint?",
-    a: "You receive a unique ERC-721 NFT. It contains a generated fragrance formula (3 top, 3 heart, and 3 base notes), concentration level, rarity tier, and a poetic AI-generated description. Each NFT is also visually accompanied by a unique generative ScentCrest logo.",
+    a: "You receive a unique ERC-721 NFT. It contains a generated fragrance formula (3 top, 3 heart, and 3 base notes), concentration level, rarity tier, and a poetic AI-generated description. Each NFT is also visually accompanied by a unique, deterministic generative ScentCrest logo.",
   },
   {
     q: "What is the ScentCrest logo?",
-    a: "It's our signature generative brand logo. It is created directly in the browser using mathematics based on a unique seed (perfume name + creator address). Each NFT has its own unique initials, geometric pattern, and color matching its rarity. No external APIs or uploaded images.",
+    a: "It's our signature generative brand logo. It is created directly in the browser using mathematics based on a unique seed (perfume name + creator address). Each NFT has its own unique initials, geometric pattern, and color matching its rarity. No external APIs or uploaded images are used.",
   },
   {
     q: "Is every scent truly unique?",
-    a: "Yes. The smart contract uses a combination of blockchain randomness (blockhash) and your seed to generate the formula. The probability of creating two absolutely identical scents is astronomically low.",
+    a: "Yes. The smart contract uses a combination of blockchain randomness (blockhash) and your unique seed to generate the formula. The probability of creating two absolutely identical scents is astronomically low.",
   },
   {
     q: "How is the formula generated? Is the process fair and tamper-proof?",
@@ -34,23 +34,23 @@ const faqs = [
   },
   {
     q: "Where is the NFT data stored? What about IPFS?",
-    a: "ScentProtocol uses a hybrid storage model for maximum reliability:\n\n• On-chain: The core formula (notes, rarity, concentration, creator address) is stored directly inside the smart contract on Arc. This data is permanent and cannot be lost.\n• IPFS: The full metadata (including the AI-generated description and image) is pinned to IPFS for decentralized access. This ensures your NFT remains readable even if our servers go offline.\n\nUnlike many NFT projects that store everything off-chain, your scent formula lives forever on the blockchain.",
+    a: "ScentProtocol uses a hybrid storage model for maximum reliability:\n\n• On-chain: The core formula (notes, rarity, concentration, creator address) is stored directly inside the smart contract on Arc. This data is permanent and cannot be lost.\n• IPFS: The full metadata (including the AI-generated description and image) is pinned to IPFS for decentralized access. This ensures your NFT remains readable even if our servers go offline.",
   },
   {
     q: "What if I don't like the scent I minted? Can I re-mint?",
-    a: "For Genesis and Viral Scent collections, each wallet can mint only one NFT — this is by design to ensure fairness and scarcity. The scent you receive is determined by your unique seed (your address + chosen parameters), so the result is deterministic. If you want a different scent from these collections, you can use a different wallet address, or acquire one on the Marketplace.\n\nFor ScentProtocol Mainnet, there is no per-wallet limit — you can mint as many scents as you like for 1 USDC each.",
+    a: "For Genesis and Viral Scent collections, each wallet can mint only one NFT — this is by design to ensure fairness and scarcity. The scent you receive is determined by your unique seed, so the result is deterministic. However, you can use Scent Alchemy to blend it with another NFT to forge a completely new Hybrid scent!",
   },
   {
     q: "Can I sell or trade my Scent NFT?",
-    a: "Yes. As with any ERC-721 standard, you are the full owner. You can list it on our built-in Marketplace, transfer it to another wallet, or keep it in your collection forever.",
+    a: "Yes. As with any ERC-721 standard, you are the full owner. You can list it on our advanced built-in Marketplace (which supports escrowed offers, creator royalties, and multi-collection trading), transfer it to another wallet, or keep it in your collection forever.",
   },
   {
     q: "Will I ever be able to smell this scent in reality?",
-    a: "Not yet, but it's part of our long-term vision (Phase 5 of the Roadmap). We plan partnerships with perfume houses so that holders of high-rarity NFTs can redeem their digital assets for real physical fragrance samples.",
+    a: "Not yet, but it's part of our long-term vision. We plan partnerships with perfume houses and hardware manufacturers so that holders of high-rarity NFTs can eventually redeem their digital assets for real physical fragrance samples or experience them via olfactory displays.",
   },
   {
     q: "What blockchain is this on, and do I need ETH for gas?",
-    a: "ScentProtocol is built on the Arc network (an EVM-compatible L2). Arc's main advantage: gas is paid in USDC. You don't need ETH. Just make sure you have some USDC in the Arc network to pay for minting (except for the free Viral mint).",
+    a: "ScentProtocol is built on the Arc network (an EVM-compatible L2). Arc's main advantage: gas is paid in USDC. You don't need ETH. Just make sure you have some USDC on the Arc network to pay for minting and marketplace fees (except for the free Viral and Genesis mints).",
   },
 ];
 
