@@ -7,7 +7,7 @@ import { useAccount, useChainId } from "wagmi";
 import ScentCrest from "@/components/ScentCrest";
 
 // ============================================================
-// VIRAL CONTRACT CONFIGURATION
+// VIRAL CONTRACT CONFIGURATION (NEW CONTRACT)
 // ============================================================
 const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
 const ARC_CHAIN_ID = 5042;
@@ -18,7 +18,6 @@ const VIRAL_ABI = [
   "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))",
   "function walletMintCount(address) external view returns (uint256)",
   "function pendingTokenId(address) external view returns (uint256)",
-  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber, bytes32 seedCommitment))",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
 ];
 
@@ -107,16 +106,21 @@ async function getWalletAge(address: string): Promise<number> {
     const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=1&sort=asc`;
     const response = await fetch(url);
     const data = await response.json();
+
     if (data.status === "1" && data.result && data.result.length > 0) {
-      return Number(data.result[0].timeStamp);
+      const firstTx = data.result[0];
+      return Number(firstTx.timeStamp);
     }
     return 0; 
   } catch (error) {
-    console.error("Failed to get wallet age:", error);
+    console.error("Failed to get wallet age via Etherscan:", error);
     return 0;
   }
 }
 
+// ============================================================
+// ARCHETYPE DETERMINATION LOGIC
+// ============================================================
 function getWalletArchetype(txCount: number, balance: bigint, walletAgeTimestamp: number): WalletArchetype {
   const balanceInETH = Number(balance) / 1e18;
   const now = Math.floor(Date.now() / 1000);
@@ -128,9 +132,13 @@ function getWalletArchetype(txCount: number, balance: bigint, walletAgeTimestamp
   if (txCount > 200 && balanceInETH > 5) return ARCHETYPES[2]; 
   if (txCount > 500) return ARCHETYPES[5]; 
   if (txCount > 100) return ARCHETYPES[0]; 
+  
   return ARCHETYPES[4]; 
 }
 
+// ============================================================
+// PERFUME DATA INTERFACE
+// ============================================================
 interface PerfumeData {
   tokenId: number;
   name: string;
@@ -160,19 +168,16 @@ export default function WalletScentPage() {
   const [step, setStep] = useState<"idle" | "analyzing" | "result" | "minting" | "success">("idle");
   const [countdown, setCountdown] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
   const [alreadyMinted, setAlreadyMinted] = useState(false);
-  const [pendingRevealId, setPendingRevealId] = useState<number | null>(null);
 
   const isOnArcNetwork = chainId === ARC_CHAIN_ID;
 
-  // 1. Restore archetype from localStorage to prevent mismatch on refresh
-  // 2. Check for pending mints
+  // Check mint status and restore archetype on load
   useEffect(() => {
     const checkStatus = async () => {
       if (!address) return;
       
-      // Restore archetype
+      // Restore archetype from localStorage to prevent mismatch on refresh
       const savedArchetypeId = localStorage.getItem(`scent_archetype_${address}`);
       if (savedArchetypeId) {
         const saved = ARCHETYPES.find(a => a.id === savedArchetypeId);
@@ -182,24 +187,12 @@ export default function WalletScentPage() {
       try {
         const provider = new ethers.BrowserProvider((window as any).ethereum);
         const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
-        
-        const mintCount = await contract.walletMintCount(address);
-        if (mintCount > 0) {
+        const count = await contract.walletMintCount(address);
+        if (count > 0) {
           setAlreadyMinted(true);
-          return;
-        }
-
-        const pendingId = await contract.pendingTokenId(address);
-        if (pendingId > 0) {
-          console.log("✅ Found pending mint for tokenId:", pendingId.toString());
-          setPendingRevealId(Number(pendingId));
-          setTokenId(Number(pendingId));
-          if (!savedArchetypeId) {
-             setErrorMessage("Session refreshed. Please click 'Reveal My Scent' to continue.");
-          }
         }
       } catch (e) {
-        console.warn("Status check error:", e);
+        // Ignore errors
       }
     };
     checkStatus();
@@ -207,6 +200,7 @@ export default function WalletScentPage() {
 
   const analyzeWallet = async () => {
     if (!address) return;
+
     setAnalyzing(true);
     setStep("analyzing");
     setErrorMessage(null);
@@ -214,14 +208,18 @@ export default function WalletScentPage() {
     try {
       const { createPublicClient, http } = await import("viem");
       const { mainnet } = await import("viem/chains");
-      const ethMainnetClient = createPublicClient({ chain: mainnet, transport: http() });
+
+      const ethMainnetClient = createPublicClient({
+        chain: mainnet,
+        transport: http(),
+      });
 
       const txCount = await ethMainnetClient.getTransactionCount({ address: address as `0x${string}` });
       const balance = await ethMainnetClient.getBalance({ address: address as `0x${string}` });
       const walletAgeTimestamp = await getWalletAge(address);
 
       await new Promise((resolve) => setTimeout(resolve, 2500));
-      
+
       const walletArchetype = getWalletArchetype(txCount, balance, walletAgeTimestamp);
       setArchetype(walletArchetype);
       
@@ -238,53 +236,10 @@ export default function WalletScentPage() {
     }
   };
 
-  const performReveal = async (targetTokenId: number, seedPreimage: string, contract: any) => {
-    try {
-      console.log("🔓 Revealing seed for tokenId:", targetTokenId);
-      const revealTx = await contract.revealAndMint(targetTokenId, seedPreimage);
-      await revealTx.wait();
-
-      const perfumeData = await contract.getPerfume(targetTokenId);
-      setMintedPerfume({
-        tokenId: Number(perfumeData.tokenId),
-        name: perfumeData.name,
-        gender: Number(perfumeData.gender),
-        pType: Number(perfumeData.pType),
-        topNotes: Array.from(perfumeData.topNotes || []),
-        heartNotes: Array.from(perfumeData.heartNotes || []),
-        baseNotes: Array.from(perfumeData.baseNotes || []),
-        concentration: Number(perfumeData.concentration),
-        rarity: Number(perfumeData.rarity),
-        createdAt: Number(perfumeData.createdAt),
-        creator: perfumeData.creator,
-      });
-      
-      // Clear the locked archetype after successful mint
-      localStorage.removeItem(`scent_archetype_${address}`);
-      
-      setStep("success");
-      setMinting(false);
-    } catch (revealError: any) {
-      console.error("❌ Reveal failed:", revealError);
-      if (revealError.reason?.includes("TooEarly")) {
-        setErrorMessage("Still too early to reveal. Please wait a few more blocks and try again.");
-      } else if (revealError.reason?.includes("CommitmentMismatch")) {
-        setErrorMessage("Critical error: Archetype mismatch. Please clear your browser cache and start over.");
-      } else {
-        setErrorMessage(`Reveal failed: ${revealError.shortMessage || revealError.message}`);
-      }
-      setStep("result");
-      setMinting(false);
-    }
-  };
-
-  const handleMintOrReveal = async () => {
-    if (!address || !archetype) {
-      setErrorMessage("Please analyze your wallet first.");
-      return;
-    }
+  const handleMint = async () => {
+    if (!address || !archetype) return;
     if (!isOnArcNetwork) {
-      setErrorMessage("Please switch to Arc Network (Chain ID 5042).");
+      setErrorMessage("Please switch to Arc Network to mint.");
       return;
     }
 
@@ -297,61 +252,103 @@ export default function WalletScentPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
 
-      // CRITICAL: Use the LOCKED archetype ID from localStorage to guarantee hash consistency
+      // 1. Check if already minted
+      const mintCount = await contract.walletMintCount(address);
+      if (mintCount > 0) {
+        throw new Error("You've already minted your wallet's scent!");
+      }
+
+      // 2. Generate deterministic seed and commitment
       const lockedArchetypeId = localStorage.getItem(`scent_archetype_${address}`) || archetype.id;
+      const seedString = `${address.toLowerCase()}-${lockedArchetypeId}`;
       
-      const seedPreimage = ethers.id(`${address.toLowerCase()}-${lockedArchetypeId}`);
+      // seedPreimage is the raw bytes32 hash of the seed string
+      const seedPreimage = ethers.id(seedString); 
+      // seedCommitment is keccak256 of the preimage (double hash for security)
       const seedCommitment = ethers.keccak256(seedPreimage);
 
-      if (!pendingRevealId) {
-        // STEP 1: Request Mint
-        console.log("🔒 Committing seed...");
-        const tx = await contract.requestMint(seedCommitment);
-        const receipt = await tx.wait();
+      console.log("🔒 Committing seed...");
+      console.log("Seed String:", seedString);
+      console.log("Seed Preimage:", seedPreimage);
+      console.log("Seed Commitment:", seedCommitment);
 
-        const mintEvent = receipt.logs
-          .map((log: any) => { try { return contract.interface.parseLog(log); } catch { return null; } })
-          .find((e: any) => e?.name === "MintRequested");
+      // 3. Step 1: Request Mint
+      const tx = await contract.requestMint(seedCommitment);
+      const receipt = await tx.wait();
 
-        const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
-        setTokenId(newTokenId);
-        setPendingRevealId(newTokenId);
+      const mintEvent = receipt.logs
+        .map((log: any) => {
+          try { return contract.interface.parseLog(log); } catch { return null; }
+        })
+        .find((e: any) => e?.name === "MintRequested");
+
+      const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
+      setTokenId(newTokenId);
+      
+      const mintBlockNumber = receipt.blockNumber;
+      console.log(`✅ Mint requested in block ${mintBlockNumber}. TokenId: ${newTokenId}`);
+
+      // 4. Wait for REVEAL_BLOCKS (5 blocks)
+      const REVEAL_BLOCKS = 5;
+      const pollInterval = setInterval(async () => {
+        const currentBlock = await provider.getBlockNumber();
+        const blocksNeeded = REVEAL_BLOCKS - (currentBlock - mintBlockNumber);
         
-        const mintBlockNumber = receipt.blockNumber;
-        console.log(`✅ Mint requested in block ${mintBlockNumber}. TokenId: ${newTokenId}`);
-
-        // STEP 2: Wait for REVEAL_BLOCKS (5 blocks)
-        const REVEAL_BLOCKS = 5;
-        const pollInterval = setInterval(async () => {
-          const currentBlock = await provider.getBlockNumber();
-          const blocksNeeded = REVEAL_BLOCKS - (currentBlock - mintBlockNumber);
+        if (blocksNeeded <= 0) {
+          clearInterval(pollInterval);
+          setCountdown(0);
           
-          if (blocksNeeded <= 0) {
-            clearInterval(pollInterval);
-            setCountdown(0);
-            await performReveal(newTokenId, seedPreimage, contract);
-          } else {
-            setCountdown(Math.ceil(blocksNeeded * 2)); // Arc blocks are ~2s
+          // 5. Step 2: Reveal and Mint
+          console.log("🔓 Revealing seed...");
+          try {
+            const revealTx = await contract.revealAndMint(newTokenId, seedPreimage);
+            await revealTx.wait();
+
+            // 6. Fetch and display the minted perfume data
+            const perfumeData = await contract.getPerfume(newTokenId);
+            setMintedPerfume({
+              tokenId: Number(perfumeData.tokenId),
+              name: perfumeData.name,
+              gender: Number(perfumeData.gender),
+              pType: Number(perfumeData.pType),
+              topNotes: Array.from(perfumeData.topNotes || []),
+              heartNotes: Array.from(perfumeData.heartNotes || []),
+              baseNotes: Array.from(perfumeData.baseNotes || []),
+              concentration: Number(perfumeData.concentration),
+              rarity: Number(perfumeData.rarity),
+              createdAt: Number(perfumeData.createdAt),
+              creator: perfumeData.creator,
+            });
+
+            // Clear the locked archetype after successful mint
+            localStorage.removeItem(`scent_archetype_${address}`);
+            
+            setStep("success");
+            setMinting(false);
+          } catch (revealError: any) {
+            console.error("❌ Reveal failed:", revealError);
+            if (revealError.reason?.includes("TooEarly")) {
+              setErrorMessage("Still too early to reveal. Please wait a few more blocks.");
+            } else if (revealError.reason?.includes("CommitmentMismatch")) {
+              setErrorMessage("Seed mismatch! This shouldn't happen - please contact support.");
+            } else {
+              setErrorMessage(`Reveal failed: ${revealError.shortMessage || revealError.message}`);
+            }
+            setStep("result");
+            setMinting(false);
           }
-        }, 2000);
-      } else {
-        // RESUME: User refreshed page, use the exact same locked seed to reveal
-        console.log("🔓 Resuming reveal for pending tokenId:", pendingRevealId);
-        setCountdown(3);
-        setTimeout(async () => {
-          await performReveal(pendingRevealId, seedPreimage, contract);
-        }, 3000);
-      }
+        } else {
+          setCountdown(Math.ceil(blocksNeeded * 2)); // Arc blocks are ~2s
+        }
+      }, 2000);
     } catch (error: any) {
-      console.error("❌ Action failed:", error);
+      console.error("❌ Mint failed:", error);
       if (error.code === 4001 || error.code === "ACTION_REJECTED") {
         setErrorMessage("Transaction rejected by user.");
-      } else if (error.reason?.includes("TooEarly")) {
-        setErrorMessage("It's too early to reveal. Please wait a few more blocks.");
       } else if (error.reason?.includes("MaxPerWalletReached") || error.message?.includes("already")) {
         setErrorMessage("You've already minted your wallet's scent!");
       } else {
-        setErrorMessage(error.reason || error.shortMessage || error.message || "Action failed.");
+        setErrorMessage(error.reason || error.shortMessage || error.message || "Mint failed.");
       }
       setStep("result");
       setMinting(false);
@@ -482,12 +479,8 @@ export default function WalletScentPage() {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     You have already minted your Viral Scent!
                   </div>
-                ) : pendingRevealId ? (
-                  <button onClick={handleMintOrReveal} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                    {minting ? "Revealing..." : "🔓 Reveal My Scent"}
-                  </button>
                 ) : (
-                  <button onClick={handleMintOrReveal} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50">
+                  <button onClick={handleMint} disabled={minting} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold hover:scale-105 transition-all disabled:opacity-50">
                     {minting ? "Minting..." : "Mint This Scent (Free)"}
                   </button>
                 )}
@@ -499,8 +492,8 @@ export default function WalletScentPage() {
           {step === "minting" && (
             <div className="text-center space-y-6 py-8">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto"></div>
-              <h3 className="text-2xl font-bold text-white">{pendingRevealId ? "Revealing Your Scent..." : "Minting Your Scent..."}</h3>
-              {countdown > 0 && <p className="text-white/40">Waiting for block confirmations: {countdown}s</p>}
+              <h3 className="text-2xl font-bold text-white">Minting Your Scent...</h3>
+              {countdown > 0 && <p className="text-white/40">Waiting: {countdown}s</p>}
             </div>
           )}
 
@@ -516,28 +509,64 @@ export default function WalletScentPage() {
                 <p className="text-white/60">Token ID: #{tokenId}</p>
               </div>
 
-              <div className="relative rounded-2xl p-6 backdrop-blur-xl border overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(217,70,239,0.15) 0%, rgba(236,72,153,0.1) 50%, #0f172a 100%)", borderColor: "rgba(217,70,239,0.5)", boxShadow: "0 0 30px rgba(217,70,239,0.2)" }}>
-                <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(105deg, transparent 40%, rgba(217,70,239,0.15) 50%, transparent 60%)", backgroundSize: "200% 100%", animation: "shimmer 2.5s infinite" }} />
+              <div 
+                className="relative rounded-2xl p-6 backdrop-blur-xl border overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, rgba(217,70,239,0.15) 0%, rgba(236,72,153,0.1) 50%, #0f172a 100%)",
+                  borderColor: "rgba(217,70,239,0.5)",
+                  boxShadow: "0 0 30px rgba(217,70,239,0.2)"
+                }}
+              >
+                <div 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: "linear-gradient(105deg, transparent 40%, rgba(217,70,239,0.15) 50%, transparent 60%)",
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2.5s infinite",
+                  }}
+                />
+
                 <div className="relative flex items-center gap-4 mb-4">
-                  <ScentCrest seed={`${mintedPerfume.creator}-${mintedPerfume.name}`} name={mintedPerfume.name} rarity={mintedPerfume.rarity} size={70} />
+                  <ScentCrest
+                    seed={`${mintedPerfume.creator}-${mintedPerfume.name}`}
+                    name={mintedPerfume.name}
+                    rarity={mintedPerfume.rarity}
+                    size={70}
+                  />
                   <div>
                     <p className="text-xs text-fuchsia-300/80 uppercase tracking-wider mb-1">Viral Scent #{mintedPerfume.tokenId}</p>
                     <h4 className="text-xl font-bold text-white">{mintedPerfume.name}</h4>
-                    <p className="text-sm text-white/50 mt-1">{["Unisex", "Male", "Female"][mintedPerfume.gender]} • {["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}</p>
+                    <p className="text-sm text-white/50 mt-1">
+                      {["Unisex", "Male", "Female"][mintedPerfume.gender]} • {["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}
+                    </p>
                   </div>
                 </div>
+
                 <div className="relative flex flex-wrap gap-2 text-xs mb-4">
                   <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{["Unisex", "Male", "Female"][mintedPerfume.gender]}</span>
                   <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{["Parfum", "EDP", "EDT", "EDC"][mintedPerfume.pType]}</span>
                   <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/80">{mintedPerfume.concentration}%</span>
-                  <span className="px-2 py-0.5 rounded-full bg-fuchsia-500/40 border border-fuchsia-400/80 text-fuchsia-50 font-semibold">{getRarityName(mintedPerfume.rarity)}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-fuchsia-500/40 border border-fuchsia-400/80 text-fuchsia-50 font-semibold">
+                    {getRarityName(mintedPerfume.rarity)}
+                  </span>
                 </div>
+
                 <div className="relative space-y-2 text-sm">
-                  <div className="flex gap-2"><span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Top</span><span className="text-white/80 text-xs">{mintedPerfume.topNotes.join(", ")}</span></div>
-                  <div className="flex gap-2"><span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Heart</span><span className="text-white/80 text-xs">{mintedPerfume.heartNotes.join(", ")}</span></div>
-                  <div className="flex gap-2"><span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Base</span><span className="text-white/80 text-xs">{mintedPerfume.baseNotes.join(", ")}</span></div>
+                  <div className="flex gap-2">
+                    <span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Top</span>
+                    <span className="text-white/80 text-xs">{mintedPerfume.topNotes.join(", ")}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Heart</span>
+                    <span className="text-white/80 text-xs">{mintedPerfume.heartNotes.join(", ")}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-fuchsia-300/80 text-xs w-12 shrink-0 uppercase font-semibold">Base</span>
+                    <span className="text-white/80 text-xs">{mintedPerfume.baseNotes.join(", ")}</span>
+                  </div>
                 </div>
               </div>
+
               <button onClick={shareOnTwitter} className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold hover:scale-105 transition-all flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                 Share on Twitter 
@@ -563,7 +592,10 @@ export default function WalletScentPage() {
       </div>
 
       <style>{`
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
       `}</style>
     </div>
   );
