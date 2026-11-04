@@ -5,16 +5,17 @@ import { useParams } from "next/navigation";
 import { ethers } from "ethers";
 import Link from "next/link";
 
-// Updated to the correctly deployed Genesis contract address
-const GENESIS_CONTRACT_ADDRESS = "0x807dF79Ec16CF51C07e7B522175EB408D6dE247E";
+// Updated to the newly deployed Genesis contract address
+const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 
+// Updated ABI for Commit-Reveal mechanism
 const GENESIS_ABI = [
-  "function requestMint() external returns (uint256)",
-  "function revealAndMint(uint256 tokenId, uint256 userSeed) external",
+  "function requestMint(bytes32 seedCommitment) external returns (uint256)",
+  "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
   "function getRemainingSupply() external view returns (uint256)",
   "function getWalletMintedCount(address wallet) external view returns (uint256)",
   "function getNextTokenId() external view returns (uint256)",
-  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber))",
+  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber, bytes32 seedCommitment))",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
 ];
 
@@ -30,6 +31,9 @@ export default function EventDetailPage() {
   const [step, setStep] = useState<"idle" | "requested" | "revealed">("idle");
   const [tokenId, setTokenId] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
+  
+  // Store preimage locally to survive page refreshes between request and reveal
+  const [seedPreimage, setSeedPreimage] = useState<string | null>(null);
 
   const maxSupply = 100;
   const maxPerWallet = 1;
@@ -39,11 +43,10 @@ export default function EventDetailPage() {
       try {
         const w = window as any;
         
-        // FIX: Use a stable fallback RPC and explicitly define the network to prevent ethers v6 bugs
         const arcNetwork = new ethers.Network("Arc Mainnet", 5042);
         const provider = w.ethereum 
           ? new ethers.BrowserProvider(w.ethereum, arcNetwork) 
-          : new ethers.JsonRpcProvider("https://arc.drpc.org", arcNetwork);
+          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io", arcNetwork);
           
         const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
         
@@ -55,7 +58,6 @@ export default function EventDetailPage() {
           const signer = await provider.getSigner();
           const address = await signer.getAddress();
           
-          // Try to get revealed count, but don't crash if RPC glitches
           let revealedCount = 0;
           try {
             const minted = await contract.getWalletMintedCount(address);
@@ -65,13 +67,12 @@ export default function EventDetailPage() {
             console.warn("RPC glitch on getWalletMintedCount, relying on pending check", err);
           }
 
-          // If already fully revealed, show success state
           if (revealedCount >= maxPerWallet) {
             setStep("revealed");
             return;
           }
 
-          // FIX: Check for pending mints to restore state after page refresh
+          // Check for pending mints to restore state after page refresh
           const nextTokenId = await contract.getNextTokenId();
           let foundPending = false;
           
@@ -83,7 +84,6 @@ export default function EventDetailPage() {
                 setTokenId(i);
                 setStep("requested");
                 
-                // Calculate remaining wait time based on blocks
                 const currentBlock = await provider.getBlockNumber();
                 const blocksPassed = currentBlock - Number(pending.blockNumber);
                 const blocksRemaining = Math.max(0, 5 - blocksPassed);
@@ -108,7 +108,6 @@ export default function EventDetailPage() {
 
     fetchData();
 
-    // Countdown timer for event end
     const endTime = Math.floor(new Date("2025-09-18T00:00:00Z").getTime() / 1000);
     const timer = setInterval(() => {
       const now = Math.floor(Date.now() / 1000);
@@ -140,8 +139,22 @@ export default function EventDetailPage() {
       const signer = await provider.getSigner();
       const contractWithSigner = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
-      console.log("Calling requestMint...");
-      const tx = await contractWithSigner.requestMint();
+      // 1. Generate cryptographically secure 32-byte random preimage
+      const randomArray = new Uint8Array(32);
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(randomArray);
+      } else {
+        for (let i = 0; i < 32; i++) {
+          randomArray[i] = Math.floor(Math.random() * 256);
+        }
+      }
+      const preimageHex = "0x" + Array.from(randomArray, b => b.toString(16).padStart(2, "0")).join("");
+      
+      // 2. Hash it to get the commitment
+      const commitment = ethers.keccak256(preimageHex);
+
+      console.log("Calling requestMint with commitment...");
+      const tx = await contractWithSigner.requestMint(commitment);
       console.log("Transaction sent:", tx.hash);
       
       const receipt = await tx.wait();
@@ -158,6 +171,11 @@ export default function EventDetailPage() {
         .find((e: any) => e?.name === "MintRequested");
 
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
+      
+      // 3. Save preimage to localStorage so it survives page refreshes before reveal
+      localStorage.setItem(`genesis_preimage_${newTokenId}`, preimageHex);
+      setSeedPreimage(preimageHex);
+      
       setTokenId(newTokenId);
       setStep("requested");
       setCountdown(12); // Fallback 12 seconds wait
@@ -194,25 +212,21 @@ export default function EventDetailPage() {
       const signer = await provider.getSigner();
       const contractWithSigner = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
 
-      console.log("Calling revealAndMint...");
-      
-      // FIX: Cryptographically secure 32-byte random value for uint256 without overflow
-      const randomArray = new Uint8Array(32);
-      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-        window.crypto.getRandomValues(randomArray);
-      } else {
-        for (let i = 0; i < 32; i++) {
-          randomArray[i] = Math.floor(Math.random() * 256);
-        }
+      // Retrieve preimage from state or localStorage
+      const storedPreimage = seedPreimage || localStorage.getItem(`genesis_preimage_${tokenId}`);
+      if (!storedPreimage) {
+        throw new Error("Seed preimage not found. Please try minting again.");
       }
-      const userSeedHex = "0x" + Array.from(randomArray, b => b.toString(16).padStart(2, "0")).join("");
-      const userSeed = BigInt(userSeedHex);
-      
-      const tx = await contractWithSigner.revealAndMint(tokenId, userSeed);
+
+      console.log("Calling revealAndMint...");
+      const tx = await contractWithSigner.revealAndMint(tokenId, storedPreimage);
       console.log("Reveal transaction sent:", tx.hash);
       
       await tx.wait();
       console.log("Reveal confirmed");
+
+      // Cleanup localStorage after successful reveal
+      localStorage.removeItem(`genesis_preimage_${tokenId}`);
 
       setStep("revealed");
       setUserMinted((prev) => prev + 1);
