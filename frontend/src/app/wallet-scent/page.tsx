@@ -18,6 +18,7 @@ const VIRAL_ABI = [
   "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))",
   "function walletMintCount(address) external view returns (uint256)",
   "function pendingTokenId(address) external view returns (uint256)",
+  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber, bytes32 seedCommitment))",
   "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)"
 ];
 
@@ -161,14 +162,23 @@ export default function WalletScentPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const [alreadyMinted, setAlreadyMinted] = useState(false);
-  const [pendingRevealId, setPendingRevealId] = useState<number | null>(null); // NEW: Tracks interrupted mints
+  const [pendingRevealId, setPendingRevealId] = useState<number | null>(null);
 
   const isOnArcNetwork = chainId === ARC_CHAIN_ID;
 
-  // Check mint status AND pending mints when wallet connects
+  // 1. Restore archetype from localStorage to prevent mismatch on refresh
+  // 2. Check for pending mints
   useEffect(() => {
     const checkStatus = async () => {
       if (!address) return;
+      
+      // Restore archetype
+      const savedArchetypeId = localStorage.getItem(`scent_archetype_${address}`);
+      if (savedArchetypeId) {
+        const saved = ARCHETYPES.find(a => a.id === savedArchetypeId);
+        if (saved) setArchetype(saved);
+      }
+
       try {
         const provider = new ethers.BrowserProvider((window as any).ethereum);
         const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
@@ -179,12 +189,14 @@ export default function WalletScentPage() {
           return;
         }
 
-        // Check if user has a pending mint that needs revealing
         const pendingId = await contract.pendingTokenId(address);
         if (pendingId > 0) {
           console.log("✅ Found pending mint for tokenId:", pendingId.toString());
           setPendingRevealId(Number(pendingId));
           setTokenId(Number(pendingId));
+          if (!savedArchetypeId) {
+             setErrorMessage("Session refreshed. Please click 'Reveal My Scent' to continue.");
+          }
         }
       } catch (e) {
         console.warn("Status check error:", e);
@@ -209,7 +221,13 @@ export default function WalletScentPage() {
       const walletAgeTimestamp = await getWalletAge(address);
 
       await new Promise((resolve) => setTimeout(resolve, 2500));
-      setArchetype(getWalletArchetype(txCount, balance, walletAgeTimestamp));
+      
+      const walletArchetype = getWalletArchetype(txCount, balance, walletAgeTimestamp);
+      setArchetype(walletArchetype);
+      
+      // CRITICAL: Lock the archetype in localStorage so it never changes during the 2-step mint
+      localStorage.setItem(`scent_archetype_${address}`, walletArchetype.id);
+      
       setStep("result");
     } catch (error) {
       console.error("Wallet analysis failed:", error);
@@ -240,12 +258,18 @@ export default function WalletScentPage() {
         createdAt: Number(perfumeData.createdAt),
         creator: perfumeData.creator,
       });
+      
+      // Clear the locked archetype after successful mint
+      localStorage.removeItem(`scent_archetype_${address}`);
+      
       setStep("success");
       setMinting(false);
     } catch (revealError: any) {
       console.error("❌ Reveal failed:", revealError);
       if (revealError.reason?.includes("TooEarly")) {
         setErrorMessage("Still too early to reveal. Please wait a few more blocks and try again.");
+      } else if (revealError.reason?.includes("CommitmentMismatch")) {
+        setErrorMessage("Critical error: Archetype mismatch. Please clear your browser cache and start over.");
       } else {
         setErrorMessage(`Reveal failed: ${revealError.shortMessage || revealError.message}`);
       }
@@ -255,7 +279,10 @@ export default function WalletScentPage() {
   };
 
   const handleMintOrReveal = async () => {
-    if (!address || !archetype) return;
+    if (!address || !archetype) {
+      setErrorMessage("Please analyze your wallet first.");
+      return;
+    }
     if (!isOnArcNetwork) {
       setErrorMessage("Please switch to Arc Network (Chain ID 5042).");
       return;
@@ -270,8 +297,10 @@ export default function WalletScentPage() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, signer);
 
-      // Deterministic seed generation (same every time for this wallet + archetype)
-      const seedPreimage = ethers.id(`${address.toLowerCase()}-${archetype.id}`);
+      // CRITICAL: Use the LOCKED archetype ID from localStorage to guarantee hash consistency
+      const lockedArchetypeId = localStorage.getItem(`scent_archetype_${address}`) || archetype.id;
+      
+      const seedPreimage = ethers.id(`${address.toLowerCase()}-${lockedArchetypeId}`);
       const seedCommitment = ethers.keccak256(seedPreimage);
 
       if (!pendingRevealId) {
@@ -306,7 +335,7 @@ export default function WalletScentPage() {
           }
         }, 2000);
       } else {
-        // RESUME: User refreshed page, just reveal the existing pending mint
+        // RESUME: User refreshed page, use the exact same locked seed to reveal
         console.log("🔓 Resuming reveal for pending tokenId:", pendingRevealId);
         setCountdown(3);
         setTimeout(async () => {
