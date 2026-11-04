@@ -1,26 +1,28 @@
 import { ethers } from "ethers";
 
-// Deployed Marketplace Contract Address on Arc Testnet
-export const MARKETPLACE_ADDRESS = "0x5CDC0DECc58cD19137fc2851b76A0a8Bc01a2B6c";
+// Deployed Marketplace Contract Address on Arc Mainnet
+export const MARKETPLACE_ADDRESS = "0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120";
 export const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 const MARKETPLACE_ABI = [
-  "function listings(uint256) view returns (address seller, uint256 price, bool active)",
-  "function activeTokenIds(uint256) view returns (uint256)",
+  "function list(address nft, uint256 tokenId, uint256 price, uint256 expiry)",
+  "function cancelListing(address nft, uint256 tokenId)",
+  "function buy(address nft, uint256 tokenId, uint256 expectedPrice)",
+  "function listings(address, uint256) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)",
+  "function getActiveListings(address nft) view returns (uint256[])",
   "function getActiveCount() view returns (uint256)",
-  "function list(uint256 tokenId, uint256 price)",
-  "function buy(uint256 tokenId)",
-  "function cancel(uint256 tokenId)"
+  "function usdc() view returns (address)"
 ];
 
 const ERC20_ABI = [
   "function allowance(address owner, address spender) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)"
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function balanceOf(address account) view returns (uint256)"
 ];
 
 const NFT_ABI = [
-  "function approve(address to, uint256 tokenId)",
-  "function getApproved(uint256 tokenId) view returns (address)"
+  "function setApprovalForAll(address operator, bool approved)",
+  "function isApprovedForAll(address owner, address operator) view returns (bool)"
 ];
 
 /**
@@ -119,8 +121,6 @@ export const getArcSigner = async (): Promise<ArcSigner> => {
 
 // Helper to create contracts compatible with our ArcSigner wrapper
 const createContract = (address: string, abi: any, signerOrProvider: ArcSigner | ethers.Provider) => {
-  // If it's our wrapper, we pass it as 'any' because ethers.Contract 
-  // expects a standard Signer but will work with our wrapper due to duck typing (sendTransaction exists)
   if (signerOrProvider instanceof ArcSigner) {
     return new ethers.Contract(address, abi, signerOrProvider as any);
   }
@@ -133,68 +133,104 @@ export const getMarketplaceContract = (signerOrProvider: ArcSigner | ethers.Prov
 export const getUsdcContract = (signerOrProvider: ArcSigner | ethers.Provider) => 
   createContract(USDC_ADDRESS, ERC20_ABI, signerOrProvider);
 
-export const fetchActiveListings = async (provider: ethers.Provider) => {
+export const fetchActiveListings = async (provider: ethers.Provider, nftAddress: string) => {
   try {
     const contract = getMarketplaceContract(provider);
-    const count = await contract.getActiveCount();
+    const activeIds = await contract.getActiveListings(nftAddress);
     const listings = [];
-    for (let i = 0; i < Number(count); i++) {
-      const tokenId = await contract.activeTokenIds(i);
-      const data = await contract.listings(tokenId);
-      if (data.active) listings.push({ tokenId: Number(tokenId), seller: data.seller, price: data.price, active: true });
+    const now = Math.floor(Date.now() / 1000);
+    
+    for (const tokenId of activeIds) {
+      const data = await contract.listings(nftAddress, tokenId);
+      if (data.seller !== ethers.ZeroAddress && Number(data.expiry) > now) {
+        listings.push({ 
+          tokenId: Number(tokenId), 
+          seller: data.seller, 
+          price: data.price, 
+          active: true,
+          expiry: Number(data.expiry)
+        });
+      }
     }
     return listings;
-  } catch (e) { console.error("Fetch listings error:", e); return []; }
+  } catch (e) { 
+    console.error("Fetch listings error:", e); 
+    return []; 
+  }
 };
 
-export const checkIfListed = async (provider: ethers.Provider, tokenId: number) => {
+export const checkIfListed = async (provider: ethers.Provider, nftAddress: string, tokenId: number) => {
   try {
-    const data = await getMarketplaceContract(provider).listings(tokenId);
-    return { active: data.active, seller: data.seller, price: data.price };
-  } catch { return { active: false, seller: ethers.ZeroAddress, price: 0n }; }
+    const data = await getMarketplaceContract(provider).listings(nftAddress, tokenId);
+    const now = Math.floor(Date.now() / 1000);
+    const isActive = data.seller !== ethers.ZeroAddress && Number(data.expiry) > now;
+    return { 
+      active: isActive, 
+      seller: data.seller, 
+      price: data.price,
+      expiry: Number(data.expiry)
+    };
+  } catch { 
+    return { active: false, seller: ethers.ZeroAddress, price: 0n, expiry: 0 }; 
+  }
 };
 
-export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: number, priceUsdc: string) => {
+export const listNFT = async (signer: ArcSigner, nftAddress: string, tokenId: number, priceUsdc: string, expiry: number) => {
   const provider = signer.provider;
+  const userAddress = await signer.getAddress();
   const nftContractRead = new ethers.Contract(nftAddress, NFT_ABI, provider);
   
   let needsApproval = true;
   try {
-    const approved = await nftContractRead.getApproved.staticCall(tokenId);
-    needsApproval = approved.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase();
+    const isApproved = await nftContractRead.isApprovedForAll.staticCall(userAddress, MARKETPLACE_ADDRESS);
+    needsApproval = !isApproved;
   } catch (e) { 
     console.warn("Approval check skipped, forcing approve"); 
   }
 
   if (needsApproval) {
-    console.log(`Approving NFT #${tokenId}...`);
+    console.log(`Approving NFT #${tokenId} for marketplace...`);
     const nftContractWrite = new ethers.Contract(nftAddress, NFT_ABI, signer as any);
-    await (await nftContractWrite.approve(MARKETPLACE_ADDRESS, tokenId, { gasLimit: 100000 })).wait();
+    await (await nftContractWrite.setApprovalForAll(MARKETPLACE_ADDRESS, true, { gasLimit: 100000 })).wait();
   }
 
   console.log(`Listing NFT #${tokenId} for ${priceUsdc} USDC...`);
   const market = getMarketplaceContract(signer);
-  const tx = await market.list(tokenId, ethers.parseUnits(priceUsdc, 6), { gasLimit: 300000 });
+  const priceWei = ethers.parseUnits(priceUsdc, 6);
+  const tx = await market.list(nftAddress, tokenId, priceWei, expiry, { gasLimit: 300000 });
   await tx.wait();
 };
 
-export const buyNFT = async (signer: ArcSigner, tokenId: number, priceUsdc: string) => {
+export const buyNFT = async (signer: ArcSigner, nftAddress: string, tokenId: number, priceUsdc: string) => {
   const market = getMarketplaceContract(signer);
   const usdc = getUsdcContract(signer);
   const priceWei = ethers.parseUnits(priceUsdc, 6);
   const addr = await signer.getAddress();
 
+  // 1. Check balance
+  const balance = await usdc.balanceOf(addr);
+  if (balance < priceWei) {
+    throw new Error(`Insufficient USDC balance. Need: ${priceUsdc} USDC`);
+  }
+
+  // 2. Check and set allowance
   const allowance = await usdc.allowance(addr, MARKETPLACE_ADDRESS);
   if (allowance < priceWei) {
     console.log("Approving USDC...");
-    await (await usdc.approve(MARKETPLACE_ADDRESS, priceWei, { gasLimit: 100000 })).wait();
+    if (allowance > 0n) {
+      await (await usdc.approve(MARKETPLACE_ADDRESS, 0n, { gasLimit: 100000 })).wait();
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    await (await usdc.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256, { gasLimit: 100000 })).wait();
+    await new Promise(r => setTimeout(r, 2000));
   }
 
+  // 3. Execute buy (with expectedPrice for slippage protection)
   console.log(`Buying NFT #${tokenId}...`);
-  await (await market.buy(tokenId, { gasLimit: 300000 })).wait();
+  await (await market.buy(nftAddress, tokenId, priceWei, { gasLimit: 300000 })).wait();
 };
 
-export const cancelListing = async (signer: ArcSigner, tokenId: number) => {
+export const cancelListing = async (signer: ArcSigner, nftAddress: string, tokenId: number) => {
   console.log(`Cancelling listing #${tokenId}...`);
-  await (await getMarketplaceContract(signer).cancel(tokenId, { gasLimit: 200000 })).wait();
+  await (await getMarketplaceContract(signer).cancelListing(nftAddress, tokenId, { gasLimit: 200000 })).wait();
 };
