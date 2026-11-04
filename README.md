@@ -173,3 +173,4 @@ PINATA_API_KEY=your_pinata_api_key_here
 PINATA_SECRET_KEY=your_pinata_secret_key_here
 
 Built with ❤️ for the future of digital olfactory experiences.
+```
