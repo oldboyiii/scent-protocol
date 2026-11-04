@@ -9,6 +9,9 @@ import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
 
+// ============================================================
+// CONTRACT ADDRESSES & ABIs
+// ============================================================
 const MARKETPLACE_ADDRESS = "0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
@@ -16,15 +19,139 @@ const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
 const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
 const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40";
 
-const GENESIS_ABI = [{ "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}], "name": "getPerfume", "outputs": [{ "components": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}, {"internalType": "string", "name": "name", "type": "string"}, {"internalType": "uint8", "name": "gender", "type": "uint8"}, {"internalType": "uint8", "name": "pType", "type": "uint8"}, {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"}, {"internalType": "uint8", "name": "concentration", "type": "uint8"}, {"internalType": "uint8", "name": "rarity", "type": "uint8"}, {"internalType": "uint256", "name": "createdAt", "type": "uint256"}, {"internalType": "address", "name": "creator", "type": "address"}, {"internalType": "bool", "name": "isGenesis", "type": "bool"}], "internalType": "struct ScentProtocolGenesis.Perfume", "name": "", "type": "tuple" }], "stateMutability": "view", "type": "function" }];
-const MFW_ABI = [{ "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}], "name": "getPerfume", "outputs": [{ "components": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}, {"internalType": "string", "name": "name", "type": "string"}, {"internalType": "uint8", "name": "gender", "type": "uint8"}, {"internalType": "uint8", "name": "pType", "type": "uint8"}, {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"}, {"internalType": "uint8", "name": "concentration", "type": "uint8"}, {"internalType": "uint8", "name": "rarity", "type": "uint8"}, {"internalType": "uint256", "name": "createdAt", "type": "uint256"}, {"internalType": "address", "name": "creator", "type": "address"}, {"internalType": "bool", "name": "hasExclusiveBadge", "type": "bool"}], "internalType": "struct ScentProtocolMFW2026.Perfume", "name": "", "type": "tuple" }], "stateMutability": "view", "type": "function" }];
-const VIRAL_ABI = [{ "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}], "name": "getPerfume", "outputs": [{ "components": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}, {"internalType": "string", "name": "name", "type": "string"}, {"internalType": "uint8", "name": "gender", "type": "uint8"}, {"internalType": "uint8", "name": "pType", "type": "uint8"}, {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"}, {"internalType": "uint8", "name": "concentration", "type": "uint8"}, {"internalType": "uint8", "name": "rarity", "type": "uint8"}, {"internalType": "uint256", "name": "createdAt", "type": "uint256"}, {"internalType": "address", "name": "creator", "type": "address"}], "name": "", "type": "tuple" }], "stateMutability": "view", "type": "function" }];
-const ALCHEMY_ABI = [{ "inputs": [{"internalType": "uint256", "name": "hybridId", "type": "uint256"}], "name": "getHybridPerfume", "outputs": [{ "components": [{"internalType": "uint256", "name": "hybridId", "type": "uint256"}, {"internalType": "uint256", "name": "parentTokenId1", "type": "uint256"}, {"internalType": "uint256", "name": "parentTokenId2", "type": "uint256"}, {"internalType": "string", "name": "name", "type": "string"}, {"internalType": "uint8", "name": "gender", "type": "uint8"}, {"internalType": "uint8", "name": "pType", "type": "uint8"}, {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"}, {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"}, {"internalType": "uint8", "name": "concentration", "type": "uint8"}, {"internalType": "uint8", "name": "rarity", "type": "uint8"}, {"internalType": "uint256", "name": "createdAt", "type": "uint256"}, {"internalType": "address", "name": "alchemist", "type": "address"}], "name": "", "type": "tuple" }], "stateMutability": "view", "type": "function" }];
+const GENESIS_ABI = [
+  {
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "getPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "tokenId", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "creator", type: "address" },
+        { internalType: "bool", name: "isGenesis", type: "bool" }
+      ],
+      internalType: "struct ScentProtocolGenesis.Perfume",
+      name: "",
+      type: "tuple"
+    }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
 
-const MARKETPLACE_ABI = ["function makeOffer(address nft, uint256 tokenId, uint256 price, uint256 expiry)", "function cancelOffer(address nft, uint256 tokenId)", "function acceptOffer(address nft, uint256 tokenId, address offerer, uint256 minPrice)", "function getOffer(address nft, uint256 tokenId, address offerer) view returns (uint256 price, uint256 expiry, uint16 feeBps)", "function listings(address, uint256) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)"];
-const USDC_ABI = ["function balanceOf(address account) view returns (uint256)", "function approve(address spender, uint256 amount)", "function allowance(address owner, address spender) view returns (uint256)"];
-const ERC721_ABI = ["function ownerOf(uint256 tokenId) view returns (address)", "function setApprovalForAll(address operator, bool approved)", "function isApprovedForAll(address owner, address operator) view returns (bool)"];
+const MFW_ABI = [
+  {
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "getPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "tokenId", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "creator", type: "address" },
+        { internalType: "bool", name: "hasExclusiveBadge", type: "bool" }
+      ],
+      internalType: "struct ScentProtocolMFW2026.Perfume",
+      name: "",
+      type: "tuple"
+    }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
 
+const VIRAL_ABI = [
+  {
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "getPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "tokenId", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "creator", type: "address" }
+      ],
+      name: "",
+      type: "tuple"
+    }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
+
+const ALCHEMY_ABI = [
+  {
+    inputs: [{ internalType: "uint256", name: "hybridId", type: "uint256" }],
+    name: "getHybridPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "hybridId", type: "uint256" },
+        { internalType: "uint256", name: "parentTokenId1", type: "uint256" },
+        { internalType: "uint256", name: "parentTokenId2", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "alchemist", type: "address" }
+      ],
+      name: "",
+      type: "tuple"
+    }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
+
+const MARKETPLACE_ABI = [
+  "function makeOffer(address nft, uint256 tokenId, uint256 price, uint256 expiry)",
+  "function cancelOffer(address nft, uint256 tokenId)",
+  "function acceptOffer(address nft, uint256 tokenId, address offerer, uint256 minPrice)",
+  "function getOffer(address nft, uint256 tokenId, address offerer) view returns (uint256 price, uint256 expiry, uint16 feeBps)",
+  "function listings(address, uint256) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)"
+];
+
+const USDC_ABI = [
+  "function balanceOf(address account) view returns (uint256)",
+  "function approve(address spender, uint256 amount)",
+  "function allowance(address owner, address spender) view returns (uint256)"
+];
+
+const ERC721_ABI = [
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function setApprovalForAll(address operator, bool approved)",
+  "function isApprovedForAll(address owner, address operator) view returns (bool)"
+];
+
+// ============================================================
+// CONSTANTS & STYLES
+// ============================================================
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
@@ -50,6 +177,9 @@ const MFWBottleIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
   </svg>
 );
 
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
 function generateDescription(perfume: any): string {
   const genderLabel = GENDER[perfume.gender];
   const typeLabel = TYPE[perfume.pType];
@@ -59,13 +189,28 @@ function generateDescription(perfume: any): string {
   const base = perfume.baseNotes.join(", ");
   const seed = perfume.name.length + perfume.topNotes.length + perfume.heartNotes.length;
   
-  const openings = [`A ${rarityLabel.toLowerCase()} ${genderLabel.toLowerCase()} ${typeLabel.toLowerCase()} that opens with the vibrant sparkle of ${top}.`, `This ${rarityLabel.toLowerCase()} composition for ${genderLabel.toLowerCase()}s begins with an invigorating burst of ${top}.`, `An exquisite ${typeLabel.toLowerCase()} where ${top} create an unforgettable first impression.`];
-  const hearts = [`At its heart, ${heart} weave a sophisticated tapestry of emotion and depth.`, `The soul of this fragrance reveals itself through ${heart}, offering warmth and intrigue.`, `As it evolves, ${heart} emerge, lending an air of timeless elegance.`];
-  const bases = [`Finally, the base settles into a rich embrace of ${base}, leaving a lasting signature.`, `The dry-down is anchored by ${base}, creating a memorable trail that lingers for hours.`, `A foundation of ${base} ensures this scent endures, evolving beautifully on the skin.`];
+  const openings = [
+    `A ${rarityLabel.toLowerCase()} ${genderLabel.toLowerCase()} ${typeLabel.toLowerCase()} that opens with the vibrant sparkle of ${top}.`,
+    `This ${rarityLabel.toLowerCase()} composition for ${genderLabel.toLowerCase()}s begins with an invigorating burst of ${top}.`,
+    `An exquisite ${typeLabel.toLowerCase()} where ${top} create an unforgettable first impression.`
+  ];
+  const hearts = [
+    `At its heart, ${heart} weave a sophisticated tapestry of emotion and depth.`,
+    `The soul of this fragrance reveals itself through ${heart}, offering warmth and intrigue.`,
+    `As it evolves, ${heart} emerge, lending an air of timeless elegance.`
+  ];
+  const bases = [
+    `Finally, the base settles into a rich embrace of ${base}, leaving a lasting signature.`,
+    `The dry-down is anchored by ${base}, creating a memorable trail that lingers for hours.`,
+    `A foundation of ${base} ensures this scent endures, evolving beautifully on the skin.`
+  ];
 
   return `${openings[seed % openings.length]} ${hearts[seed % hearts.length]} ${bases[seed % bases.length]} Crafted at ${perfume.concentration}% concentration, ${perfume.name} is a true masterpiece of digital perfumery.`;
 }
 
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function NFTDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -89,75 +234,135 @@ export default function NFTDetailPage() {
   const [offerLoading, setOfferLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "offers">("details");
 
+  // Fetch NFT data
   useEffect(() => {
     if (!id || isNaN(id)) return;
+
     async function fetch() {
       setLoading(true);
       setError(null);
       try {
-        const provider = (typeof window !== "undefined" && (window as any).ethereum) ? new ethers.BrowserProvider((window as any).ethereum) : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+        const provider = (typeof window !== "undefined" && (window as any).ethereum)
+          ? new ethers.BrowserProvider((window as any).ethereum)
+          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+
         let found = false;
 
         if (contractParam?.toLowerCase() === MFW_CONTRACT_ADDRESS.toLowerCase()) {
-          try { const data = await new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider).getPerfume(id); if (data && data.name) { setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator }); setIsMFW(true); setIsGenesis(false); setIsViral(false); setIsHybrid(false); found = true; } } catch (e) {}
-        } else if (contractParam?.toLowerCase() === GENESIS_CONTRACT_ADDRESS.toLowerCase()) {
-          try { const data = await new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider).getPerfume(id); if (data && data.name) { setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator }); setIsGenesis(true); setIsMFW(false); setIsViral(false); setIsHybrid(false); found = true; } } catch (e) {}
-        } else if (contractParam?.toLowerCase() === VIRAL_CONTRACT_ADDRESS.toLowerCase()) {
-          try { const data = await new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider).getPerfume(id); if (data && data.name) { setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator }); setIsViral(true); setIsGenesis(false); setIsMFW(false); setIsHybrid(false); found = true; } } catch (e) {}
-        } else if (contractParam?.toLowerCase() === ALCHEMY_CONTRACT_ADDRESS.toLowerCase()) {
-          try { const data = await new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider).getHybridPerfume(id); if (data && data.name) { setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.alchemist }); setIsHybrid(true); setIsGenesis(false); setIsMFW(false); setIsViral(false); found = true; } } catch (e) {}
-        }
-
-        if (!found) {
           try {
-            const data = await getContract(provider).getPerfume(id);
-            if (data && data.name) { setPerfume(data); setIsGenesis(false); setIsMFW(false); setIsViral(false); setIsHybrid(false); found = true; }
+            const data = await new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider).getPerfume(id);
+            if (data && data.name) {
+              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+              setIsMFW(true); setIsGenesis(false); setIsViral(false); setIsHybrid(false);
+              found = true;
+            }
+          } catch (e) {}
+        } else if (contractParam?.toLowerCase() === GENESIS_CONTRACT_ADDRESS.toLowerCase()) {
+          try {
+            const data = await new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider).getPerfume(id);
+            if (data && data.name) {
+              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+              setIsGenesis(true); setIsMFW(false); setIsViral(false); setIsHybrid(false);
+              found = true;
+            }
+          } catch (e) {}
+        } else if (contractParam?.toLowerCase() === VIRAL_CONTRACT_ADDRESS.toLowerCase()) {
+          try {
+            const data = await new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider).getPerfume(id);
+            if (data && data.name) {
+              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
+              setIsViral(true); setIsGenesis(false); setIsMFW(false); setIsHybrid(false);
+              found = true;
+            }
+          } catch (e) {}
+        } else if (contractParam?.toLowerCase() === ALCHEMY_CONTRACT_ADDRESS.toLowerCase()) {
+          try {
+            const data = await new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider).getHybridPerfume(id);
+            if (data && data.name) {
+              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.alchemist });
+              setIsHybrid(true); setIsGenesis(false); setIsMFW(false); setIsViral(false);
+              found = true;
+            }
           } catch (e) {}
         }
 
-        if (!found) { setError("Token not found in any contract"); setPerfume(null); }
-      } catch (e) { console.error("Global fetch error:", e); setError("Failed to fetch data"); setPerfume(null); } 
-      finally { setLoading(false); }
+        // Fallback to main contract
+        if (!found) {
+          try {
+            const data = await getContract(provider).getPerfume(id);
+            if (data && data.name) {
+              setPerfume(data);
+              setIsGenesis(false); setIsMFW(false); setIsViral(false); setIsHybrid(false);
+              found = true;
+            }
+          } catch (e) {}
+        }
+
+        if (!found) {
+          setError("Token not found in any contract");
+          setPerfume(null);
+        }
+      } catch (e) {
+        console.error("Global fetch error:", e);
+        setError("Failed to fetch data");
+        setPerfume(null);
+      } finally {
+        setLoading(false);
+      }
     }
     fetch();
   }, [id, contractParam]);
 
+  // Check ownership
   useEffect(() => {
     async function checkOwnership() {
       if (!userAddress || !contractParam || !id) return;
       try {
-        const provider = (typeof window !== "undefined" && (window as any).ethereum) ? new ethers.BrowserProvider((window as any).ethereum) : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+        const provider = (typeof window !== "undefined" && (window as any).ethereum)
+          ? new ethers.BrowserProvider((window as any).ethereum)
+          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         const owner = await new ethers.Contract(contractParam, ERC721_ABI, provider).ownerOf(id);
         setIsOwner(owner.toLowerCase() === userAddress.toLowerCase());
-      } catch (e) { setIsOwner(false); }
+      } catch (e) {
+        setIsOwner(false);
+      }
     }
     checkOwnership();
   }, [userAddress, contractParam, id]);
 
+  // Fetch active offers
   useEffect(() => {
     async function fetchOffersData() {
       if (!contractParam || !id) return;
       try {
-        const provider = (typeof window !== "undefined" && (window as any).ethereum) ? new ethers.BrowserProvider((window as any).ethereum) : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+        const provider = (typeof window !== "undefined" && (window as any).ethereum)
+          ? new ethers.BrowserProvider((window as any).ethereum)
+          : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
         const filter = marketplace.filters.OfferMade(contractParam, id);
         const events = await marketplace.queryFilter(filter);
         const validOffers = [];
         const now = Math.floor(Date.now() / 1000);
+        
         for (const event of events) {
           if ('args' in event && event.args) {
             try {
               const offer = await marketplace.getOffer(contractParam, id, event.args.offerer);
-              if (offer.price > 0n && Number(offer.expiry) > now) validOffers.push({ offerer: event.args.offerer, price: offer.price, expiry: Number(offer.expiry) });
+              if (offer.price > 0n && Number(offer.expiry) > now) {
+                validOffers.push({ offerer: event.args.offerer, price: offer.price, expiry: Number(offer.expiry) });
+              }
             } catch (e) { /* ignore */ }
           }
         }
         setOffers(validOffers);
-      } catch (e) { console.error("Failed to fetch offers:", e); }
+      } catch (e) {
+        console.error("Failed to fetch offers:", e);
+      }
     }
     fetchOffersData();
   }, [contractParam, id]);
 
+  // Offer Handlers
   const handleMakeOffer = async () => {
     if (!userAddress || !contractParam || !id || !offerPrice) return;
     setOfferLoading(true);
@@ -168,14 +373,21 @@ export default function NFTDetailPage() {
       const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
       const priceWei = ethers.parseUnits(offerPrice, 6);
       const expiryTimestamp = Math.floor(Date.now() / 1000) + (offerDays * 86400);
+      
       if (await usdc.balanceOf(userAddress) < priceWei) throw new Error("Insufficient USDC balance");
-      if (await usdc.allowance(userAddress, MARKETPLACE_ADDRESS) < priceWei) await (await usdc.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256)).wait();
+      if (await usdc.allowance(userAddress, MARKETPLACE_ADDRESS) < priceWei) {
+        await (await usdc.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256)).wait();
+      }
+      
       await (await marketplace.makeOffer(contractParam, id, priceWei, expiryTimestamp)).wait();
       alert("Offer made successfully!");
       setOfferPrice("");
       window.location.reload(); 
-    } catch (error: any) { alert(`Failed to make offer: ${error.message || error.reason}`); } 
-    finally { setOfferLoading(false); }
+    } catch (error: any) {
+      alert(`Failed to make offer: ${error.message || error.reason}`);
+    } finally {
+      setOfferLoading(false);
+    }
   };
 
   const handleAcceptOffer = async (offerer: string, price: bigint) => {
@@ -187,12 +399,18 @@ export default function NFTDetailPage() {
       const signer = await provider.getSigner();
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       const nftContract = new ethers.Contract(contractParam, ERC721_ABI, signer);
-      if (!(await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS))) await (await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true)).wait();
+      
+      if (!(await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS))) {
+        await (await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true)).wait();
+      }
       await (await marketplace.acceptOffer(contractParam, id, offerer, price)).wait();
       alert("Offer accepted successfully!");
       router.push("/collection");
-    } catch (error: any) { alert(`Failed to accept offer: ${error.message || error.reason}`); } 
-    finally { setOfferLoading(false); }
+    } catch (error: any) {
+      alert(`Failed to accept offer: ${error.message || error.reason}`);
+    } finally {
+      setOfferLoading(false);
+    }
   };
 
   const handleCancelOffer = async () => {
@@ -206,19 +424,35 @@ export default function NFTDetailPage() {
       await (await marketplace.cancelOffer(contractParam, id)).wait();
       alert("Offer cancelled successfully!");
       window.location.reload();
-    } catch (error: any) { alert(`Failed to cancel offer: ${error.message || error.reason}`); } 
-    finally { setOfferLoading(false); }
+    } catch (error: any) {
+      alert(`Failed to cancel offer: ${error.message || error.reason}`);
+    } finally {
+      setOfferLoading(false);
+    }
   };
 
-  if (loading) return <div className="max-w-xl mx-auto px-4 py-12 space-y-4 animate-pulse"><div className="h-8 bg-white/10 rounded-lg w-1/3" /><div className="h-56 bg-white/5 rounded-2xl" /><div className="h-4 bg-white/10 rounded w-3/4" /></div>;
-  if (error || !perfume || !perfume.name) return (
-    <div className="max-w-xl mx-auto px-4 py-20 text-center">
-      <h1 className="text-2xl font-bold text-white mb-4">Scent not found</h1>
-      <p className="text-white/50 mb-6">Token #{id} does not exist or has not been minted yet.</p>
-      {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
-      <button onClick={() => router.back()} className="px-6 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">← Back</button>
-    </div>
-  );
+  // Loading State
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-4 animate-pulse">
+        <div className="h-6 bg-white/10 rounded-lg w-24" />
+        <div className="h-64 bg-white/5 rounded-2xl" />
+        <div className="h-32 bg-white/5 rounded-2xl" />
+      </div>
+    );
+  }
+
+  // Error State
+  if (error || !perfume || !perfume.name) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-white mb-4">Scent not found</h1>
+        <p className="text-white/50 mb-6">Token #{id} does not exist or has not been minted yet.</p>
+        {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
+        <button onClick={() => router.back()} className="px-6 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">← Back</button>
+      </div>
+    );
+  }
 
   const description = generateDescription(perfume);
   const labelColor = isHybrid ? 'text-cyan-300/80' : isViral ? 'text-fuchsia-300/80' : isGenesis ? 'text-amber-300/80' : isMFW ? 'text-purple-300/80' : 'text-white/40';
@@ -226,34 +460,80 @@ export default function NFTDetailPage() {
   const style = isHybrid ? HYBRID_STYLE : isViral ? VIRAL_STYLE : isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
 
   return (
-    {/* УМЕНЬШЕН КОНТЕЙНЕР: max-w-xl, py-6, space-y-6 */}
-    <div className="max-w-xl mx-auto px-4 py-6 space-y-6 relative z-10">
-      <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer">← Back</button>
+    // REDUCED CONTAINER SIZE: max-w-2xl, py-8, space-y-6
+    <div className="max-w-2xl mx-auto px-4 py-8 space-y-6 relative z-10">
+      <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer">
+        ← Back
+      </button>
 
-      {/* УМЕНЬШЕНА КАРТОЧКА: p-5 вместо p-8 */}
-      <div className={`group relative rounded-2xl p-5 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
-        {(isGenesis || isMFW || isViral || isHybrid) && <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(${isHybrid ? '34,211,238' : isViral ? '217,70,239' : isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />}
-        {!isGenesis && !isMFW && !isViral && !isHybrid && <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2s linear infinite", padding: "2px", WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }} />}
+      {/* REDUCED CARD PADDING: p-6 instead of p-8 */}
+      <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
+        
+        {(isGenesis || isMFW || isViral || isHybrid) && (
+          <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
+            background: `linear-gradient(90deg, transparent, rgba(${isHybrid ? '34,211,238' : isViral ? '217,70,239' : isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`,
+            backgroundSize: "200% 100%",
+            animation: "shimmer 2.5s linear infinite",
+          }} />
+        )}
+
+        {!isGenesis && !isMFW && !isViral && !isHybrid && (
+          <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+            background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`,
+            backgroundSize: "200% 100%",
+            animation: "shimmer 2s linear infinite",
+            padding: "2px",
+            WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+            WebkitMaskComposite: "xor",
+            maskComposite: "exclude",
+          }} />
+        )}
+
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
         <div className="relative flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            {/* УМЕНЬШЕН РАЗМЕР ЛОГОТИПА: size={64} вместо 80 */}
+            {/* REDUCED CREST SIZE: 64 instead of 80 */}
             <ScentCrest seed={`${perfume.creator}-${perfume.name}`} name={perfume.name} rarity={perfume.rarity} size={64} />
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <p className="text-[10px] text-white/40 uppercase tracking-wider">{isHybrid ? "HYBRID" : isViral ? "VIRAL" : isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}</p>
-                {isGenesis && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1"><svg viewBox="0 0 24 16" className="w-2.5 h-1.5"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>Genesis</span>}
-                {isMFW && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1"><MFWBottleIcon className="w-2.5 h-2.5" />MFW 2026</span>}
-                {isViral && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1"><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Viral</span>}
-                {isHybrid && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1"><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>Hybrid</span>}
+                <p className="text-[10px] text-white/40 uppercase tracking-wider">
+                  {isHybrid ? "HYBRID" : isViral ? "VIRAL" : isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
+                </p>
+                {isGenesis && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
+                    <svg viewBox="0 0 24 16" className="w-2.5 h-1.5"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
+                    Genesis
+                  </span>
+                )}
+                {isMFW && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
+                    <MFWBottleIcon className="w-2.5 h-2.5" /> MFW 2026
+                  </span>
+                )}
+                {isViral && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Viral
+                  </span>
+                )}
+                {isHybrid && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
+                    Hybrid
+                  </span>
+                )}
               </div>
-              {/* УМЕНЬШЕН ЗАГОЛОВОК: text-2xl md:text-3xl вместо text-3xl md:text-4xl */}
-              <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">{perfume.name}</h1>
+              {/* REDUCED TITLE SIZE: text-2xl md:text-3xl */}
+              <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">
+                {perfume.name}
+              </h1>
             </div>
           </div>
-          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>{RARITY[perfume.rarity]}</span>
+          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+            {RARITY[perfume.rarity]}
+          </span>
         </div>
 
         <div className="relative flex flex-wrap gap-2 text-xs mb-4">
@@ -262,53 +542,96 @@ export default function NFTDetailPage() {
           <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/80 border border-white/10">{perfume.concentration}%</span>
         </div>
 
-        {/* УМЕНЬШЕНЫ ОТСТУПЫ: space-y-3 вместо space-y-4 */}
+        {/* REDUCED SPACING: space-y-3 */}
         <div className="relative space-y-3 mb-4">
           <div>
             <span className={`text-[10px] uppercase tracking-wider ${labelColor}`}>Top Notes</span>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {/* УМЕНЬШЕНЫ ТЕГИ: px-2 py-0.5 text-xs вместо px-3 py-1 text-sm */}
-              {perfume.topNotes.map((n: string) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>))}
+              {/* REDUCED TAG SIZE: px-2 py-0.5 text-xs */}
+              {perfume.topNotes.map((n: string) => (
+                <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-amber-200 text-xs border border-amber-500/30">{n}</span>
+              ))}
             </div>
           </div>
           <div>
             <span className={`text-[10px] uppercase tracking-wider ${labelColor}`}>Heart Notes</span>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {perfume.heartNotes.map((n: string) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-rose-200 text-xs border border-rose-500/30">{n}</span>))}
+              {perfume.heartNotes.map((n: string) => (
+                <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-rose-200 text-xs border border-rose-500/30">{n}</span>
+              ))}
             </div>
           </div>
           <div>
             <span className={`text-[10px] uppercase tracking-wider ${labelColor}`}>Base Notes</span>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {perfume.baseNotes.map((n: string) => (<span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-emerald-200 text-xs border border-emerald-500/30">{n}</span>))}
+              {perfume.baseNotes.map((n: string) => (
+                <span key={n} className="px-2 py-0.5 rounded-md bg-black/30 text-emerald-200 text-xs border border-emerald-500/30">{n}</span>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* УМЕНЬШЕН ОТСТУП ОПИСАНИЯ: p-3 вместо p-4 */}
-        <div className={`relative rounded-lg p-3 text-white/70 italic border-l-2 mb-4 text-sm ${descBg}`}>{description}</div>
+        {/* REDUCED DESCRIPTION PADDING: p-3, text-sm */}
+        <div className={`relative rounded-lg p-3 text-white/70 italic border-l-2 mb-4 text-sm ${descBg}`}>
+          {description}
+        </div>
 
         <div className="relative text-xs text-white/40 space-y-0.5">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
-          {isGenesis && <p className="text-amber-300 font-bold mt-1 flex items-center gap-1.5"><img src="/arc-logo.png" alt="Arc" className="w-4 h-4 inline-block" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }} />Arc Mainnet Genesis</p>}
-          {isMFW && <p className="text-purple-300 font-bold mt-1 flex items-center gap-1.5"><MFWBottleIcon className="w-4 h-4" />Milan Fashion Week 2026</p>}
-          {isViral && <p className="text-fuchsia-300 font-bold mt-1 flex items-center gap-1.5"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Viral Scent Experiment</p>}
-          {isHybrid && <p className="text-cyan-300 font-bold mt-1 flex items-center gap-1.5"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>Scent Alchemy Hybrid</p>}
+          {isGenesis && (
+            <p className="text-amber-300 font-bold mt-1 flex items-center gap-1.5">
+              <img src="/arc-logo.png" alt="Arc" className="w-4 h-4 inline-block" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }} />
+              Arc Mainnet Genesis
+            </p>
+          )}
+          {isMFW && (
+            <p className="text-purple-300 font-bold mt-1 flex items-center gap-1.5">
+              <MFWBottleIcon className="w-4 h-4" /> Milan Fashion Week 2026
+            </p>
+          )}
+          {isViral && (
+            <p className="text-fuchsia-300 font-bold mt-1 flex items-center gap-1.5">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              Viral Scent Experiment
+            </p>
+          )}
+          {isHybrid && (
+            <p className="text-cyan-300 font-bold mt-1 flex items-center gap-1.5">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
+              Scent Alchemy Hybrid
+            </p>
+          )}
         </div>
 
         <div className="relative mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
-          <Link href={`/nft/${id - 1}`} className={`text-xs text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>← Previous</Link>
+          <Link href={`/nft/${id - 1}`} className={`text-xs text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>
+            ← Previous
+          </Link>
           <ShareCard tokenId={id} perfume={perfume!} contractAddress={contractParam || ""} />
-          <Link href={`/nft/${id + 1}`} className="text-xs text-white/50 hover:text-white transition-colors">Next →</Link>
+          <Link href={`/nft/${id + 1}`} className="text-xs text-white/50 hover:text-white transition-colors">
+            Next →
+          </Link>
         </div>
       </div>
 
-      {/* Секция Marketplace оставлена компактной */}
+      {/* Marketplace Actions Section (Also slightly reduced) */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-xl">
         <div className="flex gap-4 border-b border-white/10 mb-4">
-          <button onClick={() => setActiveTab("details")} className={`pb-2 text-xs font-medium transition-colors relative ${activeTab === "details" ? "text-amber-400" : "text-white/50 hover:text-white"}`}>Details{activeTab === "details" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}</button>
-          <button onClick={() => setActiveTab("offers")} className={`pb-2 text-xs font-medium transition-colors relative ${activeTab === "offers" ? "text-amber-400" : "text-white/50 hover:text-white"}`}>Offers ({offers.length}){activeTab === "offers" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}</button>
+          <button 
+            onClick={() => setActiveTab("details")}
+            className={`pb-2 text-xs font-medium transition-colors relative ${activeTab === "details" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
+          >
+            Details
+            {activeTab === "details" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}
+          </button>
+          <button 
+            onClick={() => setActiveTab("offers")}
+            className={`pb-2 text-xs font-medium transition-colors relative ${activeTab === "offers" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
+          >
+            Offers ({offers.length})
+            {activeTab === "offers" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}
+          </button>
         </div>
 
         {activeTab === "details" && (
@@ -318,7 +641,9 @@ export default function NFTDetailPage() {
               <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                 <p className="text-amber-300 font-medium mb-1 text-sm">You own this NFT</p>
                 <p className="text-xs mb-2">You can list this item for sale on the marketplace or manage incoming offers in the "Offers" tab.</p>
-                <Link href={`/marketplace`} className="inline-block px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-colors">Go to Marketplace</Link>
+                <Link href={`/marketplace`} className="inline-block px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-colors">
+                  Go to Marketplace
+                </Link>
               </div>
             )}
           </div>
@@ -332,16 +657,37 @@ export default function NFTDetailPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] text-white/50 uppercase tracking-wider mb-1 block">Price (USDC)</label>
-                    <input type="number" step="0.01" min="0.01" value={offerPrice} onChange={(e) => setOfferPrice(e.target.value)} placeholder="e.g. 5.00" className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" />
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      min="0.01"
+                      value={offerPrice}
+                      onChange={(e) => setOfferPrice(e.target.value)}
+                      placeholder="e.g. 5.00"
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] text-white/50 uppercase tracking-wider mb-1 block">Valid (Days)</label>
-                    <select value={offerDays} onChange={(e) => setOfferDays(Number(e.target.value))} className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors">
-                      <option value={3}>3 Days</option><option value={7}>7 Days</option><option value={14}>14 Days</option><option value={30}>30 Days</option>
+                    <select 
+                      value={offerDays}
+                      onChange={(e) => setOfferDays(Number(e.target.value))}
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                    >
+                      <option value={3}>3 Days</option>
+                      <option value={7}>7 Days</option>
+                      <option value={14}>14 Days</option>
+                      <option value={30}>30 Days</option>
                     </select>
                   </div>
                 </div>
-                <button onClick={handleMakeOffer} disabled={offerLoading || !offerPrice || Number(offerPrice) <= 0} className="w-full py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">{offerLoading ? "Processing..." : "Submit Offer"}</button>
+                <button 
+                  onClick={handleMakeOffer}
+                  disabled={offerLoading || !offerPrice || Number(offerPrice) <= 0}
+                  className="w-full py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {offerLoading ? "Processing..." : "Submit Offer"}
+                </button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -354,25 +700,45 @@ export default function NFTDetailPage() {
                       <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
                         <div>
                           <p className="text-base font-bold text-emerald-400">{ethers.formatUnits(offer.price, 6)} USDC</p>
-                          <p className="text-[10px] text-white/50">From: {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)} • Exp: {new Date(offer.expiry * 1000).toLocaleDateString()}</p>
+                          <p className="text-[10px] text-white/50">
+                            From: {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)} • Exp: {new Date(offer.expiry * 1000).toLocaleDateString()}
+                          </p>
                         </div>
-                        <button onClick={() => handleAcceptOffer(offer.offerer, offer.price)} disabled={offerLoading} className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition-colors disabled:opacity-50">{offerLoading ? "Accepting..." : "Accept"}</button>
+                        <button 
+                          onClick={() => handleAcceptOffer(offer.offerer, offer.price)}
+                          disabled={offerLoading}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition-colors disabled:opacity-50"
+                        >
+                          {offerLoading ? "Accepting..." : "Accept"}
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             )}
+            
             {userAddress && offers.some(o => o.offerer.toLowerCase() === userAddress.toLowerCase()) && (
               <div className="pt-3 border-t border-white/10">
-                <button onClick={handleCancelOffer} disabled={offerLoading} className="w-full py-2 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 font-bold text-sm hover:bg-red-500/30 transition-colors disabled:opacity-50">Cancel My Active Offer</button>
+                <button 
+                  onClick={handleCancelOffer}
+                  disabled={offerLoading}
+                  className="w-full py-2 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 font-bold text-sm hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                >
+                  Cancel My Active Offer
+                </button>
               </div>
             )}
           </div>
         )}
       </div>
 
-      <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
     </div>
   );
 }
