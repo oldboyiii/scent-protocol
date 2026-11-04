@@ -90,7 +90,7 @@ All contracts below are deployed and verified on Arc Testnet:
 
 ---
 
-## ⚡ Arc Network Features
+##  Arc Network Features
 
 - **USDC = gas token** — fees in dollars, highly predictable
 - **6 decimals** for USDC (not 18!) — important for `approve()` and `mintPrice` calculations
@@ -149,19 +149,11 @@ npm install
 # Run development server
 npm run dev
 
-Open http://localhost:3000
- to see the app.
-
-🔧 Deploy to Vercel
-
-    Push repository to GitHub
-    Import project on vercel.com
-    Set frontend as Root Directory
-    Add Environment Variables (see below)
-    Click Deploy
+Open http://localhost:3000 with your browser to see the app.
 
 🔐 Environment Variables (.env.local)
-Note: These are configured for Arc Mainnet.
+
+Create a .env.local file in the frontend directory and add the following variables configured for Arc Mainnet:
 
 env
 NEXT_PUBLIC_CONTRACT_ADDRESS=0x87950a56456Df786A249F484e9E56dF00fF207cb
@@ -170,4 +162,14 @@ OPENAI_API_KEY=your_openai_api_key_here
 PINATA_API_KEY=your_pinata_api_key_here
 PINATA_SECRET_KEY=your_pinata_secret_key_here
 
-Built with ❤️ for the future of digital olfactory experiences.
+🔧 Deploy to Vercel
+
+    Push your repository to GitHub.
+
+    Import the project on vercel.com.
+
+    Set the frontend directory as the Root Directory.
+
+    Add the Environment Variables (listed above).
+
+    Click Deploy.
