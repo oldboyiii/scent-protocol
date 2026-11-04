@@ -1,5 +1,5 @@
 // frontend/src/config/wagmi.ts
-import { createConfig, http } from "wagmi";
+import { createConfig, http, createStorage } from "wagmi";
 import { mainnet, sepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 
@@ -9,13 +9,18 @@ const arcMainnet = {
   name: "Arc Network",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    default: { http: ["https://rpc.arc.network"] },
-    public: { http: ["https://rpc.arc.network"] },
+    default: { http: ["https://rpc.mainnet.arc.io"] }, // Updated to correct Mainnet RPC
+    public: { http: ["https://rpc.mainnet.arc.io"] },
   },
   blockExplorers: {
-    default: { name: "ArcScan", url: "https://explorer.arc.network" },
+    default: { name: "ArcScan", url: "https://explorer.arc.io" },
   },
 };
+
+// SAFE STORAGE: Prevents "indexedDB is not defined" error during Next.js SSR build
+const safeStorage = createStorage({
+  storage: typeof window !== "undefined" ? window.localStorage : undefined,
+});
 
 // wagmi configuration with injected wallets and WalletConnect
 export const config = createConfig({
@@ -35,4 +40,7 @@ export const config = createConfig({
     [sepolia.id]: http(),
     [arcMainnet.id]: http(),
   },
+  // Explicitly assign safe storage and enable SSR
+  storage: safeStorage,
+  ssr: true, 
 });
