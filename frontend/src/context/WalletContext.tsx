@@ -23,7 +23,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Функция обновления состояния из провайдера
+  // Updates the wallet state from the provided Ethereum provider
   const updateState = async (rawProvider: any) => {
     try {
       const provider = new ethers.BrowserProvider(rawProvider);
@@ -36,14 +36,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // АВТО-ПОДКЛЮЧЕНИЕ ПРИ ЗАГРУЗКЕ
+  // AUTO-CONNECT ON MOUNT
   useEffect(() => {
     const checkConnection = async () => {
       const rawProvider = (window as any).ethereum;
       if (rawProvider) {
         try {
-          // eth_accounts возвращает подключенные аккаунты БЕЗ всплывающего окна
-          const accounts = await rawProvider.request({ method: 'eth_accounts' });
+          // eth_accounts returns connected accounts WITHOUT triggering a popup
+          const accounts = await rawProvider.request({ method: "eth_accounts" });
           if (accounts && accounts.length > 0) {
             await updateState(rawProvider);
           }
@@ -55,7 +55,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     checkConnection();
 
-    // Слушаем смену аккаунтов или сетей
+    // Listen for account changes
     const handleAccountsChanged = (accounts: string[]) => {
       if (accounts.length === 0) {
         setAddress(null);
@@ -66,24 +66,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     };
 
     if ((window as any).ethereum) {
-      (window as any).ethereum.on('accountsChanged', handleAccountsChanged);
+      (window as any).ethereum.on("accountsChanged", handleAccountsChanged);
     }
 
     return () => {
       if ((window as any).ethereum) {
-        (window as any).ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        (window as any).ethereum.removeListener("accountsChanged", handleAccountsChanged);
       }
     };
   }, []);
 
-  // Ручное подключение через модалку
+  // Manual connection via modal or direct provider
   const connect = async (provider?: any) => {
     const rawProvider = provider || (window as any).ethereum;
     if (!rawProvider) return;
 
     try {
-      // eth_requestAccounts запрашивает подключение (показывает попап если нужно)
-      await rawProvider.request({ method: 'eth_requestAccounts' });
+      // eth_requestAccounts requests connection (shows popup if needed)
+      await rawProvider.request({ method: "eth_requestAccounts" });
       await updateState(rawProvider);
     } catch (e) {
       console.error("Connection failed:", e);
@@ -93,8 +93,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const disconnect = () => {
     setAddress(null);
     setIsConnected(false);
-    // Примечание: Web3 кошельки нельзя "дисконнектнуть" программно со стороны сайта,
-    // мы просто очищаем локальный стейт.
+    // Note: Web3 wallets cannot be programmatically disconnected from the website side;
+    // we only clear the local application state.
   };
 
   return (
