@@ -3,8 +3,19 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { ToastProvider } from "@/components/ToastProvider";
-import { Providers } from "@/components/Providers";
 import Atmosphere from "@/components/Atmosphere";
+import dynamic from "next/dynamic";
+
+// Динамический импорт Providers с полным отключением серверного рендеринга (SSR)
+// Это гарантированно предотвращает ошибки "indexedDB is not defined" при сборке на Vercel
+const Providers = dynamic(() => import("@/components/Providers"), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+      Loading Web3...
+    </div>
+  ),
+});
 
 export const metadata: Metadata = {
   title: "ScentProtocol — AI Perfume House",
@@ -19,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 min-h-screen text-white relative">
-        {/* Providers wraps the entire app: wagmi + ConnectKit + React Query */}
+        {/* Providers теперь загружается только на клиенте */}
         <Providers>
           <ToastProvider>
             <Atmosphere />
