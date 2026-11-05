@@ -8,23 +8,46 @@ import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
 
-// --- UPDATED CONTRACT ADDRESSES ---
+// ============================================================
+// CONTRACT ADDRESSES
+// ============================================================
 const MARKETPLACE_ADDRESS = ethers.getAddress("0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120");
 const NFT_CONTRACT_ADDRESS = "0x87950a56456Df786A249F484e9E56dF00fF207cb"; // V3
 const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
 const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
-const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40"; // NEW: Alchemy Hybrids
+const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40";
 
+// ============================================================
+// CONTRACT ABIs
+// ============================================================
+
+// Marketplace ABI - matches the actual ScentProtocolMarketplace contract
 const MARKETPLACE_ABI = [
-  "function list(address nftContract, uint256 tokenId, uint256 price)",
-  "function cancel(uint256 tokenId)",
-  "function listings(uint256) view returns (address seller, address nftContract, uint256 price, bool active)",
-  "function getActiveListings() view returns (uint256[])",
-  "function getActiveCount() view returns (uint256)",
+  "function list(address nft, uint256 tokenId, uint256 price, uint256 expiry)",
+  "function updateListing(address nft, uint256 tokenId, uint256 price, uint256 expiry)",
+  "function cancelListing(address nft, uint256 tokenId)",
+  "function buy(address nft, uint256 tokenId, uint256 expectedPrice)",
+  "function makeOffer(address nft, uint256 tokenId, uint256 price, uint256 expiry)",
+  "function cancelOffer(address nft, uint256 tokenId)",
+  "function acceptOffer(address nft, uint256 tokenId, address offerer, uint256 minPrice)",
+  "function getListing(address nft, uint256 tokenId) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)",
+  "function getOffer(address nft, uint256 tokenId, address offerer) view returns (uint256 price, uint256 expiry, uint16 feeBps)",
+  "function getActiveListings(address nft) view returns (uint256[])",
+  "function isListingActive(address nft, uint256 tokenId) view returns (bool)",
+  "function setCollectionAllowed(address nft, bool allowed)",
   "function usdc() view returns (address)"
 ];
 
+// Universal ERC721 ABI for ownership and approval checks
+const ERC721_ABI = [
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function setApprovalForAll(address operator, bool approved)",
+  "function isApprovedForAll(address owner, address operator) view returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)"
+];
+
+// V3 NFT ABI
 const NFT_ABI = [
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function setApprovalForAll(address operator, bool approved)",
@@ -33,30 +56,37 @@ const NFT_ABI = [
   "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isAlchemy, uint256 parentTokenA, uint256 parentTokenB))"
 ];
 
-const VIRAL_ABI = [
-  "function balanceOf(address owner) view returns (uint256)",
-  "function ownerOf(uint256 tokenId) view returns (address)",
-  "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))"
-];
-
+// Genesis ABI
 const GENESIS_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis))"
 ];
 
+// MFW ABI
 const MFW_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool hasExclusiveBadge))"
 ];
 
+// Viral ABI
+const VIRAL_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function getPerfume(uint256 tokenId) view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator))"
+];
+
+// Alchemy Hybrids ABI
 const ALCHEMY_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function getHybridPerfume(uint256 hybridId) view returns (tuple(uint256 hybridId, uint256 parentTokenId1, uint256 parentTokenId2, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address alchemist))"
 ];
 
+// ============================================================
+// TYPES & INTERFACES
+// ============================================================
 interface StoredScent {
   tokenId: number;
   contractAddress: string;
@@ -82,6 +112,9 @@ interface StoredScent {
 type SortOption = "newest" | "oldest" | "name" | "rarity";
 type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral" | "hybrid";
 
+// ============================================================
+// CONSTANTS & STYLES
+// ============================================================
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
@@ -120,6 +153,9 @@ const HYBRID_STYLE = {
   hex: "#22d3ee",
 };
 
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function CollectionPage() {
   const [scents, setScents] = useState<StoredScent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,6 +172,7 @@ export default function CollectionPage() {
   });
   const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
 
+  // Badge states - track which special NFTs the user holds
   const [hasGenesisBadge, setHasGenesisBadge] = useState(false);
   const [hasMFWBadge, setHasMFWBadge] = useState(false);
   const [hasViralBadge, setHasViralBadge] = useState(false);
@@ -143,14 +180,12 @@ export default function CollectionPage() {
 
   const { address, isConnected } = useAccount();
 
+  // Check wallet readiness
   useEffect(() => {
-    if (address && isConnected) {
-      setWalletReady(true);
-    } else {
-      setWalletReady(false);
-    }
+    setWalletReady(!!(address && isConnected));
   }, [address, isConnected]);
 
+  // Check badge ownership via balanceOf calls
   useEffect(() => {
     async function checkBadges() {
       setHasGenesisBadge(false);
@@ -192,6 +227,7 @@ export default function CollectionPage() {
     checkBadges();
   }, [address]);
 
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -204,6 +240,7 @@ export default function CollectionPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  // Fetch collection NFTs
   useEffect(() => {
     async function fetchCollection() {
       if (!address) {
@@ -217,12 +254,17 @@ export default function CollectionPage() {
         const provider = w.ethereum ? new ethers.BrowserProvider(w.ethereum) : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-        let activeTokenIds = new Set<number>();
-        try {
-          const activeIds: bigint[] = await marketplace.getActiveListings();
-          activeIds.forEach(id => activeTokenIds.add(Number(id)));
-        } catch (e) {
-          console.error("Failed to get active listings:", e);
+        // Collect all active listings across all collections
+        const activeTokenIds = new Set<string>();
+        const allContracts = [NFT_CONTRACT_ADDRESS, GENESIS_CONTRACT_ADDRESS, MFW_CONTRACT_ADDRESS, VIRAL_CONTRACT_ADDRESS, ALCHEMY_CONTRACT_ADDRESS];
+        
+        for (const contractAddr of allContracts) {
+          try {
+            const activeIds: bigint[] = await marketplace.getActiveListings(contractAddr);
+            activeIds.forEach(id => activeTokenIds.add(`${contractAddr.toLowerCase()}-${Number(id)}`));
+          } catch (e) {
+            console.warn(`Failed to get active listings for ${contractAddr}:`, e);
+          }
         }
 
         const results: StoredScent[] = [];
@@ -239,13 +281,9 @@ export default function CollectionPage() {
                 const owner = await contract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const perfume = await contract.getPerfume(tokenId);
-                  let isListed = false;
-                  if (activeTokenIds.has(tokenId)) {
-                    try {
-                      const listing = await marketplace.listings(tokenId);
-                      if (listing.active && listing.nftContract.toLowerCase() === NFT_CONTRACT_ADDRESS.toLowerCase()) isListed = true;
-                    } catch (e) { console.error("Error checking listing:", e); }
-                  }
+                  const key = `${NFT_CONTRACT_ADDRESS.toLowerCase()}-${tokenId}`;
+                  const isListed = activeTokenIds.has(key);
+
                   results.push({
                     tokenId, contractAddress: NFT_CONTRACT_ADDRESS, name: perfume.name, rarity: Number(perfume.rarity),
                     timestamp: Number(perfume.createdAt) * 1000, isListed,
@@ -257,7 +295,6 @@ export default function CollectionPage() {
                       concentration: Number(perfume.concentration), rarity: Number(perfume.rarity),
                       createdAt: Number(perfume.createdAt), creator: perfume.creator,
                     },
-                    description: undefined,
                   });
                   foundCount++;
                 }
@@ -271,6 +308,7 @@ export default function CollectionPage() {
         try {
           const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
           const genesisBalanceNum = Number(await genesisContract.balanceOf(address));
+
           if (genesisBalanceNum > 0) {
             let foundCount = 0;
             for (let tokenId = 1; tokenId <= 100 && foundCount < genesisBalanceNum; tokenId++) {
@@ -278,9 +316,12 @@ export default function CollectionPage() {
                 const owner = await genesisContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await genesisContract.getPerfume(tokenId);
+                  const key = `${GENESIS_CONTRACT_ADDRESS.toLowerCase()}-${tokenId}`;
+                  const isListed = activeTokenIds.has(key);
+
                   results.push({
                     tokenId, contractAddress: GENESIS_CONTRACT_ADDRESS, name: data.name, rarity: Number(data.rarity),
-                    timestamp: Number(data.createdAt) * 1000, isListed: false,
+                    timestamp: Number(data.createdAt) * 1000, isListed,
                     perfume: {
                       name: data.name, gender: Number(data.gender), pType: Number(data.pType),
                       topNotes: Array.from(data.topNotes || []).map((n: any) => String(n)),
@@ -302,6 +343,7 @@ export default function CollectionPage() {
         try {
           const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
           const mfwBalanceNum = Number(await mfwContract.balanceOf(address));
+
           if (mfwBalanceNum > 0) {
             let foundCount = 0;
             for (let tokenId = 1; tokenId <= 500 && foundCount < mfwBalanceNum; tokenId++) {
@@ -309,9 +351,12 @@ export default function CollectionPage() {
                 const owner = await mfwContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await mfwContract.getPerfume(tokenId);
+                  const key = `${MFW_CONTRACT_ADDRESS.toLowerCase()}-${tokenId}`;
+                  const isListed = activeTokenIds.has(key);
+
                   results.push({
                     tokenId, contractAddress: MFW_CONTRACT_ADDRESS, name: data.name, rarity: Number(data.rarity),
-                    timestamp: Number(data.createdAt) * 1000, isListed: false,
+                    timestamp: Number(data.createdAt) * 1000, isListed,
                     perfume: {
                       name: data.name, gender: Number(data.gender), pType: Number(data.pType),
                       topNotes: Array.from(data.topNotes || []).map((n: any) => String(n)),
@@ -333,6 +378,7 @@ export default function CollectionPage() {
         try {
           const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
           const viralBalanceNum = Number(await viralContract.balanceOf(address));
+
           if (viralBalanceNum > 0) {
             let foundCount = 0;
             for (let tokenId = 1; tokenId <= 10000 && foundCount < viralBalanceNum; tokenId++) {
@@ -340,9 +386,12 @@ export default function CollectionPage() {
                 const owner = await viralContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await viralContract.getPerfume(tokenId);
+                  const key = `${VIRAL_CONTRACT_ADDRESS.toLowerCase()}-${tokenId}`;
+                  const isListed = activeTokenIds.has(key);
+
                   results.push({
                     tokenId, contractAddress: VIRAL_CONTRACT_ADDRESS, name: data.name, rarity: Number(data.rarity),
-                    timestamp: Number(data.createdAt) * 1000, isListed: false,
+                    timestamp: Number(data.createdAt) * 1000, isListed,
                     perfume: {
                       name: data.name, gender: Number(data.gender), pType: Number(data.pType),
                       topNotes: Array.from(data.topNotes || []).map((n: any) => String(n)),
@@ -364,6 +413,7 @@ export default function CollectionPage() {
         try {
           const hybridContract = new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider);
           const hybridBalanceNum = Number(await hybridContract.balanceOf(address));
+
           if (hybridBalanceNum > 0) {
             let foundCount = 0;
             for (let tokenId = 1; tokenId <= 1000 && foundCount < hybridBalanceNum; tokenId++) {
@@ -371,9 +421,12 @@ export default function CollectionPage() {
                 const owner = await hybridContract.ownerOf(tokenId);
                 if (owner.toLowerCase() === address.toLowerCase()) {
                   const data = await hybridContract.getHybridPerfume(tokenId);
+                  const key = `${ALCHEMY_CONTRACT_ADDRESS.toLowerCase()}-${tokenId}`;
+                  const isListed = activeTokenIds.has(key);
+
                   results.push({
                     tokenId, contractAddress: ALCHEMY_CONTRACT_ADDRESS, name: data.name, rarity: Number(data.rarity),
-                    timestamp: Number(data.createdAt) * 1000, isListed: false,
+                    timestamp: Number(data.createdAt) * 1000, isListed,
                     perfume: {
                       name: data.name, gender: Number(data.gender), pType: Number(data.pType),
                       topNotes: Array.from(data.topNotes || []).map((n: any) => String(n)),
@@ -401,6 +454,7 @@ export default function CollectionPage() {
     fetchCollection();
   }, [address]);
 
+  // Filter logic
   const filteredScents = scents.filter(s => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return s.contractAddress === GENESIS_CONTRACT_ADDRESS;
@@ -411,6 +465,7 @@ export default function CollectionPage() {
     return true;
   });
 
+  // Sort logic
   const sortedScents = [...filteredScents].sort((a, b) => {
     switch (sortBy) {
       case "newest": return b.timestamp - a.timestamp;
@@ -421,90 +476,93 @@ export default function CollectionPage() {
     }
   });
 
+  // Open listing modal
   const handleListClick = (tokenId: number, contractAddress: string) => {
     setListingModal({ open: true, tokenId, contractAddress, price: "" });
     setListingStatus("idle");
   };
 
-    const handleListConfirm = async () => {
-  if (!listingModal.tokenId || !listingModal.price || !listingModal.contractAddress) return;
+  // Confirm listing - creates a new listing on the marketplace
+  const handleListConfirm = async () => {
+    if (!listingModal.tokenId || !listingModal.price || !listingModal.contractAddress) return;
 
-  try {
-    setListingStatus("approving");
-    const w = window as any;
-    const provider = new ethers.BrowserProvider(w.ethereum);
-    const signer = await provider.getSigner();
-    const userAddress = await signer.getAddress();
+    try {
+      setListingStatus("approving");
+      const w = window as any;
+      const provider = new ethers.BrowserProvider(w.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
 
-    const erc721Abi = [
-      "function isApprovedForAll(address owner, address operator) view returns (bool)",
-      "function setApprovalForAll(address operator, bool approved)",
-      "function ownerOf(uint256 tokenId) view returns (address)"
-    ];
-    
-    const nftContract = new ethers.Contract(listingModal.contractAddress, erc721Abi, signer);
-    const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
+      const nftContract = new ethers.Contract(listingModal.contractAddress, ERC721_ABI, signer);
+      const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-    // Verify ownership
-    const owner = await nftContract.ownerOf(listingModal.tokenId);
-    if (owner.toLowerCase() !== userAddress.toLowerCase()) {
-      throw new Error("You do not own this NFT.");
+      // Verify ownership
+      const owner = await nftContract.ownerOf(listingModal.tokenId);
+      if (owner.toLowerCase() !== userAddress.toLowerCase()) {
+        throw new Error("You do not own this NFT.");
+      }
+
+      // Check and request approval if needed
+      const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
+      if (!isApproved) {
+        const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
+        await approveTx.wait();
+      }
+
+      setListingStatus("listing");
+      const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
+      
+      // Calculate expiry: 7 days from now (in Unix timestamp seconds)
+      const expiryTimestamp = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+      
+      console.log("Creating listing:", {
+        nft: listingModal.contractAddress,
+        tokenId: listingModal.tokenId,
+        price: listingModal.price,
+        expiry: new Date(expiryTimestamp * 1000).toLocaleString()
+      });
+      
+      const listTx = await marketplaceContract.list(
+        listingModal.contractAddress,
+        listingModal.tokenId,
+        priceInUSDC,
+        expiryTimestamp
+      );
+      await listTx.wait();
+
+      setListingStatus("success");
+      setTimeout(() => { window.location.reload(); }, 2000);
+    } catch (error: any) {
+      console.error("Listing failed:", error);
+      let errorMsg = "Listing failed.";
+      
+      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+        errorMsg = "Transaction rejected by user.";
+      } else if (error.message?.includes("You do not own")) {
+        errorMsg = error.message;
+      } else if (error.code === "UNSUPPORTED_OPERATION") {
+        errorMsg = "Contract function mismatch. Please refresh the page.";
+      } else if (error.reason?.includes("InvalidExpiry") || error.message?.includes("InvalidExpiry")) {
+        errorMsg = "Invalid expiry date.";
+      } else if (error.reason?.includes("InvalidPrice") || error.message?.includes("InvalidPrice")) {
+        errorMsg = "Invalid price. Price must be greater than 0.";
+      } else if (error.reason?.includes("CollectionNotAllowed") || error.message?.includes("CollectionNotAllowed")) {
+        errorMsg = "This collection is not allowed on the marketplace.";
+      } else if (error.reason?.includes("NotApproved") || error.message?.includes("NotApproved")) {
+        errorMsg = "Marketplace is not approved to transfer this NFT.";
+      } else if (error.code === "CALL_EXCEPTION") {
+        errorMsg = "Transaction failed. Check console for details.";
+      } else {
+        errorMsg = error.reason || error.shortMessage || error.message || "Unknown error.";
+      }
+      
+      alert(`Listing failed: ${errorMsg}`);
+      setListingStatus("idle");
     }
+  };
 
-    // Check and request approval
-    const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
-    if (!isApproved) {
-      const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
-      await approveTx.wait();
-    }
-
-    setListingStatus("listing");
-    const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-    
-    // 
-    const expiryTimestamp = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60); // 7 дней
-    
-    console.log("Creating listing:", {
-      nft: listingModal.contractAddress,
-      tokenId: listingModal.tokenId,
-      price: listingModal.price,
-      expiry: new Date(expiryTimestamp * 1000).toLocaleString()
-    });
-    
-    const listTx = await marketplaceContract.list(
-      listingModal.contractAddress,
-      listingModal.tokenId,
-      priceInUSDC,
-      expiryTimestamp // 
-    );
-    await listTx.wait();
-
-    setListingStatus("success");
-    setTimeout(() => { window.location.reload(); }, 2000);
-  } catch (error: any) {
-    console.error("Listing failed:", error);
-    
-    let errorMsg = "Listing failed.";
-    if (error.code === 4001 || error.code === "ACTION_REJECTED") {
-      errorMsg = "Transaction rejected by user.";
-    } else if (error.message?.includes("You do not own")) {
-      errorMsg = error.message;
-    } else if (error.reason?.includes("InvalidExpiry") || error.message?.includes("InvalidExpiry")) {
-      errorMsg = "Invalid expiry date. Please try again.";
-    } else if (error.reason?.includes("InvalidPrice") || error.message?.includes("InvalidPrice")) {
-      errorMsg = "Invalid price. Price must be greater than 0.";
-    } else if (error.code === "CALL_EXCEPTION") {
-      errorMsg = "Transaction failed. Check console for details.";
-    } else {
-      errorMsg = error.reason || error.shortMessage || error.message || "Unknown error.";
-    }
-    
-    alert(`Listing failed: ${errorMsg}`);
-    setListingStatus("idle");
-  }
-};
-
-  const handleCancelListing = async (tokenId: number) => {
+  // Cancel an existing listing
+  const handleCancelListing = async (tokenId: number, contractAddress: string) => {
     if (!confirm(`Remove Scent #${tokenId} from the marketplace?`)) return;
     try {
       setListingStatus("listing");
@@ -512,7 +570,10 @@ export default function CollectionPage() {
       const provider = new ethers.BrowserProvider(w.ethereum);
       const signer = await provider.getSigner();
       const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
-      await (await marketplaceContract.cancel(tokenId)).wait();
+
+      const cancelTx = await marketplaceContract.cancelListing(contractAddress, tokenId);
+      await cancelTx.wait();
+
       alert("Listing removed successfully!");
       setListingStatus("idle");
       window.location.reload();
@@ -534,6 +595,7 @@ export default function CollectionPage() {
     { value: "rarity", label: "Rarity (High to Low)" },
   ];
 
+  // Loading skeleton
   if (!walletReady || loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
@@ -543,6 +605,7 @@ export default function CollectionPage() {
     );
   }
 
+  // Not connected
   if (!address) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
@@ -557,6 +620,7 @@ export default function CollectionPage() {
       <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">My Collection</h1>
       <p className="text-center text-white/50">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
 
+      {/* Scent Alchemy Lab CTA Banner */}
       <Link href="/alchemy" className="block group">
         <div className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-teal-900/40 to-slate-900/40 p-6 transition-all duration-300 hover:border-cyan-400/60 hover:shadow-[0_0_30px_rgba(34,211,238,0.15)]">
           <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-cyan-500/20 transition-all" />
@@ -583,6 +647,7 @@ export default function CollectionPage() {
         </div>
       </Link>
 
+      {/* BADGES ROW */}
       {(hasGenesisBadge || hasMFWBadge || hasViralBadge || hasHybridBadge) && (
         <div className="flex items-center justify-center gap-3 animate-fade-up flex-wrap">
           {hasGenesisBadge && (
@@ -612,6 +677,7 @@ export default function CollectionPage() {
         </div>
       )}
 
+      {/* FILTERS AND SORT ROW */}
       <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
         <div className="relative">
           <button onClick={() => { setShowFilter(!showFilter); setShowSort(false); }} className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between">
@@ -678,56 +744,69 @@ export default function CollectionPage() {
                 : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
-              <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
-                {(isGenesis || isMFW || isViral || isHybrid) && (
-                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(${isHybrid ? '34,211,238' : isViral ? '217,70,239' : isMFW ? '168,85,247' : '251,191,36'},0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
+              <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02] flex-shrink-0`}>
+                
+                {isGenesis && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
                 )}
+                {isMFW && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(168,85,247,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
+                )}
+                {isViral && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(217,70,239,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
+                )}
+                {isHybrid && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s linear infinite" }} />
+                )}
+
                 {!isGenesis && !isMFW && !isViral && !isHybrid && (
                   <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(90deg, transparent, ${style.hex}30, transparent)`, backgroundSize: "200% 100%", animation: "shimmer 2s linear infinite", padding: "2px", WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }} />
                 )}
+
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
+                {!isGenesis && !isMFW && !isViral && !isHybrid && (
+                  <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: `linear-gradient(105deg, transparent 40%, ${style.hex}15 50%, transparent 60%)`, backgroundSize: "200% 100%", animation: "shimmer 2.5s infinite" }} />
+                )}
+
                 <div className="relative flex items-start justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* FIXED: Prevent ScentCrest from squashing */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="flex-shrink-0">
                       <ScentCrest 
-                        seed={`${(perfume?.creator || s.perfume?.creator || 'unknown')}-${perfume?.name || s.name || 'unknown'}`}
+                        seed={`${(perfume?.creator || 'unknown')}-${perfume?.name || s.name || 'unknown'}`}
                         name={perfume?.name || s.name || `Scent #${s.tokenId}`}
                         rarity={rarity}
                         size={60}
                       />
                     </div>
 
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="text-xs text-white/40 uppercase tracking-wider whitespace-nowrap">
+                        <p className="text-xs text-white/40 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
                           {isGenesis ? "Genesis" : isMFW ? "MFW 2026" : isViral ? "Viral" : isHybrid ? "Hybrid" : "Scent"} #{s.tokenId}
                         </p>
                         {isGenesis && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1 whitespace-nowrap">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                             <img src="/arc-logo.png" alt="Arc" className="w-3 h-3 flex-shrink-0" style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }} /> Genesis
                           </span>
                         )}
-                        {/* FIXED: Added whitespace-nowrap and flex-shrink-0 to prevent 2-line badge */}
                         {isMFW && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1 whitespace-nowrap">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                             <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/><rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/><path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/><path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/></svg> MFW 2026
                           </span>
                         )}
                         {isViral && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1 whitespace-nowrap">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                             <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Viral
                           </span>
                         )}
                         {isHybrid && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1 whitespace-nowrap">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                             <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg> Hybrid
                           </span>
                         )}
                       </div>
-                      {/* FIXED: Added truncate and title for long names */}
                       <h3 className="text-xl font-bold text-white mt-1 truncate" title={perfume?.name || s.name || `Scent #${s.tokenId}`}>
                         {perfume?.name || s.name || `Scent #${s.tokenId}`}
                       </h3>
@@ -779,7 +858,7 @@ export default function CollectionPage() {
                       <div className="flex gap-2">
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} contractAddress={s.contractAddress} />
                         {s.isListed ? (
-                          <button onClick={() => handleCancelListing(s.tokenId)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                          <button onClick={() => handleCancelListing(s.tokenId, s.contractAddress)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
                             {listingStatus === "listing" ? "Removing..." : "Remove"}
                           </button>
                         ) : (
@@ -807,15 +886,23 @@ export default function CollectionPage() {
         </div>
       )}
 
+      {/* Listing Modal */}
       {listingModal.open && (() => {
-        const currentScent = scents.find(s => s.tokenId === listingModal.tokenId && s.contractAddress?.toLowerCase() === listingModal.contractAddress?.toLowerCase());
+        const currentScent = scents.find(s => 
+          s.tokenId === listingModal.tokenId && 
+          s.contractAddress?.toLowerCase() === listingModal.contractAddress?.toLowerCase()
+        );
         const rarity = currentScent?.perfume?.rarity ?? currentScent?.rarity ?? 0;
         const isGenesisModal = currentScent?.contractAddress === GENESIS_CONTRACT_ADDRESS;
         const isMFWModal = currentScent?.contractAddress === MFW_CONTRACT_ADDRESS;
         const isViralModal = currentScent?.contractAddress === VIRAL_CONTRACT_ADDRESS;
         const isHybridModal = currentScent?.contractAddress === ALCHEMY_CONTRACT_ADDRESS;
         
-        const style = isHybridModal ? HYBRID_STYLE : isViralModal ? VIRAL_STYLE : isMFWModal ? MFW_STYLE : isGenesisModal ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" } : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
+        const style = isHybridModal 
+          ? HYBRID_STYLE
+          : isViralModal ? VIRAL_STYLE : isMFWModal ? MFW_STYLE : isGenesisModal
+            ? { bg: "from-amber-950/90 via-orange-900/80 to-amber-950/90", border: "border-amber-400/70", badge: "bg-amber-500/50 text-amber-50 border-amber-400/80", text: "text-amber-100", glow: "shadow-[0_0_80px_rgba(251,191,36,0.5),0_0_120px_rgba(245,158,11,0.3)]", hex: "#fbbf24" }
+            : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
                 
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setListingModal({ open: false, tokenId: null, contractAddress: null, price: "" })}>
@@ -854,7 +941,10 @@ export default function CollectionPage() {
 
       <style>{`
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        @keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         .animate-fade-up { animation: fade-up 0.4s ease-out; }
       `}</style>
     </div>
