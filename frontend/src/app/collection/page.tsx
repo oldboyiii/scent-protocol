@@ -427,76 +427,91 @@ export default function CollectionPage() {
   };
 
     const handleListConfirm = async () => {
-    if (!listingModal.tokenId || !listingModal.price || !listingModal.contractAddress) return;
-    try {
-      setListingStatus("approving");
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const userAddress = await signer.getAddress();
+  if (!listingModal.tokenId || !listingModal.price || !listingModal.contractAddress) return;
+  
+  try {
+    setListingStatus("approving");
+    const w = window as any;
+    const provider = new ethers.BrowserProvider(w.ethereum);
+    const signer = await provider.getSigner();
+    const userAddress = await signer.getAddress();
 
-      // Use universal ERC721 ABI for compatibility with all collections (V3, Viral, Genesis, MFW)
-      const erc721Abi = [
-        "function isApprovedForAll(address owner, address operator) view returns (bool)",
-        "function setApprovalForAll(address operator, bool approved)",
-        "function ownerOf(uint256 tokenId) view returns (address)"
-      ];
-      
-      const nftContract = new ethers.Contract(listingModal.contractAddress, erc721Abi, signer);
-      const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
+    const erc721Abi = [
+      "function isApprovedForAll(address owner, address operator) view returns (bool)",
+      "function setApprovalForAll(address operator, bool approved)",
+      "function ownerOf(uint256 tokenId) view returns (address)",
+      "function getApproved(uint256 tokenId) view returns (address)"
+    ];
+    
+    const nftContract = new ethers.Contract(listingModal.contractAddress, erc721Abi, signer);
+    const marketplaceContract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-      // 1. OWNERSHIP CHECK: Prevents mysterious CALL_EXCEPTION errors
-      try {
-        const owner = await nftContract.ownerOf(listingModal.tokenId);
-        if (owner.toLowerCase() !== userAddress.toLowerCase()) {
-          throw new Error("You do not own this NFT.");
-        }
-      } catch (e: any) {
-        if (e.message.includes("You do not own")) throw e;
-        throw new Error("Could not verify ownership. The NFT might not exist or you might not own it.");
-      }
-
-      // 2. APPROVAL CHECK AND REQUEST
-      const isApproved = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
-      if (!isApproved) {
-        console.log("Requesting marketplace approval...");
-        const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
-        await approveTx.wait();
-        console.log("Approval successful!");
-      }
-
-      // 3. CREATE LISTING
-      setListingStatus("listing");
-      const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
-      
-      console.log("Submitting listing to marketplace...");
-      const listTx = await marketplaceContract.list(listingModal.contractAddress, listingModal.tokenId, priceInUSDC);
-      await listTx.wait();
-
-      setListingStatus("success");
-      setTimeout(() => { window.location.reload(); }, 2000);
-    } catch (error: any) {
-      console.error("Listing failed:", error);
-      let errorMsg = "Listing failed.";
-      
-      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
-        errorMsg = "Transaction rejected by user.";
-      } else if (error.message?.includes("You do not own")) {
-        errorMsg = "You do not own this NFT.";
-      } else if (error.message?.includes("Could not verify ownership")) {
-        errorMsg = "Could not verify ownership. The NFT might not exist or you might not own it.";
-      } else if (error.reason?.includes("already listed") || error.message?.includes("already listed")) {
-        errorMsg = "This NFT is already listed on the marketplace.";
-      } else if (error.reason?.includes("not approved") || error.message?.includes("not approved")) {
-        errorMsg = "Marketplace is not approved to transfer this NFT. Please try again.";
-      } else {
-        errorMsg = error.reason || error.shortMessage || error.message || "Unknown error.";
-      }
-      
-      alert(`Listing failed: ${errorMsg}`);
-      setListingStatus("idle");
+    // 1. Verify ownership
+    console.log("🔍 Checking ownership...");
+    const owner = await nftContract.ownerOf(listingModal.tokenId);
+    if (owner.toLowerCase() !== userAddress.toLowerCase()) {
+      throw new Error(`You do not own this NFT. Owner: ${owner}`);
     }
-  };
+    console.log("✅ Ownership verified");
+
+    // 2. Check if already listed
+    console.log("🔍 Checking if already listed...");
+    try {
+      const listing = await marketplaceContract.listings(listingModal.tokenId);
+      if (listing.active && listing.seller.toLowerCase() === userAddress.toLowerCase()) {
+        throw new Error("This NFT is already listed on the marketplace.");
+      }
+    } catch (e) {
+      // Ignore if listings() doesn't exist
+    }
+    console.log("✅ Not already listed");
+
+    // 3. Check and request approval
+    console.log("🔍 Checking approval...");
+    const isApprovedForAll = await nftContract.isApprovedForAll(userAddress, MARKETPLACE_ADDRESS);
+    const approvedAddress = await nftContract.getApproved(listingModal.tokenId);
+    
+    if (!isApprovedForAll && approvedAddress.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase()) {
+      console.log("⚠️ Approval needed, requesting...");
+      const approveTx = await nftContract.setApprovalForAll(MARKETPLACE_ADDRESS, true);
+      await approveTx.wait();
+      console.log("✅ Approval successful!");
+    } else {
+      console.log("✅ Already approved");
+    }
+
+    // 4. Create listing
+    setListingStatus("listing");
+    const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
+    
+    console.log(`📝 Creating listing: TokenId=${listingModal.tokenId}, Price=${listingModal.price} USDC`);
+    const listTx = await marketplaceContract.list(listingModal.contractAddress, listingModal.tokenId, priceInUSDC);
+    console.log("📤 Transaction sent:", listTx.hash);
+    await listTx.wait();
+    console.log("✅ Listing successful!");
+
+    setListingStatus("success");
+    setTimeout(() => { window.location.reload(); }, 2000);
+  } catch (error: any) {
+    console.error("❌ Listing failed:", error);
+    let errorMsg = "Listing failed.";
+    
+    if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+      errorMsg = "Transaction rejected by user.";
+    } else if (error.message?.includes("You do not own")) {
+      errorMsg = error.message;
+    } else if (error.message?.includes("already listed")) {
+      errorMsg = error.message;
+    } else if (error.code === "CALL_EXCEPTION") {
+      errorMsg = "Transaction failed. Possible reasons:\n• NFT not approved for marketplace\n• Price too low\n• NFT already listed\n• Contract error";
+    } else {
+      errorMsg = error.reason || error.shortMessage || error.message || "Unknown error.";
+    }
+    
+    alert(`Listing failed: ${errorMsg}`);
+    setListingStatus("idle");
+  }
+};
 
   const handleCancelListing = async (tokenId: number) => {
     if (!confirm(`Remove Scent #${tokenId} from the marketplace?`)) return;
