@@ -26,7 +26,8 @@ const MARKETPLACE_ABI = [
   "function list(address nft, uint256 tokenId, uint256 price, uint256 expiry)",
   "function cancelListing(address nft, uint256 tokenId)",
   "function buy(address nft, uint256 tokenId, uint256 expectedPrice)",
-  "function listings(address, uint256) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)",
+  // FIXED: Changed from 'listings' to 'getListing' to match the actual contract
+  "function getListing(address nft, uint256 tokenId) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)",
   "function getActiveListings(address nft) view returns (uint256[])",
   "function usdc() view returns (address)"
 ];
@@ -266,7 +267,8 @@ export default function MarketplacePage() {
           for (const id of activeIds) {
             try {
               const tokenId = Number(id);
-              const listingData = await marketplace.listings(col, tokenId);
+              // FIXED: Changed from 'listings' to 'getListing'
+              const listingData = await marketplace.getListing(col, tokenId);
               
               // Skip if listing is empty or expired
               if (listingData.seller === ethers.ZeroAddress) continue;
