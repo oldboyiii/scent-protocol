@@ -6,125 +6,124 @@ import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ScentCrest from "@/components/ScentCrest";
 
-// --- UPDATED CONTRACT ADDRESSES ---
+// --- CONTRACT ADDRESSES ---
 const NFT_CONTRACT_ADDRESS = "0x87950a56456Df786A249F484e9E56dF00fF207cb"; // V3
 const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
 const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
-const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40"; // NEW: Hybrids
+const ALCHEMY_CONTRACT_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40"; // Hybrids
 
 const CACHE_KEY = "scentprotocol_gallery_cache";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 const GENESIS_ABI = [
   {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "getPerfume",
-    "outputs": [{
-      "components": [
-        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
-        {"internalType": "string", "name": "name", "type": "string"},
-        {"internalType": "uint8", "name": "gender", "type": "uint8"},
-        {"internalType": "uint8", "name": "pType", "type": "uint8"},
-        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
-        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
-        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
-        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
-        {"internalType": "address", "name": "creator", "type": "address"},
-        {"internalType": "bool", "name": "isGenesis", "type": "bool"}
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "getPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "tokenId", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "creator", type: "address" },
+        { internalType: "bool", name: "isGenesis", type: "bool" }
       ],
-      "internalType": "struct ScentProtocolGenesis.Perfume",
-      "name": "",
-      "type": "tuple"
+      internalType: "struct ScentProtocolGenesis.Perfume",
+      name: "",
+      type: "tuple"
     }],
-    "stateMutability": "view",
-    "type": "function"
+    stateMutability: "view",
+    type: "function"
   }
 ];
 
 const MFW_ABI = [
   {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "getPerfume",
-    "outputs": [{
-      "components": [
-        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
-        {"internalType": "string", "name": "name", "type": "string"},
-        {"internalType": "uint8", "name": "gender", "type": "uint8"},
-        {"internalType": "uint8", "name": "pType", "type": "uint8"},
-        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
-        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
-        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
-        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
-        {"internalType": "address", "name": "creator", "type": "address"},
-        {"internalType": "bool", "name": "hasExclusiveBadge", "type": "bool"}
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "getPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "tokenId", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "creator", type: "address" },
+        { internalType: "bool", name: "hasExclusiveBadge", type: "bool" }
       ],
-      "internalType": "struct ScentProtocolMFW2026.Perfume",
-      "name": "",
-      "type": "tuple"
+      internalType: "struct ScentProtocolMFW2026.Perfume",
+      name: "",
+      type: "tuple"
     }],
-    "stateMutability": "view",
-    "type": "function"
+    stateMutability: "view",
+    type: "function"
   }
 ];
 
 const VIRAL_ABI = [
   {
-    "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
-    "name": "getPerfume",
-    "outputs": [{
-      "components": [
-        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
-        {"internalType": "string", "name": "name", "type": "string"},
-        {"internalType": "uint8", "name": "gender", "type": "uint8"},
-        {"internalType": "uint8", "name": "pType", "type": "uint8"},
-        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
-        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
-        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
-        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
-        {"internalType": "address", "name": "creator", "type": "address"}
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "getPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "tokenId", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "creator", type: "address" }
       ],
-      "name": "",
-      "type": "tuple"
+      name: "",
+      type: "tuple"
     }],
-    "stateMutability": "view",
-    "type": "function"
+    stateMutability: "view",
+    type: "function"
   },
   "function getNextTokenId() external view returns (uint256)"
 ];
 
-// NEW: ABI for Alchemy Hybrids
 const ALCHEMY_ABI = [
   {
-    "inputs": [{"internalType": "uint256", "name": "hybridId", "type": "uint256"}],
-    "name": "getHybridPerfume",
-    "outputs": [{
-      "components": [
-        {"internalType": "uint256", "name": "hybridId", "type": "uint256"},
-        {"internalType": "uint256", "name": "parentTokenId1", "type": "uint256"},
-        {"internalType": "uint256", "name": "parentTokenId2", "type": "uint256"},
-        {"internalType": "string", "name": "name", "type": "string"},
-        {"internalType": "uint8", "name": "gender", "type": "uint8"},
-        {"internalType": "uint8", "name": "pType", "type": "uint8"},
-        {"internalType": "string[3]", "name": "topNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "heartNotes", "type": "string[3]"},
-        {"internalType": "string[3]", "name": "baseNotes", "type": "string[3]"},
-        {"internalType": "uint8", "name": "concentration", "type": "uint8"},
-        {"internalType": "uint8", "name": "rarity", "type": "uint8"},
-        {"internalType": "uint256", "name": "createdAt", "type": "uint256"},
-        {"internalType": "address", "name": "alchemist", "type": "address"}
+    inputs: [{ internalType: "uint256", name: "hybridId", type: "uint256" }],
+    name: "getHybridPerfume",
+    outputs: [{
+      components: [
+        { internalType: "uint256", name: "hybridId", type: "uint256" },
+        { internalType: "uint256", name: "parentTokenId1", type: "uint256" },
+        { internalType: "uint256", name: "parentTokenId2", type: "uint256" },
+        { internalType: "string", name: "name", type: "string" },
+        { internalType: "uint8", name: "gender", type: "uint8" },
+        { internalType: "uint8", name: "pType", type: "uint8" },
+        { internalType: "string[3]", name: "topNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "heartNotes", type: "string[3]" },
+        { internalType: "string[3]", name: "baseNotes", type: "string[3]" },
+        { internalType: "uint8", name: "concentration", type: "uint8" },
+        { internalType: "uint8", name: "rarity", type: "uint8" },
+        { internalType: "uint256", name: "createdAt", type: "uint256" },
+        { internalType: "address", name: "alchemist", type: "address" }
       ],
-      "name": "",
-      "type": "tuple"
+      name: "",
+      type: "tuple"
     }],
-    "stateMutability": "view",
-    "type": "function"
+    stateMutability: "view",
+    type: "function"
   },
   "function nextHybridId() external view returns (uint256)"
 ];
@@ -142,7 +141,6 @@ interface GalleryItem {
   creator: string;
 }
 
-// UPDATED: Added "hybrid" to filter types
 type SortOption = "newest" | "oldest" | "name" | "rarity";
 type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral" | "hybrid";
 
@@ -206,7 +204,6 @@ const VIRAL_STYLE = {
   hex: "#d946ef",
 };
 
-// NEW: Style for Alchemy Hybrids (Mystical Cyan/Teal)
 const HYBRID_STYLE = {
   bg: "from-cyan-900/80 via-teal-900/70 to-slate-900/80",
   border: "border-cyan-500/50",
@@ -256,7 +253,7 @@ export default function GalleryPage() {
         const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
         const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
         const viralContract = new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider);
-        const alchemyContract = new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider); // NEW
+        const alchemyContract = new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider);
         
         const results: GalleryItem[] = [];
         console.log("🔍 Fetching gallery data...");
@@ -456,7 +453,7 @@ export default function GalleryPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // UPDATED: Added hybrid filter logic
+  // Added hybrid filter logic
   const filteredItems = items.filter(item => {
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return item.contractAddress === GENESIS_CONTRACT_ADDRESS;
@@ -504,7 +501,7 @@ export default function GalleryPage() {
               {filterBy === "genesis" && "Genesis"}
               {filterBy === "mfw" && "MFW 2026"}
               {filterBy === "viral" && "Viral Scent"}
-              {filterBy === "hybrid" && "Alchemy Hybrids"} {/* NEW */}
+              {filterBy === "hybrid" && "Alchemy Hybrids"}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showFilter ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -518,7 +515,6 @@ export default function GalleryPage() {
               <button onClick={() => { setFilterBy("genesis"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "genesis" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>Genesis</button>
               <button onClick={() => { setFilterBy("mfw"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "mfw" ? "text-amber-400 bg-white/5" : "text-white/70"}`}>MFW 2026</button>
               <button onClick={() => { setFilterBy("viral"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "viral" ? "text-fuchsia-400 bg-white/5" : "text-white/70"}`}>Viral Scent</button>
-              {/* NEW: Hybrid Filter Option */}
               <button onClick={() => { setFilterBy("hybrid"); setShowFilter(false); }} className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${filterBy === "hybrid" ? "text-cyan-400 bg-white/5" : "text-white/70"}`}>Alchemy Hybrids</button>
             </div>
           )}
@@ -569,7 +565,7 @@ export default function GalleryPage() {
             const isGenesis = item.contractAddress === GENESIS_CONTRACT_ADDRESS;
             const isMFW = item.contractAddress === MFW_CONTRACT_ADDRESS;
             const isViral = item.contractAddress === VIRAL_CONTRACT_ADDRESS;
-            const isHybrid = item.contractAddress === ALCHEMY_CONTRACT_ADDRESS; // NEW
+            const isHybrid = item.contractAddress === ALCHEMY_CONTRACT_ADDRESS;
             
             const style = isHybrid 
               ? HYBRID_STYLE
@@ -594,7 +590,8 @@ export default function GalleryPage() {
                 href={`/nft/${item.tokenId}?contract=${item.contractAddress}`}
                 className="block"
               >
-                <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02]`}>
+                {/* FIXED: Added flex-shrink-0 to prevent card from squishing */}
+                <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02] flex-shrink-0`}>
                   
                   {isGenesis && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
@@ -620,7 +617,6 @@ export default function GalleryPage() {
                     }} />
                   )}
 
-                  {/* NEW: Hybrid Shimmer Effect */}
                   {isHybrid && (
                     <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
                       background: `linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent)`,
@@ -652,29 +648,35 @@ export default function GalleryPage() {
                     }} />
                   )}
 
+                  {/* FIXED LAYOUT: Added min-w-0 and flex-1 to prevent content squishing */}
                   <div className="relative flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <ScentCrest 
-                        seed={`${item.creator}-${item.name}`}
-                        name={item.name}
-                        rarity={rarity}
-                        size={60}
-                      />
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      {/* FIXED: Protect crest from squishing */}
+                      <div className="flex-shrink-0">
+                        <ScentCrest 
+                          seed={`${item.creator}-${item.name}`}
+                          name={item.name}
+                          rarity={rarity}
+                          size={60}
+                        />
+                      </div>
 
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-xs text-white/40 uppercase tracking-wider">
+                      {/* FIXED: Protect text container */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <p className="text-xs text-white/40 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
                             {isHybrid ? "Hybrid" : isViral ? "Viral" : isGenesis ? "Genesis" : isMFW ? "MFW 2026" : "Scent"} #{item.tokenId}
                           </p>
                           {isGenesis && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
-                              <img src="/arc-logo.png" alt="Arc" className="w-3 h-3 inline-block" style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }} />
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                              <img src="/arc-logo.png" alt="Arc" className="w-3 h-3 flex-shrink-0" style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }} />
                               Genesis
                             </span>
                           )}
+                          {/* FIXED: MFW 2026 badge will now stay on one line */}
                           {isMFW && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
-                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                              <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
                                 <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
                                 <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
@@ -684,25 +686,26 @@ export default function GalleryPage() {
                             </span>
                           )}
                           {isViral && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
-                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                              <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                               Viral
                             </span>
                           )}
-                          {/* NEW: Hybrid Badge in Gallery Card */}
                           {isHybrid && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1">
-                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                              <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
                               Hybrid
                             </span>
                           )}
                         </div>
-                        <h3 className="text-xl font-bold text-white mt-1 group-hover:text-amber-300 transition-colors">
+                        {/* FIXED: Added truncate and title for long names */}
+                        <h3 className="text-xl font-bold text-white mt-1 group-hover:text-amber-300 transition-colors truncate" title={item.name}>
                           {item.name}
                         </h3>
                       </div>
                     </div>
-                    <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                    {/* FIXED: Protect rarity badge */}
+                    <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
                       {RARITY_LABELS[rarity]}
                     </span>
                   </div>
