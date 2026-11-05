@@ -55,7 +55,6 @@ export default function MFW2026EventPage() {
   const REVEAL_BLOCKS = 5;
   const REVEAL_DEADLINE = 1000;
 
-  // Restore wallet connection
   useEffect(() => {
     const checkWallet = async () => {
       const w = window as any;
@@ -79,7 +78,6 @@ export default function MFW2026EventPage() {
     };
   }, []);
 
-  // Fetch contract data and restore pending state
   const fetchContractData = async () => {
     if (!address) return;
     try {
@@ -108,44 +106,54 @@ export default function MFW2026EventPage() {
       const mintedCount = await mfwContract.getWalletMintedCount(address);
       setUserMinted(Number(mintedCount));
 
-      // Restore pending mint state from localStorage or contract
+      // 1. Try to restore from localStorage first (most reliable)
       const storedTokenId = localStorage.getItem("mfw_pending_token_id");
       if (storedTokenId) {
-        try {
-          const pending = await mfwContract.pendingMints(storedTokenId);
-          if (pending.minter.toLowerCase() === address.toLowerCase() && Number(pending.blockNumber) > 0) {
-            const pBlock = Number(pending.blockNumber);
-            setTokenId(Number(storedTokenId));
-            setRequestBlock(pBlock);
-            setStep("requested");
-            
-            // Check if expired
-            const currentBlock = await provider.getBlockNumber();
-            const blocksPassed = currentBlock - pBlock;
-            if (blocksPassed > REVEAL_DEADLINE) {
-              setRevealExpired(true);
-              setCountdown(0);
-            }
-            return; // Exit early, we found our pending mint
-          }
-        } catch (e) {
-          localStorage.removeItem("mfw_pending_token_id");
+        const storedBlock = localStorage.getItem(`mfw_request_block_${storedTokenId}`);
+        if (storedBlock) {
+          setTokenId(Number(storedTokenId));
+          setRequestBlock(Number(storedBlock));
+          setStep("requested");
+          return;
         }
       }
 
-      // Fallback: search recent IDs if localStorage is empty
+      // 2. Fallback: search recent IDs in contract
       try {
         const nextId = Number(await mfwContract.getNextTokenId());
         const currentBlock = await provider.getBlockNumber();
+        const currentTime = Math.floor(Date.now() / 1000);
+        
         for (let i = Math.max(1, nextId - 20); i < nextId; i++) {
           try {
             const pending = await mfwContract.pendingMints(i);
-            if (pending.minter.toLowerCase() === address.toLowerCase() && Number(pending.blockNumber) > 0) {
-              const pBlock = Number(pending.blockNumber);
-              setTokenId(i);
-              setRequestBlock(pBlock);
-              setStep("requested");
-              localStorage.setItem("mfw_pending_token_id", i.toString());
+            if (pending.minter.toLowerCase() === address.toLowerCase()) {
+              const rawValue = Number(pending.blockNumber);
+              
+              // SMART FIX: If value > 1,000,000,000, it's a Unix timestamp, not a block number!
+              if (rawValue > 1000000000) {
+                const secondsLeft = rawValue - currentTime;
+                if (secondsLeft > 0) {
+                  setTokenId(i);
+                  setRequestBlock(-secondsLeft); // Negative value indicates timestamp mode
+                  setStep("requested");
+                  localStorage.setItem("mfw_pending_token_id", i.toString());
+                  localStorage.setItem(`mfw_request_block_${i}`, (-secondsLeft).toString());
+                } else {
+                  setTokenId(i);
+                  setRevealExpired(true);
+                  setStep("requested");
+                }
+              } else {
+                // It's a normal block number
+                if (rawValue > 0) {
+                  setTokenId(i);
+                  setRequestBlock(rawValue);
+                  setStep("requested");
+                  localStorage.setItem("mfw_pending_token_id", i.toString());
+                  localStorage.setItem(`mfw_request_block_${i}`, rawValue.toString());
+                }
+              }
               break;
             }
           } catch (e) {}
@@ -179,7 +187,7 @@ export default function MFW2026EventPage() {
     if (mintPrice > 0n) checkApproval();
   }, [mintPrice, address]);
 
-  // Live countdown polling based on actual block number
+  // Live countdown polling (handles BOTH block numbers and timestamps)
   useEffect(() => {
     if (step !== "requested" || tokenId === null || requestBlock === null) return;
 
@@ -187,19 +195,33 @@ export default function MFW2026EventPage() {
       try {
         const w = window as any;
         const provider = new ethers.BrowserProvider(w.ethereum);
-        const currentBlock = await provider.getBlockNumber();
-        const blocksPassed = currentBlock - requestBlock;
-
-        if (blocksPassed >= REVEAL_BLOCKS && blocksPassed <= REVEAL_DEADLINE) {
-          setCountdown(0);
-          setRevealExpired(false);
-        } else if (blocksPassed > REVEAL_DEADLINE) {
-          setCountdown(0);
-          setRevealExpired(true);
+        
+        if (requestBlock < 0) {
+          // Timestamp mode (seconds left is the absolute value of requestBlock)
+          const secondsLeft = -requestBlock;
+          if (secondsLeft > 0) {
+            setCountdown(secondsLeft);
+            setRevealExpired(false);
+          } else {
+            setCountdown(0);
+            setRevealExpired(true);
+          }
         } else {
-          const blocksLeft = REVEAL_BLOCKS - blocksPassed;
-          setCountdown(Math.max(0, blocksLeft * 2)); // Approx 2 seconds per block
-          setRevealExpired(false);
+          // Block number mode
+          const currentBlock = await provider.getBlockNumber();
+          const blocksPassed = currentBlock - requestBlock;
+
+          if (blocksPassed >= REVEAL_BLOCKS && blocksPassed <= REVEAL_DEADLINE) {
+            setCountdown(0);
+            setRevealExpired(false);
+          } else if (blocksPassed > REVEAL_DEADLINE) {
+            setCountdown(0);
+            setRevealExpired(true);
+          } else {
+            const blocksLeft = REVEAL_BLOCKS - blocksPassed;
+            setCountdown(Math.max(0, blocksLeft * 2));
+            setRevealExpired(false);
+          }
         }
       } catch (e) {
         console.error("Countdown poll error", e);
@@ -258,7 +280,6 @@ export default function MFW2026EventPage() {
 
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
       
-      // CRITICAL: Save state to survive page refreshes
       localStorage.setItem("mfw_pending_token_id", newTokenId.toString());
       localStorage.setItem(`mfw_preimage_${newTokenId}`, preimageHex);
       localStorage.setItem(`mfw_request_block_${newTokenId}`, receipt.blockNumber.toString());
@@ -298,7 +319,6 @@ export default function MFW2026EventPage() {
       const tx = await contract.revealAndMint(tokenId, storedPreimage);
       await tx.wait();
 
-      // Cleanup localStorage after successful reveal
       localStorage.removeItem("mfw_pending_token_id");
       localStorage.removeItem(`mfw_preimage_${tokenId}`);
       localStorage.removeItem(`mfw_request_block_${tokenId}`);
@@ -310,11 +330,8 @@ export default function MFW2026EventPage() {
 
     } catch (error: any) {
       console.error("Reveal failed:", error);
-      
-      // CRITICAL FIX: Do NOT reset to "idle". Keep user on "requested" screen 
-      // so they can either wait and try again, or click Cancel.
       alert(error.reason || error.shortMessage || error.message || "Reveal failed. Please wait or cancel.");
-      setStep("requested");
+      setStep("requested"); // Keep user on the screen to try again or cancel
     } finally {
       setMinting(false);
     }
@@ -336,7 +353,6 @@ export default function MFW2026EventPage() {
 
       alert("Cancelled! 50% refund processed to your wallet.");
       
-      // Cleanup
       localStorage.removeItem("mfw_pending_token_id");
       localStorage.removeItem(`mfw_preimage_${tokenId}`);
       localStorage.removeItem(`mfw_request_block_${tokenId}`);
@@ -488,6 +504,22 @@ export default function MFW2026EventPage() {
                       Cancel (50% Refund)
                     </button>
                   </div>
+                  
+                  {/* Emergency reset button just in case */}
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem("mfw_pending_token_id");
+                      localStorage.removeItem(`mfw_preimage_${tokenId}`);
+                      localStorage.removeItem(`mfw_request_block_${tokenId}`);
+                      setTokenId(null);
+                      setRequestBlock(null);
+                      setStep("idle");
+                      setCountdown(0);
+                    }}
+                    className="w-full px-4 py-2 text-xs text-white/40 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition-all"
+                  >
+                    🔄 Reset Stuck Mint State
+                  </button>
                 </div>
               )}
 
