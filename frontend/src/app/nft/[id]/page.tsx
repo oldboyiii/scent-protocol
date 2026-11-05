@@ -460,14 +460,13 @@ export default function NFTDetailPage() {
   const style = isHybrid ? HYBRID_STYLE : isViral ? VIRAL_STYLE : isMFW ? MFW_STYLE : (isGenesis ? GENESIS_STYLE : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]));
 
   return (
-    // Main container
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6 relative z-10">
       <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer">
         ← Back
       </button>
 
-      {/* Increased card padding and minimum height for a more rectangular shape */}
-      <div className={`group relative rounded-2xl p-8 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 min-h-[650px]`}>
+      {/* COMPACT CARD: Removed min-h, reduced padding to p-6 to save vertical space */}
+      <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
         {(isGenesis || isMFW || isViral || isHybrid) && (
           <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{
@@ -492,7 +491,7 @@ export default function NFTDetailPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-        <div className="relative flex items-start justify-between mb-4">
+        <div className="relative flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
             <ScentCrest seed={`${perfume.creator}-${perfume.name}`} name={perfume.name} rarity={perfume.rarity} size={64} />
             <div>
@@ -529,51 +528,53 @@ export default function NFTDetailPage() {
               </h1>
             </div>
           </div>
-          <span className={`relative text-sm font-bold px-3 py-1.5 rounded-full border backdrop-blur-md ${style.badge}`}>
+          {/* LARGER RARITY BADGE */}
+          <span className={`relative text-sm font-bold px-3 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
             {RARITY[perfume.rarity]}
           </span>
         </div>
 
-        {/* Increased bottom margin for the tags row */}
-        <div className="relative flex flex-wrap gap-2 text-sm mb-6">
+        {/* LARGER TAGS, COMPACT MARGIN */}
+        <div className="relative flex flex-wrap gap-2 text-sm mb-4">
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{GENDER[perfume.gender]}</span>
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{TYPE[perfume.pType]}</span>
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{perfume.concentration}%</span>
         </div>
 
-        {/* Increased vertical spacing between notes sections */}
-        <div className="relative space-y-5 mb-6">
+        {/* COMPACT VERTICAL SPACING FOR NOTES, BUT LARGER TEXT */}
+        <div className="relative space-y-3 mb-4">
           <div>
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Top Notes</span>
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-1.5">
               {perfume.topNotes.map((n: string) => (
-                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-amber-200 text-sm border border-amber-500/30">{n}</span>
+                <span key={n} className="px-2.5 py-1 rounded-md bg-black/30 text-amber-200 text-sm border border-amber-500/30">{n}</span>
               ))}
             </div>
           </div>
           <div>
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Heart Notes</span>
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-1.5">
               {perfume.heartNotes.map((n: string) => (
-                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-rose-200 text-sm border border-rose-500/30">{n}</span>
+                <span key={n} className="px-2.5 py-1 rounded-md bg-black/30 text-rose-200 text-sm border border-rose-500/30">{n}</span>
               ))}
             </div>
           </div>
           <div>
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Base Notes</span>
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-1.5">
               {perfume.baseNotes.map((n: string) => (
-                <span key={n} className="px-3 py-1 rounded-md bg-black/30 text-emerald-200 text-sm border border-emerald-500/30">{n}</span>
+                <span key={n} className="px-2.5 py-1 rounded-md bg-black/30 text-emerald-200 text-sm border border-emerald-500/30">{n}</span>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Increased padding and bottom margin for the description box */}
-        <div className={`relative rounded-lg p-5 text-white/70 italic border-l-2 mb-6 text-base ${descBg}`}>
+        {/* COMPACT DESCRIPTION BOX */}
+        <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-4 text-sm leading-relaxed ${descBg}`}>
           {description}
         </div>
 
+        {/* SLIGHTLY LARGER META INFO */}
         <div className="relative text-sm text-white/40 space-y-1">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
@@ -602,7 +603,7 @@ export default function NFTDetailPage() {
           )}
         </div>
 
-        <div className="relative mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+        <div className="relative mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
           <Link href={`/nft/${id - 1}`} className={`text-sm text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>
             ← Previous
           </Link>
@@ -615,17 +616,17 @@ export default function NFTDetailPage() {
 
       {/* Marketplace Actions Section */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-        <div className="flex gap-4 border-b border-white/10 mb-5">
+        <div className="flex gap-4 border-b border-white/10 mb-4">
           <button 
             onClick={() => setActiveTab("details")}
-            className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === "details" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
+            className={`pb-2 text-sm font-medium transition-colors relative ${activeTab === "details" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
           >
             Details
             {activeTab === "details" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}
           </button>
           <button 
             onClick={() => setActiveTab("offers")}
-            className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === "offers" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
+            className={`pb-2 text-sm font-medium transition-colors relative ${activeTab === "offers" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
           >
             Offers ({offers.length})
             {activeTab === "offers" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}
@@ -654,7 +655,7 @@ export default function NFTDetailPage() {
                 <h3 className="text-base font-bold text-white">Make an Offer</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Price (USDC)</label>
+                    <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">Price (USDC)</label>
                     <input 
                       type="number" 
                       step="0.01" 
@@ -662,15 +663,15 @@ export default function NFTDetailPage() {
                       value={offerPrice}
                       onChange={(e) => setOfferPrice(e.target.value)}
                       placeholder="e.g. 5.00"
-                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-2.5 text-white text-base focus:outline-none focus:border-amber-500 transition-colors"
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Valid (Days)</label>
+                    <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">Valid (Days)</label>
                     <select 
                       value={offerDays}
                       onChange={(e) => setOfferDays(Number(e.target.value))}
-                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-2.5 text-white text-base focus:outline-none focus:border-amber-500 transition-colors"
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors"
                     >
                       <option value={3}>3 Days</option>
                       <option value={7}>7 Days</option>
@@ -682,7 +683,7 @@ export default function NFTDetailPage() {
                 <button 
                   onClick={handleMakeOffer}
                   disabled={offerLoading || !offerPrice || Number(offerPrice) <= 0}
-                  className="w-full py-3 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-base shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  className="w-full py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   {offerLoading ? "Processing..." : "Submit Offer"}
                 </button>
@@ -691,13 +692,13 @@ export default function NFTDetailPage() {
               <div className="space-y-3">
                 <h3 className="text-base font-bold text-white">Incoming Offers</h3>
                 {offers.length === 0 ? (
-                  <p className="text-white/50 text-sm py-4 text-center bg-white/5 rounded-lg border border-white/10">No active offers for this NFT yet.</p>
+                  <p className="text-white/50 text-sm py-3 text-center bg-white/5 rounded-lg border border-white/10">No active offers for this NFT yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {offers.map((offer, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10">
+                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
                         <div>
-                          <p className="text-lg font-bold text-emerald-400">{ethers.formatUnits(offer.price, 6)} USDC</p>
+                          <p className="text-base font-bold text-emerald-400">{ethers.formatUnits(offer.price, 6)} USDC</p>
                           <p className="text-xs text-white/50">
                             From: {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)} • Exp: {new Date(offer.expiry * 1000).toLocaleDateString()}
                           </p>
@@ -705,7 +706,7 @@ export default function NFTDetailPage() {
                         <button 
                           onClick={() => handleAcceptOffer(offer.offerer, offer.price)}
                           disabled={offerLoading}
-                          className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-colors disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-colors disabled:opacity-50"
                         >
                           {offerLoading ? "Accepting..." : "Accept"}
                         </button>
@@ -717,11 +718,11 @@ export default function NFTDetailPage() {
             )}
             
             {userAddress && offers.some(o => o.offerer.toLowerCase() === userAddress.toLowerCase()) && (
-              <div className="pt-4 border-t border-white/10">
+              <div className="pt-3 border-t border-white/10">
                 <button 
                   onClick={handleCancelOffer}
                   disabled={offerLoading}
-                  className="w-full py-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 font-bold text-sm hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                  className="w-full py-2.5 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 font-bold text-sm hover:bg-red-500/30 transition-colors disabled:opacity-50"
                 >
                   Cancel My Active Offer
                 </button>
