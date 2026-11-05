@@ -744,6 +744,7 @@ export default function CollectionPage() {
                 : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
+
               <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02] flex-shrink-0`}>
                 
                 {isGenesis && (
@@ -782,20 +783,30 @@ export default function CollectionPage() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="text-xs text-white/40 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
-                          {isGenesis ? "Genesis" : isMFW ? "MFW 2026" : isViral ? "Viral" : isHybrid ? "Hybrid" : "Scent"} #{s.tokenId}
+                      {/* FIXED: Removed flex-wrap, added conditional sizing for MFW badge */}
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-white/40 uppercase tracking-wider whitespace-nowrap flex-shrink-0 truncate">
+                          {isGenesis ? "Genesis" : isMFW ? "MFW2026" : isViral ? "Viral" : isHybrid ? "Hybrid" : "Scent"} #{s.tokenId}
                         </p>
                         {isGenesis && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                             <img src="/arc-logo.png" alt="Arc" className="w-3 h-3 flex-shrink-0" style={{ filter: "drop-shadow(0 0 2px rgba(251,191,36,0.8))" }} /> Genesis
                           </span>
                         )}
+                        
+                        {/* FIXED: Conditional sizing for MFW badge - smaller for Common */}
                         {isMFW && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
-                            <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none"><rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/><rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/><path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/><path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/></svg> MFW 2026
+                          <span className={`font-bold px-1 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-0.5 whitespace-nowrap flex-shrink-0 ${rarity === 0 ? 'text-[8px]' : 'text-[9px]'}`}>
+                            <svg className={`${rarity === 0 ? 'w-2 h-2' : 'w-2.5 h-2.5'} flex-shrink-0`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
+                              <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
+                              <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
+                              <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+                            </svg>
+                            MFW2026
                           </span>
                         )}
+                        
                         {isViral && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                             <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Viral
@@ -807,6 +818,7 @@ export default function CollectionPage() {
                           </span>
                         )}
                       </div>
+                      
                       <h3 className="text-xl font-bold text-white mt-1 truncate" title={perfume?.name || s.name || `Scent #${s.tokenId}`}>
                         {perfume?.name || s.name || `Scent #${s.tokenId}`}
                       </h3>
