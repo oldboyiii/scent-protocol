@@ -675,16 +675,16 @@ export default function GalleryPage() {
                           )}
                           {/* FIXED: MFW 2026 badge will now stay on one line */}
                           {isMFW && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
-                              <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
-                                <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
-                                <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
-                                <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
-                              </svg>
-                              MFW 2026
-                            </span>
-                          )}
+  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-0.5 whitespace-nowrap flex-shrink-0">
+    <svg className="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor" opacity="0.9"/>
+      <rect x="10" y="6" width="4" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
+      <path d="M8 9C8 9 7 11 7 13V20C7 21.1 7.9 22 9 22H15C16.1 22 17 21.1 17 20V13C17 11 16 9 16 9H8Z" fill="currentColor" opacity="0.6"/>
+      <path d="M10 12V19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+    </svg>
+    MFW 2026
+  </span>
+)}
                           {isViral && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                               <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
