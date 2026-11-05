@@ -42,9 +42,7 @@ export default function MFW2026EventPage() {
   const [hasBadge, setHasBadge] = useState(false);
   const [mintPrice, setMintPrice] = useState<bigint>(0n);
   const [needsApproval, setNeedsApproval] = useState(false);
-  
   const [tokenId, setTokenId] = useState<number | null>(null);
-  const [requestBlock, setRequestBlock] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [step, setStep] = useState<"idle" | "requested" | "revealing" | "success">("idle");
   const [seedPreimage, setSeedPreimage] = useState<string>("");
@@ -52,8 +50,8 @@ export default function MFW2026EventPage() {
 
   const maxSupply = 500;
   const maxPerWallet = 3;
-  const REVEAL_BLOCKS = 5;
-  const REVEAL_DEADLINE = 1000;
+  const REVEAL_MIN_WAIT = 30; // 30 seconds (like old working code)
+  const REVEAL_MAX_WAIT = 3600; // 1 hour max window
 
   useEffect(() => {
     const checkWallet = async () => {
@@ -106,53 +104,32 @@ export default function MFW2026EventPage() {
       const mintedCount = await mfwContract.getWalletMintedCount(address);
       setUserMinted(Number(mintedCount));
 
-      // 1. Try to restore from localStorage first (most reliable)
-      const storedTokenId = localStorage.getItem("mfw_pending_token_id");
-      if (storedTokenId) {
-        const storedBlock = localStorage.getItem(`mfw_request_block_${storedTokenId}`);
-        if (storedBlock) {
-          setTokenId(Number(storedTokenId));
-          setRequestBlock(Number(storedBlock));
-          setStep("requested");
-          return;
-        }
-      }
-
-      // 2. Fallback: search recent IDs in contract
+      // Check for pending mints using TIMESTAMP (like old working code)
       try {
         const nextId = Number(await mfwContract.getNextTokenId());
-        const currentBlock = await provider.getBlockNumber();
-        const currentTime = Math.floor(Date.now() / 1000);
+        const currentTimestamp = Math.floor(Date.now() / 1000);
         
         for (let i = Math.max(1, nextId - 20); i < nextId; i++) {
           try {
             const pending = await mfwContract.pendingMints(i);
             if (pending.minter.toLowerCase() === address.toLowerCase()) {
-              const rawValue = Number(pending.blockNumber);
+              setTokenId(i);
+              const pendingTimestamp = Number(pending.blockNumber); // Field is called blockNumber but stores timestamp!
+              const secondsPassed = currentTimestamp - pendingTimestamp;
               
-              // SMART FIX: If value > 1,000,000,000, it's a Unix timestamp, not a block number!
-              if (rawValue > 1000000000) {
-                const secondsLeft = rawValue - currentTime;
-                if (secondsLeft > 0) {
-                  setTokenId(i);
-                  setRequestBlock(-secondsLeft); // Negative value indicates timestamp mode
-                  setStep("requested");
-                  localStorage.setItem("mfw_pending_token_id", i.toString());
-                  localStorage.setItem(`mfw_request_block_${i}`, (-secondsLeft).toString());
-                } else {
-                  setTokenId(i);
-                  setRevealExpired(true);
-                  setStep("requested");
-                }
+              if (secondsPassed >= REVEAL_MIN_WAIT && secondsPassed <= REVEAL_MAX_WAIT) {
+                setCountdown(0);
+                setStep("requested");
+                setRevealExpired(false);
+              } else if (secondsPassed > REVEAL_MAX_WAIT) {
+                setStep("requested");
+                setRevealExpired(true);
+                setCountdown(0);
               } else {
-                // It's a normal block number
-                if (rawValue > 0) {
-                  setTokenId(i);
-                  setRequestBlock(rawValue);
-                  setStep("requested");
-                  localStorage.setItem("mfw_pending_token_id", i.toString());
-                  localStorage.setItem(`mfw_request_block_${i}`, rawValue.toString());
-                }
+                const secondsLeft = REVEAL_MIN_WAIT - secondsPassed;
+                setCountdown(secondsLeft);
+                setStep("requested");
+                setRevealExpired(false);
               }
               break;
             }
@@ -187,49 +164,22 @@ export default function MFW2026EventPage() {
     if (mintPrice > 0n) checkApproval();
   }, [mintPrice, address]);
 
-  // Live countdown polling (handles BOTH block numbers and timestamps)
+  // Live countdown using setInterval (like old working code)
   useEffect(() => {
-    if (step !== "requested" || tokenId === null || requestBlock === null) return;
+    if (step !== "requested" || countdown <= 0) return;
 
-    const interval = setInterval(async () => {
-      try {
-        const w = window as any;
-        const provider = new ethers.BrowserProvider(w.ethereum);
-        
-        if (requestBlock < 0) {
-          // Timestamp mode (seconds left is the absolute value of requestBlock)
-          const secondsLeft = -requestBlock;
-          if (secondsLeft > 0) {
-            setCountdown(secondsLeft);
-            setRevealExpired(false);
-          } else {
-            setCountdown(0);
-            setRevealExpired(true);
-          }
-        } else {
-          // Block number mode
-          const currentBlock = await provider.getBlockNumber();
-          const blocksPassed = currentBlock - requestBlock;
-
-          if (blocksPassed >= REVEAL_BLOCKS && blocksPassed <= REVEAL_DEADLINE) {
-            setCountdown(0);
-            setRevealExpired(false);
-          } else if (blocksPassed > REVEAL_DEADLINE) {
-            setCountdown(0);
-            setRevealExpired(true);
-          } else {
-            const blocksLeft = REVEAL_BLOCKS - blocksPassed;
-            setCountdown(Math.max(0, blocksLeft * 2));
-            setRevealExpired(false);
-          }
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
         }
-      } catch (e) {
-        console.error("Countdown poll error", e);
-      }
-    }, 2000);
+        return prev - 1;
+      });
+    }, 1000);
 
-    return () => clearInterval(interval);
-  }, [step, tokenId, requestBlock]);
+    return () => clearInterval(timer);
+  }, [step, countdown]);
 
   const handleApprove = async () => {
     if (!address) return;
@@ -259,6 +209,7 @@ export default function MFW2026EventPage() {
     }
 
     setMinting(true);
+    setStep("requested");
     try {
       const w = window as any;
       const provider = new ethers.BrowserProvider(w.ethereum);
@@ -267,8 +218,9 @@ export default function MFW2026EventPage() {
 
       const randomBytes = ethers.randomBytes(32);
       const preimageHex = ethers.hexlify(randomBytes);
-      const seedCommitment = ethers.keccak256(randomBytes);
+      setSeedPreimage(preimageHex);
       
+      const seedCommitment = ethers.keccak256(randomBytes);
       const tx = await contract.requestMint(seedCommitment);
       const receipt = await tx.wait();
 
@@ -279,20 +231,18 @@ export default function MFW2026EventPage() {
         .find((e: any) => e?.name === "MintRequested");
 
       const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
-      
+      setTokenId(newTokenId);
+      setCountdown(REVEAL_MIN_WAIT); // 30 seconds countdown
+      setRevealExpired(false);
+
+      // Save to localStorage
       localStorage.setItem("mfw_pending_token_id", newTokenId.toString());
       localStorage.setItem(`mfw_preimage_${newTokenId}`, preimageHex);
-      localStorage.setItem(`mfw_request_block_${newTokenId}`, receipt.blockNumber.toString());
-
-      setTokenId(newTokenId);
-      setRequestBlock(receipt.blockNumber);
-      setSeedPreimage(preimageHex);
-      setStep("requested");
-      setRevealExpired(false);
 
     } catch (error: any) {
       console.error("Request mint failed:", error);
       alert(error.reason || error.message || "Mint request failed");
+      setStep("idle");
     } finally {
       setMinting(false);
     }
@@ -321,7 +271,6 @@ export default function MFW2026EventPage() {
 
       localStorage.removeItem("mfw_pending_token_id");
       localStorage.removeItem(`mfw_preimage_${tokenId}`);
-      localStorage.removeItem(`mfw_request_block_${tokenId}`);
 
       alert("🎉 Mint successful! You received the exclusive MFW 2026 Badge!");
       setStep("success");
@@ -330,8 +279,8 @@ export default function MFW2026EventPage() {
 
     } catch (error: any) {
       console.error("Reveal failed:", error);
-      alert(error.reason || error.shortMessage || error.message || "Reveal failed. Please wait or cancel.");
-      setStep("requested"); // Keep user on the screen to try again or cancel
+      alert(error.reason || error.shortMessage || error.message || "Reveal failed");
+      setStep("requested"); // Don't reset to idle - keep user on screen
     } finally {
       setMinting(false);
     }
@@ -355,10 +304,8 @@ export default function MFW2026EventPage() {
       
       localStorage.removeItem("mfw_pending_token_id");
       localStorage.removeItem(`mfw_preimage_${tokenId}`);
-      localStorage.removeItem(`mfw_request_block_${tokenId}`);
       
       setTokenId(null);
-      setRequestBlock(null);
       setSeedPreimage("");
       setStep("idle");
       setRevealExpired(false);
@@ -505,14 +452,11 @@ export default function MFW2026EventPage() {
                     </button>
                   </div>
                   
-                  {/* Emergency reset button just in case */}
                   <button
                     onClick={() => {
                       localStorage.removeItem("mfw_pending_token_id");
                       localStorage.removeItem(`mfw_preimage_${tokenId}`);
-                      localStorage.removeItem(`mfw_request_block_${tokenId}`);
                       setTokenId(null);
-                      setRequestBlock(null);
                       setStep("idle");
                       setCountdown(0);
                     }}
@@ -564,7 +508,7 @@ export default function MFW2026EventPage() {
             </h3>
             <ul className="space-y-3 text-sm text-white/60">
               <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">📅</span><span><strong>Dates:</strong> September 22-28, 2026</span></li>
-              <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">🎨</span><span><strong>Supply:</strong> 500 NFTs</span></li>
+              <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5"></span><span><strong>Supply:</strong> 500 NFTs</span></li>
               <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">💎</span><span><strong>Price:</strong> 5 USDC (1 USDC for Genesis holders)</span></li>
               <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">🏷️</span><span><strong>Bonus:</strong> Limited-Edition Digital Badge for all minters</span></li>
             </ul>
