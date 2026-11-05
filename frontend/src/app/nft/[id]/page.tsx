@@ -754,55 +754,55 @@ export default function NFTDetailPage() {
         )}
       </div>
 
-      {/* CREST ZOOM MODAL */}
-      {showCrestModal && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
-          onClick={() => setShowCrestModal(false)}
-        >
-          <div 
-            className="relative max-w-3xl w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* CLOSE BUTTON */}
-            <button 
-              onClick={() => setShowCrestModal(false)}
-              className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors"
-              aria-label="Close modal"
-            >
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+   {/* CREST ZOOM MODAL */}
+{showCrestModal && (
+  <div 
+    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 pt-20"
+    onClick={() => setShowCrestModal(false)}
+  >
+    <div 
+      className="relative max-w-3xl w-full"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* CLOSE BUTTON - moved inside and repositioned */}
+      <button 
+        onClick={() => setShowCrestModal(false)}
+        className="absolute -top-4 -right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-all hover:scale-110 z-10"
+        aria-label="Close modal"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
 
-            {/* LARGE CREST DISPLAY */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-3xl p-12 flex flex-col items-center justify-center shadow-2xl">
-              <ScentCrest 
-                seed={`${perfume.creator}-${perfume.name}`} 
-                name={perfume.name} 
-                rarity={perfume.rarity} 
-                size={320} 
-              />
-              
-              {/* CREST INFO */}
-              <div className="mt-10 text-center space-y-3">
-                <h3 className="text-3xl font-bold text-white">{perfume.name}</h3>
-                <p className="text-white/60 text-base">
-                  {isHybrid ? "Alchemy Hybrid" : isViral ? "Viral Scent" : isGenesis ? "Genesis Collection" : isMFW ? "MFW 2026 Exclusive" : "ScentProtocol V3"}
-                </p>
-                <div className="flex items-center justify-center gap-3 text-white/40 text-sm">
-                  <span>Token ID: #{id}</span>
-                  <span>•</span>
-                  <span>Rarity: {RARITY[perfume.rarity]}</span>
-                </div>
-                <p className="text-white/40 text-sm mt-6 max-w-md mx-auto leading-relaxed">
-                  Each ScentCrest is uniquely generated based on the fragrance's notes, rarity, and creator address. This unique visual signature represents the essence of your digital perfume.
-                </p>
-              </div>
-            </div>
+      {/* LARGE CREST DISPLAY */}
+      <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-3xl p-12 flex flex-col items-center justify-center shadow-2xl">
+        <ScentCrest 
+          seed={`${perfume.creator}-${perfume.name}`} 
+          name={perfume.name} 
+          rarity={perfume.rarity} 
+          size={320} 
+        />
+        
+        {/* CREST INFO */}
+        <div className="mt-10 text-center space-y-3">
+          <h3 className="text-3xl font-bold text-white">{perfume.name}</h3>
+          <p className="text-white/60 text-base">
+            {isHybrid ? "Alchemy Hybrid" : isViral ? "Viral Scent" : isGenesis ? "Genesis Collection" : isMFW ? "MFW 2026 Exclusive" : "ScentProtocol V3"}
+          </p>
+          <div className="flex items-center justify-center gap-3 text-white/40 text-sm">
+            <span>Token ID: #{id}</span>
+            <span>•</span>
+            <span>Rarity: {RARITY[perfume.rarity]}</span>
           </div>
+          <p className="text-white/40 text-sm mt-6 max-w-md mx-auto leading-relaxed">
+            Each ScentCrest is uniquely generated based on the fragrance's notes, rarity, and creator address. This unique visual signature represents the essence of your digital perfume.
+          </p>
         </div>
-      )}
+      </div>
+    </div>
+  </div>
+)}
 
       <style>{`
         @keyframes shimmer {
