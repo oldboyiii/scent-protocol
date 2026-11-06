@@ -14,7 +14,6 @@ import "@openzeppelin/contracts/token/common/ERC2981.sol";
 /**
  * @title Interface for the main ScentProtocol contract.
  * @notice This interface MUST exactly match the struct layout of the target main contract (e.g., ScentProtocolV3).
- * @dev We only need burn, ownerOf, and getPerfume. No transferFrom is needed, as burn() handles authorized destruction.
  */
 interface IScentProtocolMain {
     function burn(uint256 tokenId) external;
@@ -29,7 +28,7 @@ interface IScentProtocolMain {
 /**
  * @title ScentAlchemy
  * @notice A dedicated contract for blending two ScentProtocol NFTs into a unique, mutated Hybrid.
- * @dev Operates independently. Features deflationary burning, rarity mutation, and ERC2981 royalties.
+ * @dev Features deflationary burning, rarity mutation, ERC2981 royalties, and proper metadata with image URLs.
  */
 contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard, ERC2981 {
     using SafeERC20 for IERC20;
@@ -71,7 +70,7 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
     event FeeRecipientUpdated(address newRecipient);
     event Paused(bool status);
 
-    // --- Custom Errors (Gas efficient) ---
+    // --- Custom Errors ---
     error Alchemy__SameToken();
     error Alchemy__NotOwner();
     error Alchemy__Paused();
@@ -87,10 +86,6 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
 
     /**
      * @notice Initializes the Alchemy contract.
-     * @param _mainContractAddress Address of the deployed main contract (e.g., ScentProtocolV3).
-     * @param _usdcAddress Address of the USDC token on Arc (0x3600...0000).
-     * @param _feeRecipient Address to receive blending fees and royalties.
-     * @param _blendFee Initial fee for blending in USDC (e.g., 100000 for 0.1 USDC).
      */
     constructor(
         address _mainContractAddress,
@@ -115,9 +110,6 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
 
     /**
      * @notice The core function: Burns 2 NFTs from the main contract and mints 1 Hybrid.
-     * @dev REQUIRES the user to have called approve(ScentAlchemy, tokenId) on the MAIN contract for both tokens.
-     * @param tokenId1 The first NFT to blend.
-     * @param tokenId2 The second NFT to blend.
      */
     function blend(uint256 tokenId1, uint256 tokenId2) external nonReentrant {
         if (isPaused) revert Alchemy__Paused();
@@ -128,20 +120,20 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
             revert Alchemy__NotOwner();
         }
 
-        // 2. Collect the blending fee in USDC
+        // 2. CRITICAL FIX: FETCH PARENT DATA *BEFORE* BURNING!
+        // We must read the data while the tokens still exist and belong to the user.
+        (, string memory name1, , , string[3] memory top1, string[3] memory heart1, string[3] memory base1, , uint8 rarity1, , , , , ) = mainContract.getPerfume(tokenId1);
+        (, string memory name2, , , string[3] memory top2, string[3] memory heart2, string[3] memory base2, , uint8 rarity2, , , , , ) = mainContract.getPerfume(tokenId2);
+
+        // 3. Collect the blending fee in USDC
         if (blendFee > 0) {
             usdc.safeTransferFrom(msg.sender, address(this), blendFee);
         }
 
-        // 3. BURN tokens directly. 
-        // This works because the user must have approved THIS contract (ScentAlchemy) 
-        // on the main contract prior to calling this function. Saves ~20k+ gas vs transferFrom.
+        // 4. BURN tokens directly. 
+        // Now it is safe to burn because we already extracted and stored the necessary data in memory.
         mainContract.burn(tokenId1);
         mainContract.burn(tokenId2);
-
-        // 4. Fetch parent data to create the hybrid
-        (, string memory name1, , , string[3] memory top1, string[3] memory heart1, string[3] memory base1, , uint8 rarity1, , , , , ) = mainContract.getPerfume(tokenId1);
-        (, string memory name2, , , string[3] memory top2, string[3] memory heart2, string[3] memory base2, , uint8 rarity2, , , , , ) = mainContract.getPerfume(tokenId2);
 
         // 5. Generate a deterministic mutation seed
         uint256 hybridSeed = uint256(keccak256(abi.encodePacked(
@@ -177,7 +169,7 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
             topNotes: newTop,
             heartNotes: newHeart,
             baseNotes: newBase,
-            concentration: uint8(20 + (hybridSeed % 11)), // Hybrids are potent (20-30%)
+            concentration: uint8(20 + (hybridSeed % 11)),
             rarity: finalRarity,
             createdAt: block.timestamp,
             alchemist: msg.sender
@@ -185,7 +177,7 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
         
         ownerHybrids[msg.sender].push(newHybridId);
         
-        // 11. Set Data URI (Ensures marketplace visibility without external servers)
+        // 11. Set Data URI (Includes the "image" key for OpenSea/Arc Explorer compatibility)
         _setTokenURI(newHybridId, _buildHybridDataURI(hybridPerfumes[newHybridId]));
 
         // 12. Execute mint
@@ -212,7 +204,7 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
     function setFeeRecipient(address _newRecipient) external onlyOwner {
         if (_newRecipient == address(0)) revert Alchemy__ZeroAddress();
         feeRecipient = _newRecipient;
-        _setDefaultRoyalty(_newRecipient, 500); // Update royalty receiver as well
+        _setDefaultRoyalty(_newRecipient, 500);
         emit FeeRecipientUpdated(_newRecipient);
     }
 
@@ -221,18 +213,34 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
         emit Paused(isPaused);
     }
 
+    /**
+     * @notice Withdraws all accumulated USDC fees to the feeRecipient (creator).
+     */
     function withdrawFees() external onlyOwner nonReentrant {
         uint256 balance = usdc.balanceOf(address(this));
         if (balance == 0) revert Alchemy__NoFeesToWithdraw();
         usdc.safeTransfer(feeRecipient, balance);
     }
 
-    // --- Data URI Builder (Chunked to prevent Yul viaIR Stack Too Deep errors) ---
-    function _buildHybridDataURI(HybridPerfume memory p) internal pure returns (string memory) {
+    /**
+     * @notice Data URI Builder with proper "image" key for marketplace visibility.
+     * @dev Changed from `pure` to `view` to allow access to `address(this)` for the image URL.
+     */
+    function _buildHybridDataURI(HybridPerfume memory p) internal view returns (string memory) {
+        // Generate the image URL pointing to your Next.js API route
+        string memory imageUrl = string.concat(
+            "https://scent-protocol-pi.vercel.app/api/metadata/",
+            Strings.toHexString(uint160(address(this)), 20),
+            "/",
+            p.hybridId.toString(),
+            "/image"
+        );
+
         string memory header = string.concat(
             "data:application/json,{",
             '"name":"', p.name, '",',
             '"description":"ScentProtocol Alchemical Hybrid - ', p.name, '. ",',
+            '"image":"', imageUrl, '",', // <-- CRITICAL FIX: Added image key for OpenSea/Arc Explorer
             '"attributes":['
         );
         
