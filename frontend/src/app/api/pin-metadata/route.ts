@@ -6,7 +6,7 @@ const CONTRACT_MAP: Record<string, string> = {
   "0x37d6a1c730b8ddbb70ad765b39b1edc5dad12ef6": "Genesis",
   "0x55a3527c87190fa8456de46247b52214287e8688": "Viral",
   "0x2eb16402a50ee92bc3012038a0059ac4e9f7df20": "MFW 2026",
-  "0xd5c962b1dbaa6044e88b4c2bbe2dd5a257702e40": "Alchemy Hybrids",
+  "0x388A5E0aF91eEEb4Efd6F38145a073B322e530A8": "Alchemy Hybrids",
 };
 
 const RARITY_NAMES = ["Common", "Rare", "Epic", "Legendary"];
