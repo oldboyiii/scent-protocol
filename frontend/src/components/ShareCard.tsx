@@ -49,7 +49,7 @@ export default function ShareCard({ tokenId, perfume, contractAddress }: ShareCa
   const isViral = addr === "0x55a3527c87190fa8456de46247b52214287e8688";
   const isGenesis = addr === "0x37d6a1c730b8ddbb70ad765b39b1edc5dad12ef6";
   const isMFW = addr === "0x2eb16402a50ee92bc3012038a0059ac4e9f7df20";
-  const isHybrid = addr === "0xd5c962b1dbaa6044e88b4c2bbe2dd5a257702e40";
+  const isHybrid = addr === "0x388A5E0aF91eEEb4Efd6F38145a073B322e530A8";
 
   let collectionName = "ScentProtocol";
   let subLabel = "BUILT ON ARC";
