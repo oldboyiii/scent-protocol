@@ -58,7 +58,7 @@ export const COLLECTIONS: Record<string, CollectionConfig> = {
   hybrid: {
     id: "hybrid",
     name: "Alchemy Hybrid",
-    contractAddress: "0x388A5E0aF91eEEb4Efd6F38145a073B322e530A8",
+    contractAddress: "0xe922c92423728b2092D61b6a9eD5ecA7d0e0B58D",
     badgeIcon: "🧪",
     badgeColor: "bg-cyan-500/20 text-cyan-300",
     borderColor: "border-cyan-500/40",
