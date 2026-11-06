@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { useAccount } from "wagmi";
 import { getAlchemyContract, getUSDCContract, getContract, CONTRACT_ADDRESS } from "@/utils/contract";
-import { getCollectionByAddress } from "@/utils/collection";
 import AlchemyReveal from "@/components/AlchemyReveal";
 import ScentCrest from "@/components/ScentCrest";
 
@@ -56,6 +55,11 @@ export default function AlchemyPage() {
   const [isLoadingNFTs, setIsLoadingNFTs] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
 
+  // States for Commit-Reveal process
+  const [pendingBlendId, setPendingBlendId] = useState<number | null>(null);
+  const [canReveal, setCanReveal] = useState(false);
+  const [revealTimer, setRevealTimer] = useState<number>(60); // 60 seconds countdown (~5 blocks on Arc)
+
   // Fetch user's NFTs from the main contract when modal opens
   const loadUserNFTs = async () => {
     if (!address) return;
@@ -64,7 +68,6 @@ export default function AlchemyPage() {
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const mainContract = getContract(provider);
       
-      // Fetch token IDs owned by the user
       const tokenIds = await mainContract.getOwnerTokens(address);
       const nfts: SelectedNFT[] = [];
 
@@ -104,7 +107,6 @@ export default function AlchemyPage() {
   };
 
   const selectNFT = (nft: SelectedNFT) => {
-    // Prevent selecting the same NFT in both slots
     if (activeSlot === 1 && slot2?.tokenId === nft.tokenId && slot2?.contractAddress === nft.contractAddress) {
       setError("Cannot use the same NFT in both slots.");
       return;
@@ -121,7 +123,8 @@ export default function AlchemyPage() {
     setError(null);
   };
 
-  const handleAlchemy = async () => {
+  // STEP 1: Request Blend (Locks NFTs and Fee)
+  const handleRequestBlend = async () => {
     if (!isConnected || !address || !slot1 || !slot2) return;
     if (slot1.tokenId === slot2.tokenId && slot1.contractAddress === slot2.contractAddress) {
       setError("You cannot blend an NFT with itself.");
@@ -153,31 +156,94 @@ export default function AlchemyPage() {
         await approveUsdcTx.wait();
       }
 
-      // 3. Approve Main Contract to allow Alchemy to burn the NFTs
+      // 3. Approve Main Contract to allow Alchemy to transfer/burn the NFTs
       const isApproved = await mainContract.isApprovedForAll(address, ALCHEMY_ADDRESS);
       if (!isApproved) {
         const approveNftTx = await mainContract.setApprovalForAll(ALCHEMY_ADDRESS, true);
         await approveNftTx.wait();
       }
 
-      // 4. Execute Blend (ONLY tokenId1 and tokenId2 are required!)
-      const blendTx = await alchemyContract.blend(
+      // 4. Execute Request Blend (Commit)
+      // Signature: requestBlend(uint256 tokenId1, uint256 tokenId2, address recipient, uint256 maxFee)
+      const requestTx = await alchemyContract.requestBlend(
         slot1.tokenId,
         slot2.tokenId,
-        { gasLimit: 500000 }
+        address,
+        feeWei
       );
       
-      await blendTx.wait();
+      const receipt = await requestTx.wait();
 
-      // Trigger the beautiful reveal animation
-      setShowReveal(true);
+      // Extract blendId from event
+      const event = receipt.logs.find((log: any) => {
+        try {
+          const parsed = alchemyContract.interface.parseLog(log);
+          return parsed?.name === "BlendRequested";
+        } catch {
+          return false;
+        }
+      });
+
+      const newBlendId = event ? Number(event.args.blendId) : null;
+      
+      if (newBlendId) {
+        setPendingBlendId(newBlendId);
+        setCanReveal(false);
+        setRevealTimer(60);
+        
+        // Start countdown for reveal availability (~5 blocks)
+        const timer = setInterval(() => {
+          setRevealTimer((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setCanReveal(true);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        throw new Error("Failed to get Blend ID from transaction.");
+      }
       
     } catch (err: any) {
-      console.error("Alchemy failed:", err);
+      console.error("Request Blend failed:", err);
       if (err.code === 4001 || err.code === "ACTION_REJECTED") {
         setError("Transaction rejected by user.");
       } else {
-        setError(err.reason || err.message || "Alchemy failed. Check console.");
+        setError(err.reason || err.message || "Request failed. Check console.");
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // STEP 2: Reveal Blend (Burns parents and mints hybrid)
+  const handleRevealBlend = async () => {
+    if (!pendingBlendId || !canReveal) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const alchemyContract = getAlchemyContract(signer);
+
+      // Execute Reveal Blend
+      const revealTx = await alchemyContract.revealBlend(pendingBlendId);
+      await revealTx.wait();
+
+      // Trigger the beautiful reveal animation
+      setShowReveal(true);
+      setPendingBlendId(null);
+      
+    } catch (err: any) {
+      console.error("Reveal Blend failed:", err);
+      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
+        setError("Transaction rejected by user.");
+      } else {
+        setError(err.reason || err.message || "Reveal failed. Check console.");
       }
     } finally {
       setIsProcessing(false);
@@ -208,18 +274,9 @@ export default function AlchemyPage() {
 
       {/* Alchemy Slots */}
       <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 my-12">
-        <AlchemySlot 
-          nft={slot1} 
-          onClick={() => openSelector(1)} 
-        />
-        
-        {/* Fusion Icon */}
+        <AlchemySlot nft={slot1} onClick={() => openSelector(1)} />
         <div className="text-4xl text-cyan-400 animate-pulse">⚗️</div>
-        
-        <AlchemySlot 
-          nft={slot2} 
-          onClick={() => openSelector(2)} 
-        />
+        <AlchemySlot nft={slot2} onClick={() => openSelector(2)} />
       </div>
 
       {/* Action Area */}
@@ -230,13 +287,29 @@ export default function AlchemyPage() {
           <p className="text-xs text-white/40">+ Burning of the 2 selected NFTs</p>
         </div>
 
-        <button
-          onClick={handleAlchemy}
-          disabled={!isConnected || !slot1 || !slot2 || isProcessing}
-          className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold text-lg shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-        >
-          {isProcessing ? "Forging Hybrid..." : "Initiate Alchemy (Burn & Forge)"}
-        </button>
+        {/* Dynamic Button based on Commit-Reveal state */}
+        {!pendingBlendId ? (
+          <button
+            onClick={handleRequestBlend}
+            disabled={!isConnected || !slot1 || !slot2 || isProcessing}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold text-lg shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            {isProcessing ? "Processing..." : "Step 1: Request Alchemy (Lock & Burn)"}
+          </button>
+        ) : !canReveal ? (
+          <div className="w-full py-4 rounded-xl bg-slate-800 border border-slate-600 text-white font-bold text-lg text-center">
+            ⏳ Waiting for blockchain confirmation... ({revealTimer}s)
+            <p className="text-xs font-normal text-white/50 mt-1">Step 2: Reveal will be available shortly</p>
+          </div>
+        ) : (
+          <button
+            onClick={handleRevealBlend}
+            disabled={isProcessing}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold text-lg shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            {isProcessing ? "Revealing..." : "Step 2: Reveal Hybrid NFT ✨"}
+          </button>
+        )}
         
         {!isConnected && (
           <p className="text-center text-sm text-white/40">Connect your wallet to begin.</p>
@@ -315,12 +388,7 @@ function AlchemySlot({ nft, onClick }: { nft: SelectedNFT | null; onClick: () =>
         {nft ? (
           <>
             <div className="mb-4">
-              <ScentCrest 
-                seed={`${nft.creator}-${nft.name}`} 
-                name={nft.name} 
-                rarity={nft.rarity} 
-                size={80} 
-              />
+              <ScentCrest seed={`${nft.creator}-${nft.name}`} name={nft.name} rarity={nft.rarity} size={80} />
             </div>
             <div className="text-center">
               <p className="text-xs text-white/40 uppercase tracking-wider mb-1">
@@ -372,12 +440,7 @@ function NFTCard({ nft }: { nft: SelectedNFT }) {
       <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
       
       <div className="relative flex items-start gap-3 mb-3">
-        <ScentCrest 
-          seed={`${nft.creator}-${nft.name}`} 
-          name={nft.name} 
-          rarity={nft.rarity} 
-          size={50} 
-        />
+        <ScentCrest seed={`${nft.creator}-${nft.name}`} name={nft.name} rarity={nft.rarity} size={50} />
         <div className="flex-1 min-w-0">
           <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{nft.tokenId}</p>
           <h4 className="text-lg font-bold text-white truncate">{nft.name}</h4>
