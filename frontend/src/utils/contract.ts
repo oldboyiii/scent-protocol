@@ -70,10 +70,16 @@ export const VIRAL_ABI = [
 
 // --- ALCHEMY (HYBRID) ABI ---
 export const ALCHEMY_ABI = [
-  "function blend(uint256 tokenId1, uint256 tokenId2) external",
+  "function requestBlend(uint256 tokenId1, uint256 tokenId2, address recipient, uint256 maxFee) external returns (uint256)",
+  "function revealBlend(uint256 blendId) external returns (uint256)",
+  "function pendingBlends(uint256) external view returns (tuple(address blender, uint256 tokenId1, uint256 tokenId2, uint256 blockNumber, address recipient, uint256 fee))",
   "function getHybridPerfume(uint256 hybridId) external view returns (tuple(uint256 hybridId, uint256 parentTokenId1, uint256 parentTokenId2, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address alchemist))",
   "function nextHybridId() external view returns (uint256)",
-  "event HybridCreated(uint256 indexed hybridId, address indexed alchemist, uint256 parentTokenId1, uint256 parentTokenId2, uint8 rarity)"
+  "function blendFee() external view returns (uint256)",
+  "function isPaused() external view returns (bool)",
+  "event BlendRequested(uint256 indexed blendId, address indexed blender, uint256 tokenId1, uint256 tokenId2, uint256 blockNumber, address recipient, uint256 fee)",
+  "event BlendRevealed(uint256 indexed blendId, uint256 indexed hybridId, address indexed blender)",
+  "event ScentBlended(uint256 indexed hybridId, uint256 burnedToken1, uint256 burnedToken2, address indexed alchemist, uint8 newRarity)"
 ];
 
 // --- USDC ABI ---
