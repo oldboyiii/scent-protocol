@@ -2,145 +2,282 @@
 
 import { useMemo } from "react";
 
+// ============================================================
+// TYPES
+// ============================================================
 interface ScentCrestProps {
-  seed: string; // Unique NFT seed (e.g., address + archetype)
-  name: string; // Fragrance name (for initials)
-  rarity: number; // 0: Common, 1: Rare, 2: Epic, 3: Legendary
+  seed: string;
+  name: string;
+  rarity: number;
   size?: number;
+  topNotes?: string[];
+  heartNotes?: string[];
+  baseNotes?: string[];
 }
 
-// Color palettes for each rarity level
-const RARITY_PALETTES = [
-  { primary: "#94a3b8", secondary: "#475569", bg: "#1e293b" }, // Common (Silver/Slate)
-  { primary: "#60a5fa", secondary: "#1d4ed8", bg: "#172554" }, // Rare (Blue)
-  { primary: "#c084fc", secondary: "#7e22ce", bg: "#3b0764" }, // Epic (Purple)
-  { primary: "#fbbf24", secondary: "#d97706", bg: "#451a03" }, // Legendary (Gold)
-];
+// ============================================================
+// DETERMINISTIC HASH & RANDOM (for consistent visuals per NFT)
+// ============================================================
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
 
-export default function ScentCrest({ seed, name, rarity, size = 120 }: ScentCrestProps) {
-  const palette = RARITY_PALETTES[rarity] || RARITY_PALETTES[0];
+function seededRandom(seed: number, index: number): number {
+  const x = Math.sin(seed + index * 127.1 + index * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
 
-  // Generate unique SVG parameters based on the seed
-  const svgParams = useMemo(() => {
-    // Simple hash from the seed to generate pseudo-random numbers
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const rand = (min: number, max: number) => {
-      hash = (hash * 9301 + 49297) % 233280;
-      return min + (hash / 233280) * (max - min);
-    };
+// ============================================================
+// COLOR PALETTES
+// ============================================================
+const NOTE_COLORS = {
+  top: ["#fbbf24", "#f59e0b", "#fcd34d", "#fde68a", "#fbbf24"],
+  heart: ["#f472b6", "#ec4899", "#f9a8d4", "#fb7185", "#f472b6"],
+  base: ["#34d399", "#10b981", "#6ee7b7", "#a7f3d0", "#34d399"],
+};
 
-    // Generate unique geometric elements
-    const circles = Array.from({ length: 3 }, () => ({
-      cx: rand(20, 80),
-      cy: rand(20, 80),
-      r: rand(10, 30),
-      opacity: rand(0.1, 0.4),
-    }));
+const RARITY_GLOW: Record<number, string> = {
+  0: "#94a3b8",
+  1: "#60a5fa",
+  2: "#c084fc",
+  3: "#fbbf24",
+};
 
-    const lines = Array.from({ length: 4 }, () => ({
-      x1: rand(0, 100),
-      y1: rand(0, 100),
-      x2: rand(0, 100),
-      y2: rand(0, 100),
-      width: rand(0.5, 2),
-    }));
-
-    // Extract initials from the name (e.g., "Golden Bloom" -> "GB")
-    const initials = name
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
+export default function ScentCrest({
+  seed,
+  name,
+  rarity,
+  size = 64,
+  topNotes = [],
+  heartNotes = [],
+  baseNotes = [],
+}: ScentCrestProps) {
+  const initials = useMemo(() => {
+    return name
       .split(" ")
-      .map((word) => word[0])
-      .filter(Boolean)
-      .slice(0, 2)
+      .map((w) => w[0])
       .join("")
-      .toUpperCase() || "SP";
+      .slice(0, 2)
+      .toUpperCase();
+  }, [name]);
 
-    return { circles, lines, initials };
-  }, [seed, name]);
+  const seedHash = useMemo(() => hashString(seed), [seed]);
+  const glowColor = RARITY_GLOW[rarity] ?? RARITY_GLOW[0];
+
+  // ---- PARTICLES (molecules representing notes) ----
+  const particles = useMemo(() => {
+    const totalNotes = topNotes.length + heartNotes.length + baseNotes.length;
+    const count = Math.max(10, Math.min(20, 8 + totalNotes));
+    const result = [];
+
+    for (let i = 0; i < count; i++) {
+      const angle = seededRandom(seedHash, i * 2) * Math.PI * 2;
+      const distance = 0.58 + seededRandom(seedHash, i * 2 + 1) * 0.38;
+      
+      // Assign note type based on index distribution
+      let noteType: "top" | "heart" | "base" = "base";
+      if (i < Math.ceil(count * 0.33)) noteType = "top";
+      else if (i < Math.ceil(count * 0.66)) noteType = "heart";
+      
+      const colors = NOTE_COLORS[noteType];
+      const color = colors[Math.floor(seededRandom(seedHash, i * 3) * colors.length)];
+      const pSize = 2 + seededRandom(seedHash, i * 4) * 3;
+      const delay = seededRandom(seedHash, i * 5) * 4;
+      const duration = 3 + seededRandom(seedHash, i * 6) * 3;
+
+      result.push({
+        angle,
+        distance,
+        color,
+        size: pSize,
+        delay,
+        duration,
+        type: noteType,
+      });
+    }
+    return result;
+  }, [seedHash, topNotes.length, heartNotes.length, baseNotes.length]);
+
+  // ---- SPARKLES (bright twinkling dots) ----
+  const sparkles = useMemo(() => {
+    const count = 8;
+    const result = [];
+    for (let i = 0; i < count; i++) {
+      const angle = seededRandom(seedHash + 1000, i * 2) * Math.PI * 2;
+      const distance = 0.52 + seededRandom(seedHash + 1000, i * 2 + 1) * 0.45;
+      const sSize = 1 + seededRandom(seedHash + 1000, i * 3) * 2;
+      const delay = seededRandom(seedHash + 1000, i * 4) * 3;
+      const duration = 1.5 + seededRandom(seedHash + 1000, i * 5) * 2;
+      result.push({ angle, distance, size: sSize, delay, duration });
+    }
+    return result;
+  }, [seedHash]);
+
+  // Scale factor for particles (bigger crest = slightly bigger particles)
+  const particleScale = size / 64;
 
   return (
-    <div 
-      className="relative flex items-center justify-center rounded-full overflow-hidden border-2 shadow-lg"
-      style={{ 
-        width: size, 
-        height: size, 
-        borderColor: palette.primary,
-        background: `radial-gradient(circle at center, ${palette.bg} 0%, #000000 100%)`
-      }}
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
     >
-      <svg 
-        viewBox="0 0 100 100" 
-        className="absolute inset-0 w-full h-full"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <linearGradient id={`grad-${seed}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={palette.primary} stopOpacity="0.8" />
-            <stop offset="100%" stopColor={palette.secondary} stopOpacity="0.2" />
-          </linearGradient>
-        </defs>
+      {/* Outer ambient glow */}
+      <div
+        className="absolute inset-0 rounded-full blur-2xl opacity-30 pointer-events-none"
+        style={{ backgroundColor: glowColor }}
+      />
 
-        {/* Unique background pattern of circles */}
-        {svgParams.circles.map((circle, i) => (
-          <circle
-            key={`c-${i}`}
-            cx={circle.cx}
-            cy={circle.cy}
-            r={circle.r}
-            fill={`url(#grad-${seed})`}
-            opacity={circle.opacity}
-          />
-        ))}
-
-        {/* Unique geometric lines */}
-        {svgParams.lines.map((line, i) => (
-          <line
-            key={`l-${i}`}
-            x1={line.x1}
-            y1={line.y1}
-            x2={line.x2}
-            y2={line.y2}
-            stroke={palette.primary}
-            strokeWidth={line.width}
-            opacity="0.3"
-          />
-        ))}
-
-        {/* Central frame (wax seal style) */}
-        <circle 
-          cx="50" 
-          cy="50" 
-          r="35" 
-          fill="none" 
-          stroke={palette.primary} 
-          strokeWidth="1" 
-          strokeDasharray="4 2"
-          opacity="0.6"
+      {/* Ripple waves (pulsing rings) */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div
+          className="absolute rounded-full border-2"
+          style={{
+            width: size * 1.25,
+            height: size * 1.25,
+            borderColor: glowColor,
+            opacity: 0.25,
+            animation: "crest-ripple 3s ease-out infinite",
+          }}
         />
-        <circle 
-          cx="50" 
-          cy="50" 
-          r="28" 
-          fill="rgba(0,0,0,0.6)" 
-          stroke={palette.primary} 
-          strokeWidth="1.5"
+        <div
+          className="absolute rounded-full border"
+          style={{
+            width: size * 1.55,
+            height: size * 1.55,
+            borderColor: glowColor,
+            opacity: 0.15,
+            animation: "crest-ripple 3s ease-out infinite",
+            animationDelay: "1s",
+          }}
         />
-      </svg>
+        <div
+          className="absolute rounded-full border"
+          style={{
+            width: size * 1.85,
+            height: size * 1.85,
+            borderColor: glowColor,
+            opacity: 0.08,
+            animation: "crest-ripple 3s ease-out infinite",
+            animationDelay: "2s",
+          }}
+        />
+      </div>
 
-      {/* Initials in the center */}
-      <div 
-        className="relative z-10 font-serif font-bold tracking-widest"
-        style={{ 
-          color: palette.primary, 
-          fontSize: size * 0.25,
-          textShadow: `0 0 10px ${palette.primary}80`
+      {/* Particles (aroma molecules) */}
+      {particles.map((p, i) => (
+        <div
+          key={`p-${i}`}
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            width: p.size * particleScale,
+            height: p.size * particleScale,
+            backgroundColor: p.color,
+            boxShadow: `0 0 ${p.size * 2 * particleScale}px ${p.color}`,
+            left: `${50 + Math.cos(p.angle) * p.distance * 50}%`,
+            top: `${50 + Math.sin(p.angle) * p.distance * 50}%`,
+            animation: `crest-float ${p.duration}s ease-in-out infinite`,
+            animationDelay: `${p.delay}s`,
+            opacity: 0.75,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+      ))}
+
+      {/* Sparkles (twinkling highlights) */}
+      {sparkles.map((s, i) => (
+        <div
+          key={`s-${i}`}
+          className="absolute rounded-full bg-white pointer-events-none"
+          style={{
+            width: s.size * particleScale,
+            height: s.size * particleScale,
+            left: `${50 + Math.cos(s.angle) * s.distance * 50}%`,
+            top: `${50 + Math.sin(s.angle) * s.distance * 50}%`,
+            animation: `crest-sparkle ${s.duration}s ease-in-out infinite`,
+            animationDelay: `${s.delay}s`,
+            boxShadow: `0 0 ${s.size * 3 * particleScale}px white`,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+      ))}
+
+      {/* Main crest circle */}
+      <div
+        className="relative rounded-full flex items-center justify-center border-2"
+        style={{
+          width: size * 0.72,
+          height: size * 0.72,
+          borderColor: glowColor,
+          background: `radial-gradient(circle at 30% 30%, ${glowColor}25, #0a0f1e 75%)`,
+          boxShadow: `0 0 25px ${glowColor}50, inset 0 0 20px ${glowColor}25`,
         }}
       >
-        {svgParams.initials}
+        {/* Inner dashed ring */}
+        <div
+          className="absolute rounded-full border border-dashed opacity-50"
+          style={{
+            width: "82%",
+            height: "82%",
+            borderColor: glowColor,
+            animation: "crest-spin 20s linear infinite",
+          }}
+        />
+
+        {/* Initials */}
+        <span
+          className="font-bold relative z-10 select-none"
+          style={{
+            color: glowColor,
+            fontSize: size * 0.28,
+            textShadow: `0 0 12px ${glowColor}, 0 0 24px ${glowColor}80`,
+            fontFamily: "Georgia, serif",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {initials}
+        </span>
       </div>
+
+      {/* Animations */}
+      <style>{`
+        @keyframes crest-ripple {
+          0% { transform: scale(0.9); opacity: 0.3; }
+          100% { transform: scale(1.1); opacity: 0; }
+        }
+        @keyframes crest-float {
+          0%, 100% { 
+            transform: translate(-50%, -50%) translateY(0) scale(1); 
+            opacity: 0.6; 
+          }
+          50% { 
+            transform: translate(-50%, -50%) translateY(-4px) scale(1.3); 
+            opacity: 1; 
+          }
+        }
+        @keyframes crest-sparkle {
+          0%, 100% { 
+            opacity: 0; 
+            transform: translate(-50%, -50%) scale(0); 
+          }
+          50% { 
+            opacity: 1; 
+            transform: translate(-50%, -50%) scale(1.8); 
+          }
+        }
+        @keyframes crest-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
