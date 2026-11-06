@@ -46,7 +46,7 @@ ScentProtocol is a multi-layered ecosystem of digital fragrances. No two scents 
 | **ScentProtocol Genesis** | [`0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6`](https://explorer.arc.io/address/0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6) | Exclusive Genesis collection (100 supply, commit-reveal) |
 | **ScentProtocol MFW 2026** | [`0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20`](https://explorer.arc.io/address/0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20) | Milan Fashion Week 2026 exclusive drop (500 supply) |
 | **ScentProtocol Viral** | [`0x55A3527C87190fa8456De46247b52214287e8688`](https://explorer.arc.io/address/0x55A3527C87190fa8456De46247b52214287e8688) | Viral "Wallet Scent" campaign (10k supply, free mint) |
-| **Scent Alchemy** | [`0x388A5E0aF91eEEb4Efd6F38145a073B322e530A8`](https://explorer.arc.io/address/0x388A5E0aF91eEEb4Efd6F38145a073B322e530A8) | Deflationary blending: Burn 2 NFTs to forge 1 Hybrid |
+| **Scent Alchemy** | [`0xe922c92423728b2092D61b6a9eD5ecA7d0e0B58D`](https://explorer.arc.io/address/0xe922c92423728b2092D61b6a9eD5ecA7d0e0B58D) | Deflationary blending: Burn 2 NFTs to forge 1 Hybrid |
 | **ScentProtocol Marketplace** | [`0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120`](https://explorer.arc.io/address/0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120) | Secondary marketplace with escrowed offers & royalties |
 | **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc |
 
