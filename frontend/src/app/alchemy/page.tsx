@@ -11,7 +11,7 @@ import ScentCrest from "@/components/ScentCrest";
 
 const ALCHEMY_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
-const ALCHEMY_FEE_USDC = "0.1";
+const ALCHEMY_FEE_USDC = "0.1"; // 0.1 USDC
 
 interface SelectedNFT {
   tokenId: number;
@@ -27,6 +27,9 @@ interface SelectedNFT {
   creator: string;
 }
 
+// ============================================================
+// CONSTANTS & STYLES
+// ============================================================
 const GENDER = ["Male", "Female", "Unisex"];
 const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
 const RARITY = ["Common", "Rare", "Epic", "Legendary"];
@@ -38,6 +41,9 @@ const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; 
   3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
 };
 
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function AlchemyPage() {
   const { address, isConnected } = useAccount();
   const [slot1, setSlot1] = useState<SelectedNFT | null>(null);
@@ -50,6 +56,7 @@ export default function AlchemyPage() {
   const [isLoadingNFTs, setIsLoadingNFTs] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
 
+  // Fetch user's NFTs from the main contract when modal opens
   const loadUserNFTs = async () => {
     if (!address) return;
     setIsLoadingNFTs(true);
@@ -57,6 +64,7 @@ export default function AlchemyPage() {
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const mainContract = getContract(provider);
       
+      // Fetch token IDs owned by the user
       const tokenIds = await mainContract.getOwnerTokens(address);
       const nfts: SelectedNFT[] = [];
 
@@ -96,6 +104,7 @@ export default function AlchemyPage() {
   };
 
   const selectNFT = (nft: SelectedNFT) => {
+    // Prevent selecting the same NFT in both slots
     if (activeSlot === 1 && slot2?.tokenId === nft.tokenId && slot2?.contractAddress === nft.contractAddress) {
       setError("Cannot use the same NFT in both slots.");
       return;
@@ -131,23 +140,27 @@ export default function AlchemyPage() {
 
       const feeWei = ethers.parseUnits(ALCHEMY_FEE_USDC, 6);
 
+      // 1. Check USDC Balance
       const balance = await usdcContract.balanceOf(address);
       if (balance < feeWei) {
         throw new Error(`Insufficient USDC. You need at least ${ALCHEMY_FEE_USDC} USDC.`);
       }
 
+      // 2. Approve USDC if needed
       const allowance = await usdcContract.allowance(address, ALCHEMY_ADDRESS);
       if (allowance < feeWei) {
         const approveUsdcTx = await usdcContract.approve(ALCHEMY_ADDRESS, ethers.MaxUint256);
         await approveUsdcTx.wait();
       }
 
+      // 3. Approve Main Contract to allow Alchemy to burn the NFTs
       const isApproved = await mainContract.isApprovedForAll(address, ALCHEMY_ADDRESS);
       if (!isApproved) {
         const approveNftTx = await mainContract.setApprovalForAll(ALCHEMY_ADDRESS, true);
         await approveNftTx.wait();
       }
 
+      // 4. Execute Blend (ONLY tokenId1 and tokenId2 are required!)
       const blendTx = await alchemyContract.blend(
         slot1.tokenId,
         slot2.tokenId,
@@ -155,6 +168,8 @@ export default function AlchemyPage() {
       );
       
       await blendTx.wait();
+
+      // Trigger the beautiful reveal animation
       setShowReveal(true);
       
     } catch (err: any) {
@@ -191,12 +206,23 @@ export default function AlchemyPage() {
         </div>
       )}
 
+      {/* Alchemy Slots */}
       <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 my-12">
-        <AlchemySlot nft={slot1} onClick={() => openSelector(1)} />
+        <AlchemySlot 
+          nft={slot1} 
+          onClick={() => openSelector(1)} 
+        />
+        
+        {/* Fusion Icon */}
         <div className="text-4xl text-cyan-400 animate-pulse">⚗️</div>
-        <AlchemySlot nft={slot2} onClick={() => openSelector(2)} />
+        
+        <AlchemySlot 
+          nft={slot2} 
+          onClick={() => openSelector(2)} 
+        />
       </div>
 
+      {/* Action Area */}
       <div className="max-w-md mx-auto space-y-4">
         <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center space-y-2">
           <p className="text-sm text-white/60">Alchemy Fee</p>
@@ -217,6 +243,7 @@ export default function AlchemyPage() {
         )}
       </div>
 
+      {/* NFT Selector Modal */}
       {showSelector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={() => setShowSelector(false)}>
           <div className="relative w-full max-w-5xl bg-slate-900/95 border border-white/10 rounded-2xl p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -251,6 +278,7 @@ export default function AlchemyPage() {
         </div>
       )}
 
+      {/* Alchemy Success Reveal Animation */}
       {showReveal && slot1 && slot2 && (
         <AlchemyReveal 
           parent1Name={slot1.name} 
@@ -264,7 +292,10 @@ export default function AlchemyPage() {
   );
 }
 
-function AlchemySlot({ nft }: { nft: SelectedNFT | null; onClick: () => void }) {
+// ============================================================
+// ALCHEMY SLOT SUB-COMPONENT
+// ============================================================
+function AlchemySlot({ nft, onClick }: { nft: SelectedNFT | null; onClick: () => void }) {
   const style = nft ? RARITY_STYLE[nft.rarity] || RARITY_STYLE[0] : RARITY_STYLE[0];
 
   return (
@@ -330,6 +361,9 @@ function AlchemySlot({ nft }: { nft: SelectedNFT | null; onClick: () => void }) 
   );
 }
 
+// ============================================================
+// NFT CARD SUB-COMPONENT (for selector modal)
+// ============================================================
 function NFTCard({ nft }: { nft: SelectedNFT }) {
   const style = RARITY_STYLE[nft.rarity] || RARITY_STYLE[0];
 
