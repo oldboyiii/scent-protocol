@@ -9,7 +9,7 @@ import { getCollectionByAddress } from "@/utils/collection";
 import AlchemyReveal from "@/components/AlchemyReveal";
 import ScentCrest from "@/components/ScentCrest";
 
-const ALCHEMY_ADDRESS = "0xd5c962b1dBaa6044E88B4c2bBe2dD5A257702e40";
+const ALCHEMY_ADDRESS = "0x388A5E0aF91eEEb4Efd6F38145a073B322e530A8";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const ALCHEMY_FEE_USDC = "0.1"; // 0.1 USDC
 
