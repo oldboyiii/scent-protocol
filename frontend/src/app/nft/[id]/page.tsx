@@ -8,6 +8,7 @@ import { getContract } from "@/utils/contract";
 import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
+import FitTitle from "@/components/FitTitle"; // 
 
 // ============================================================
 // CONTRACT ADDRESSES & ABIs
@@ -234,6 +235,7 @@ export default function NFTDetailPage() {
   const [offerLoading, setOfferLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "offers">("details");
   
+  // NEW: State for Crest zoom modal
   const [showCrestModal, setShowCrestModal] = useState(false);
 
   // Fetch NFT data
@@ -467,6 +469,7 @@ export default function NFTDetailPage() {
         ← Back
       </button>
 
+      {/* COMPACT CARD: Removed min-h, reduced padding to p-6 to save vertical space */}
       <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
         {(isGenesis || isMFW || isViral || isHybrid) && (
@@ -494,6 +497,7 @@ export default function NFTDetailPage() {
 
         <div className="relative flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
+            {/* CLICKABLE CREST WITH ZOOM INDICATOR */}
             <div 
               className="relative cursor-pointer group/crest"
               onClick={() => setShowCrestModal(true)}
@@ -505,6 +509,7 @@ export default function NFTDetailPage() {
                 rarity={perfume.rarity} 
                 size={64} 
               />
+              {/* HOVER OVERLAY WITH ZOOM ICON */}
               <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover/crest:opacity-100 transition-opacity flex items-center justify-center">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
@@ -542,28 +547,28 @@ export default function NFTDetailPage() {
                 )}
               </div>
               
-              {/* ✅ ИСПРАВЛЕНИЕ: Динамический размер шрифта для длинных названий */}
-              <h1 
-                className={`font-bold text-white leading-tight ${
-                  perfume.name.length > 22 ? 'text-xl md:text-2xl' : 'text-2xl md:text-3xl'
-                }`}
-              >
-                {perfume.name}
-              </h1>
+              {/* ✅ ЗАМЕНА 1: Используем FitTitle вместо жестко заданного h1 */}
+              <FitTitle 
+                text={perfume.name} 
+                className="font-bold text-white leading-tight"
+                maxRem={1.875} // Позволяет вырасти до text-3xl (30px), если места достаточно
+              />
             </div>
           </div>
-          
+          {/* LARGER RARITY BADGE */}
           <span className={`relative text-sm font-bold px-3 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
             {RARITY[perfume.rarity]}
           </span>
         </div>
 
+        {/* LARGER TAGS, COMPACT MARGIN */}
         <div className="relative flex flex-wrap gap-2 text-sm mb-4">
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{GENDER[perfume.gender]}</span>
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{TYPE[perfume.pType]}</span>
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{perfume.concentration}%</span>
         </div>
 
+        {/* COMPACT VERTICAL SPACING FOR NOTES, BUT LARGER TEXT */}
         <div className="relative space-y-3 mb-4">
           <div>
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Top Notes</span>
@@ -591,10 +596,12 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
+        {/* COMPACT DESCRIPTION BOX */}
         <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-4 text-sm leading-relaxed ${descBg}`}>
           {description}
         </div>
 
+        {/* SLIGHTLY LARGER META INFO */}
         <div className="relative text-sm text-white/40 space-y-1">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
@@ -621,190 +628,3 @@ export default function NFTDetailPage() {
               Scent Alchemy Hybrid
             </p>
           )}
-        </div>
-
-        <div className="relative mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
-          <Link href={`/nft/${id - 1}`} className={`text-sm text-white/50 hover:text-white transition-colors ${id <= 1 ? "invisible" : ""}`}>
-            ← Previous
-          </Link>
-          <ShareCard tokenId={id} perfume={perfume!} contractAddress={contractParam || ""} />
-          <Link href={`/nft/${id + 1}`} className="text-sm text-white/50 hover:text-white transition-colors">
-            Next →
-          </Link>
-        </div>
-      </div>
-
-      {/* Marketplace Actions Section */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-        <div className="flex gap-4 border-b border-white/10 mb-4">
-          <button 
-            onClick={() => setActiveTab("details")}
-            className={`pb-2 text-sm font-medium transition-colors relative ${activeTab === "details" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
-          >
-            Details
-            {activeTab === "details" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}
-          </button>
-          <button 
-            onClick={() => setActiveTab("offers")}
-            className={`pb-2 text-sm font-medium transition-colors relative ${activeTab === "offers" ? "text-amber-400" : "text-white/50 hover:text-white"}`}
-          >
-            Offers ({offers.length})
-            {activeTab === "offers" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}
-          </button>
-        </div>
-
-        {activeTab === "details" && (
-          <div className="text-white/60 text-sm space-y-3">
-            <p>This NFT is part of the ScentProtocol ecosystem. You can view its traits, rarity, and origin above.</p>
-            {isOwner && (
-              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                <p className="text-amber-300 font-medium mb-2 text-base">You own this NFT</p>
-                <p className="text-sm mb-3">You can list this item for sale on the marketplace or manage incoming offers in the "Offers" tab.</p>
-                <Link href={`/marketplace`} className="inline-block px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-colors">
-                  Go to Marketplace
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "offers" && (
-          <div className="space-y-4">
-            {!isOwner ? (
-              <div className="space-y-3">
-                <h3 className="text-base font-bold text-white">Make an Offer</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">Price (USDC)</label>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      min="0.01"
-                      value={offerPrice}
-                      onChange={(e) => setOfferPrice(e.target.value)}
-                      placeholder="e.g. 5.00"
-                      className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">Valid (Days)</label>
-                    <select 
-                      value={offerDays}
-                      onChange={(e) => setOfferDays(Number(e.target.value))}
-                      className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors"
-                    >
-                      <option value={3}>3 Days</option>
-                      <option value={7}>7 Days</option>
-                      <option value={14}>14 Days</option>
-                      <option value={30}>30 Days</option>
-                    </select>
-                  </div>
-                </div>
-                <button 
-                  onClick={handleMakeOffer}
-                  disabled={offerLoading || !offerPrice || Number(offerPrice) <= 0}
-                  className="w-full py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  {offerLoading ? "Processing..." : "Submit Offer"}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <h3 className="text-base font-bold text-white">Incoming Offers</h3>
-                {offers.length === 0 ? (
-                  <p className="text-white/50 text-sm py-3 text-center bg-white/5 rounded-lg border border-white/10">No active offers for this NFT yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {offers.map((offer, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                        <div>
-                          <p className="text-base font-bold text-emerald-400">{ethers.formatUnits(offer.price, 6)} USDC</p>
-                          <p className="text-xs text-white/50">
-                            From: {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)} • Exp: {new Date(offer.expiry * 1000).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <button 
-                          onClick={() => handleAcceptOffer(offer.offerer, offer.price)}
-                          disabled={offerLoading}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-colors disabled:opacity-50"
-                        >
-                          {offerLoading ? "Accepting..." : "Accept"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {userAddress && offers.some(o => o.offerer.toLowerCase() === userAddress.toLowerCase()) && (
-              <div className="pt-3 border-t border-white/10">
-                <button 
-                  onClick={handleCancelOffer}
-                  disabled={offerLoading}
-                  className="w-full py-2.5 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 font-bold text-sm hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                >
-                  Cancel My Active Offer
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* CREST ZOOM MODAL */}
-      {showCrestModal && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 pt-20"
-          onClick={() => setShowCrestModal(false)}
-        >
-          <div 
-            className="relative max-w-3xl w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button 
-              onClick={() => setShowCrestModal(false)}
-              className="absolute -top-4 -right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-all hover:scale-110 z-10"
-              aria-label="Close modal"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-3xl p-12 flex flex-col items-center justify-center shadow-2xl">
-              <ScentCrest 
-                seed={`${perfume.creator}-${perfume.name}`} 
-                name={perfume.name} 
-                rarity={perfume.rarity} 
-                size={320} 
-              />
-              
-              <div className="mt-10 text-center space-y-3">
-                <h3 className="text-3xl font-bold text-white">{perfume.name}</h3>
-                <p className="text-white/60 text-base">
-                  {isHybrid ? "Alchemy Hybrid" : isViral ? "Viral Scent" : isGenesis ? "Genesis Collection" : isMFW ? "MFW 2026 Exclusive" : "ScentProtocol V3"}
-                </p>
-                <div className="flex items-center justify-center gap-3 text-white/40 text-sm">
-                  <span>Token ID: #{id}</span>
-                  <span>•</span>
-                  <span>Rarity: {RARITY[perfume.rarity]}</span>
-                </div>
-                <p className="text-white/40 text-sm mt-6 max-w-md mx-auto leading-relaxed">
-                  Each ScentCrest is uniquely generated based on the fragrance's notes, rarity, and creator address. This unique visual signature represents the essence of your digital perfume.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
-    </div>
-  );
-}
