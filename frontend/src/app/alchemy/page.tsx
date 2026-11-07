@@ -351,11 +351,20 @@ export default function AlchemyPage() {
         </div>
       )}
 
-      {/* Alchemy Success Reveal Animation */}
+      {/* Alchemy Success Reveal Animation - ИСПРАВЛЕНО */}
       {showReveal && slot1 && slot2 && (
         <AlchemyReveal 
-          parent1Name={slot1.name} 
-          parent2Name={slot2.name} 
+          parent1={{
+            tokenId: slot1.tokenId,
+            name: slot1.name,
+            rarity: slot1.rarity
+          }}
+          parent2={{
+            tokenId: slot2.tokenId,
+            name: slot2.name,
+            rarity: slot2.rarity
+          }}
+          status="done"
           onComplete={() => {
             window.location.href = "/collection";
           }} 
