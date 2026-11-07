@@ -2,7 +2,7 @@
 
 // Drop-in replacement for frontend/src/app/alchemy/page.tsx.
 // Works with the two-step ScentAlchemy contract (requestBlend, then revealBlend).
-// Needs docs/alchemy/AlchemyParts.tsx (put it at src/components/AlchemyParts.tsx)
+// Single file: the slot and card components are included at the bottom.
 // and the new AlchemyReveal.tsx.
 
 import { useCallback, useEffect, useState } from "react";
@@ -21,8 +21,7 @@ import {
 } from "@/utils/contract";
 import AlchemyReveal from "@/components/AlchemyReveal";
 import type { AlchemyStatus, HybridInfo, ParentInfo } from "@/components/AlchemyReveal";
-import { AlchemySlot, NFTCard } from "@/components/AlchemyParts";
-import type { SelectedNFT } from "@/components/AlchemyParts";
+import ScentCrest from "@/components/ScentCrest";
 
 // Functions the page needs that the shared ABI may not list yet. Duplicates are ignored by ethers.
 const ALCHEMY_EXTRA_ABI = [
@@ -484,3 +483,153 @@ function Banner({ tone, children }: { tone: "red" | "amber" | "cyan"; children: 
   return <div className={`p-4 rounded-xl border text-sm text-center ${tones[tone]}`}>{children}</div>;
 }
 
+// ============================================================
+// NFT TYPE, STYLES AND CARD COMPONENTS
+// ============================================================
+interface SelectedNFT {
+  tokenId: number;
+  contractAddress: string;
+  name: string;
+  rarity: number;
+  gender: number;
+  pType: number;
+  concentration: number;
+  topNotes: string[];
+  heartNotes: string[];
+  baseNotes: string[];
+  creator: string;
+}
+
+
+// Matches ScentProtocolV3: 0 = Unisex, 1 = Male, 2 = Female (the old page had this order wrong).
+const GENDER = ["Unisex", "Male", "Female"];
+const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
+const RARITY = ["Common", "Rare", "Epic", "Legendary"];
+
+const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
+  0: { bg: "from-slate-800/80 via-slate-700/60 to-slate-900/80", border: "border-slate-500/40", badge: "bg-slate-500/30 text-slate-200 border-slate-400/50", text: "text-slate-200", glow: "shadow-[0_0_30px_rgba(148,163,184,0.15)]", hex: "#94a3b8" },
+  1: { bg: "from-blue-800/80 via-blue-600/60 to-indigo-900/80", border: "border-blue-400/50", badge: "bg-blue-500/30 text-blue-100 border-blue-400/50", text: "text-blue-100", glow: "shadow-[0_0_40px_rgba(96,165,250,0.25)]", hex: "#60a5fa" },
+  2: { bg: "from-purple-800/80 via-fuchsia-600/60 to-purple-900/80", border: "border-purple-400/50", badge: "bg-purple-500/30 text-purple-100 border-purple-400/50", text: "text-purple-100", glow: "shadow-[0_0_40px_rgba(192,132,252,0.25)]", hex: "#c084fc" },
+  3: { bg: "from-amber-700/90 via-orange-600/70 to-amber-900/90", border: "border-amber-400/60", badge: "bg-amber-500/40 text-amber-100 border-amber-400/60", text: "text-amber-100", glow: "shadow-[0_0_50px_rgba(251,191,36,0.35)]", hex: "#fbbf24" },
+};
+
+// ============================================================
+// ALCHEMY SLOT SUB-COMPONENT
+// ============================================================
+function AlchemySlot({ nft, onClick }: { nft: SelectedNFT | null; onClick: () => void }) {
+  const style = nft ? RARITY_STYLE[nft.rarity] || RARITY_STYLE[0] : RARITY_STYLE[0];
+
+  return (
+    <button
+      onClick={onClick}
+      className={`relative w-72 h-96 rounded-2xl border-2 transition-all duration-300 flex flex-col overflow-hidden group
+        ${nft 
+          ? `${style.border} border-solid shadow-[0_0_30px_rgba(34,211,238,0.1)] hover:scale-105` 
+          : "border-white/20 border-dashed bg-white/5 hover:border-cyan-400/50 hover:bg-cyan-900/10"
+        }`}
+    >
+      {nft ? (
+        <div className={`absolute inset-0 bg-gradient-to-br ${style.bg} opacity-90`} />
+      ) : null}
+      
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6">
+        {nft ? (
+          <>
+            <div className="mb-4">
+              <ScentCrest seed={`${nft.creator}-${nft.name}`} name={nft.name} rarity={nft.rarity} size={80} />
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-white/40 uppercase tracking-wider mb-1">
+                ScentProtocol #{nft.tokenId}
+              </p>
+              <p className="text-xl font-bold text-white leading-tight mb-2">{nft.name}</p>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <span className={`text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                  {RARITY[nft.rarity]}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 text-xs justify-center">
+                <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+                  {GENDER[nft.gender]}
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+                  {TYPE[nft.pType]}
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+                  {nft.concentration}%
+                </span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors mb-4">
+              <svg className="w-10 h-10 text-white/40 group-hover:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <p className="text-white/60 font-medium text-lg">Select NFT</p>
+            <p className="text-white/40 text-sm mt-2">Click to choose</p>
+          </>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// ============================================================
+// NFT CARD SUB-COMPONENT (for selector modal)
+// ============================================================
+function NFTCard({ nft }: { nft: SelectedNFT }) {
+  const style = RARITY_STYLE[nft.rarity] || RARITY_STYLE[0];
+
+  return (
+    <div className={`relative rounded-xl p-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.border} border overflow-hidden transition-all duration-300 group-hover:scale-[1.02] group-hover:shadow-lg`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+      
+      <div className="relative flex items-start gap-3 mb-3">
+        <ScentCrest seed={`${nft.creator}-${nft.name}`} name={nft.name} rarity={nft.rarity} size={50} />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-white/40 uppercase tracking-wider">Scent #{nft.tokenId}</p>
+          <h4 className="text-lg font-bold text-white truncate">{nft.name}</h4>
+        </div>
+        <span className={`text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+          {RARITY[nft.rarity]}
+        </span>
+      </div>
+
+      <div className="relative flex flex-wrap gap-1.5 text-xs mb-3">
+        <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+          {GENDER[nft.gender]}
+        </span>
+        <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+          {TYPE[nft.pType]}
+        </span>
+        <span className="px-2 py-0.5 rounded-full bg-black/30 text-white/70 border border-white/10">
+          {nft.concentration}%
+        </span>
+      </div>
+
+      <div className="relative space-y-2">
+        <div>
+          <span className="text-white/40 text-[10px] uppercase tracking-wider">Top Notes</span>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {nft.topNotes.slice(0, 2).map((note, i) => (
+              <span key={i} className="px-1.5 py-0.5 rounded bg-black/30 text-amber-200 text-[10px] border border-amber-500/30">
+                {note}
+              </span>
+            ))}
+            {nft.topNotes.length > 2 && (
+              <span className="px-1.5 py-0.5 text-[10px] text-white/40">+{nft.topNotes.length - 2}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between">
+        <span className="text-xs text-white/50">Click to select</span>
+        <span className="text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+      </div>
+    </div>
+  );
+}
