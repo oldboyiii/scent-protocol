@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import FitTitle from "@/components/FitTitle"; // 
 
 interface NFTCardProps {
   tokenId: number;
@@ -208,10 +209,10 @@ export default function NFTCard({
 
         {/* Header with Badges */}
         <div className="relative flex items-start justify-between mb-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* MFW Bottle Badge */}
             {isMFW && (
-              <div className="relative group/mfw" title="MFW 2026 Exclusive">
+              <div className="relative group/mfw flex-shrink-0" title="MFW 2026 Exclusive">
                 <div className="w-7 h-7 rounded-full bg-purple-500/30 border border-purple-400/60 flex items-center justify-center drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]">
                   <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
@@ -225,7 +226,7 @@ export default function NFTCard({
             
             {/* Arc Logo for Genesis */}
             {isGenesis && (
-              <div className="relative group/arc" title="Built on Arc">
+              <div className="relative group/arc flex-shrink-0" title="Built on Arc">
                 <svg viewBox="0 0 32 32" className="w-6 h-6 text-amber-400/80 drop-shadow-[0_0_5px_rgba(251,191,36,0.6)]" fill="none">
                   <path d="M4 26 Q16 2 28 26" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                 </svg>
@@ -237,7 +238,7 @@ export default function NFTCard({
 
             {/* NEW: Flask Icon for Hybrid */}
             {isHybrid && (
-              <div className="relative group/hybrid" title="Scent Alchemy Hybrid">
+              <div className="relative group/hybrid flex-shrink-0" title="Scent Alchemy Hybrid">
                 <div className="w-7 h-7 rounded-full bg-cyan-500/30 border border-cyan-400/60 flex items-center justify-center drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]">
                   <svg className="w-4 h-4 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v6l-6 9h18l-6-9V3H9z" />
@@ -250,24 +251,21 @@ export default function NFTCard({
               </div>
             )}
             
-            <div>
-              <p className="text-xs text-white/40 uppercase tracking-wider">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-white/40 uppercase tracking-wider truncate">
                 {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
               </p>
               
-              {/* ✅ ИСПРАВЛЕНИЕ: Динамический размер шрифта для длинных названий */}
-              <h3 
-                className={`font-bold text-white mt-1 truncate max-w-[200px] ${
-                  name.length > 20 ? 'text-[1.1rem] leading-tight' : 'text-xl leading-tight'
-                }`}
-              >
-                {name}
-              </h3>
+              {/* ✅ ЗАМЕНА: Используем FitTitle вместо жестко заданного h3 */}
+              <FitTitle 
+                text={name} 
+                className="font-bold text-white mt-1 leading-tight" 
+              />
             </div>
           </div>
           
           {/* Rarity Badge */}
-          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
             {RARITY_LABELS[rarity]}
           </span>
         </div>
