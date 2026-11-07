@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP } from "@/utils/contract";
 import ScentCrest from "@/components/ScentCrest";
+import FitTitle from "@/components/FitTitle"; // ✅ Added FitTitle import
 
 interface PerfumeCardProps {
   tokenId: number;
@@ -110,6 +111,7 @@ export default function PerfumeCard({
 
         {/* Header */}
         <div className="relative flex justify-between items-start mb-4">
+          {/* ✅ Added min-w-0 and flex-1 for proper text shrinking */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Scent Crest Logo */}
             <div className="flex-shrink-0">
@@ -121,25 +123,21 @@ export default function PerfumeCard({
               />
             </div>
             
-            {/* ✅ FIX: Added min-w-0 to allow flexbox to shrink the text container properly */}
             <div className="min-w-0 flex-1">
               <p className="text-xs text-white/40 uppercase tracking-wider truncate">
                 {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
               </p>
               
-              {/* ✅ FIX: Dynamic font size for long names */}
-              <h3 
-                className={`font-bold text-white mt-1 group-hover:text-amber-300 transition-colors leading-tight ${
-                  perfume.name.length > 25 ? 'text-sm' : 
-                  perfume.name.length > 18 ? 'text-[0.95rem]' : 'text-xl'
-                }`}
-                title={perfume.name}
-              >
-                {perfume.name}
-              </h3>
+              {/* ✅ REPLACEMENT: Using FitTitle instead of a hardcoded h3 */}
+              <FitTitle 
+                text={perfume.name} 
+                className="font-bold text-white mt-1 group-hover:text-amber-300 transition-colors" 
+              />
             </div>
           </div>
-          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0 ml-2`}>
+          
+          {/* ✅ Added flex-shrink-0 to prevent the badge from shrinking */}
+          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
             {RARITY_MAP[perfume.rarity]}
           </span>
         </div>
