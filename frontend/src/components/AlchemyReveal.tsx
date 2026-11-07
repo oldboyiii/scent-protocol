@@ -1,123 +1,385 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// Drop-in replacement for frontend/src/components/AlchemyReveal.tsx.
+// No new dependencies. Progress is driven by real chain state passed in as props,
+// not by timers: the page tells this component what the blend is doing.
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+
+export interface ParentInfo {
+  tokenId: number;
+  name: string;
+  rarity: number;
+}
+
+export interface HybridInfo {
+  hybridId: number;
+  name: string;
+  rarity: number;
+  gender: number;
+  pType: number;
+  concentration: number;
+  topNotes: string[];
+  heartNotes: string[];
+  baseNotes: string[];
+}
+
+export type AlchemyStatus = "waiting" | "ready" | "revealing" | "done" | "expired";
 
 interface AlchemyRevealProps {
-  parent1Name: string;
-  parent2Name: string;
+  parent1: ParentInfo;
+  parent2: ParentInfo;
+  status: AlchemyStatus;
+  /** Blocks left until the reveal opens (waiting state). */
+  blocksUntilReveal?: number;
+  /** Blocks left before the reveal window closes (waiting/ready states). */
+  blocksUntilExpiry?: number;
+  hybrid?: HybridInfo | null;
+  /** Shown when a blend expires, e.g. "0.1 USDC". */
+  feeLabel?: string;
+  txUrl?: string;
+  error?: string | null;
+  onReveal?: () => void;
+  onRecover?: () => void;
+  /** Called only when the person taps the final button. Never on a timer. */
   onComplete: () => void;
 }
 
-export default function AlchemyReveal({ parent1Name, parent2Name, onComplete }: AlchemyRevealProps) {
-  const [stage, setStage] = useState<"fusing" | "flash" | "success">("fusing");
+const REVEAL_DELAY_BLOCKS = 6; // 1 block buffer over contract's 5 blocks
+const SECONDS_PER_BLOCK = 0.45; // estimate for display only
+const RARITY_LABEL = ["Common", "Rare", "Epic", "Legendary"];
+const RARITY_HEX = ["#94a3b8", "#60a5fa", "#c084fc", "#fbbf24"];
+const GENDER = ["Male", "Female", "Unisex"];
+const TYPE = ["Parfum", "EDP", "EDT", "EDC"];
+const SPARKS = [0, 14, 26, 46];
+
+const NOTE_COLORS: Array<[RegExp, string]> = [
+  [/bergamot|lemon|orange|grapefruit|lime|mandarin/i, "#facc15"],
+  [/mint|basil|rosemary|thyme|eucalyptus|vetiver/i, "#4ade80"],
+  [/lavender|violet|iris/i, "#a78bfa"],
+  [/rose|peony|geranium|ylang/i, "#f472b6"],
+  [/jasmine|lily|neroli|gardenia|tuberose|freesia|heliotrope|chamomile|petitgrain|fig/i, "#fdba74"], // Improved contrast
+  [/sandalwood|cedar|patchouli|oud/i, "#b45309"],
+  [/vanilla|tonka|benzoin|amber/i, "#f59e0b"],
+  [/musk/i, "#d6d3d1"],
+];
+
+function noteColor(note: string): string {
+  for (const [re, color] of NOTE_COLORS) if (re.test(note)) return color;
+  return "#94a3b8";
+}
+
+function rng(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seconds(blocks: number): number {
+  return Math.max(0, Math.round(blocks * SECONDS_PER_BLOCK));
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(m.matches);
+    const h = () => setReduced(m.matches);
+    m.addEventListener("change", h);
+    return () => m.removeEventListener("change", h);
+  }, []);
+  return reduced;
+}
+
+function Flask({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 3h6M10 3v6.2L4.6 18.4A2 2 0 006.3 21h11.4a2 2 0 001.7-2.6L14 9.2V3M7.5 15h9" />
+    </svg>
+  );
+}
+
+function Orb({ parent, style, fast }: { parent: ParentInfo; style: CSSProperties; fast: boolean }) {
+  const hex = RARITY_HEX[parent.rarity] ?? RARITY_HEX[0];
+  return (
+    <div className="absolute left-1/2 top-1/2" style={style}>
+      <div className={`absolute left-0 top-0 h-0 w-0 ${fast ? "ar-counter-fast" : "ar-counter"}`}>
+        <div
+          className={fast ? "ar-pulse-fast" : "ar-pulse"}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: 96,
+            height: 96,
+            marginLeft: -48,
+            marginTop: -48,
+            borderRadius: 9999,
+            background: `radial-gradient(circle at 35% 30%, ${hex}55, #0f172acc 70%)`,
+            border: `2px solid ${hex}`,
+            boxShadow: `0 0 28px ${hex}66`,
+          }}
+        >
+          <div className="flex h-full w-full flex-col items-center justify-center px-2 text-center">
+            <span className="max-w-[80px] truncate text-xs font-semibold text-white">{parent.name}</span>
+            <span className="text-[10px] text-white/50">#{parent.tokenId}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AlchemyReveal(props: AlchemyRevealProps) {
+  const { parent1, parent2, status, blocksUntilReveal, blocksUntilExpiry, hybrid, feeLabel, txUrl, error } = props;
+  const { onReveal, onRecover, onComplete } = props;
+  const reduced = usePrefersReducedMotion();
+  const [stage, setStage] = useState<"flash" | "card">("flash");
+  const primaryRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    // Stage 1: Fusing (0-2s)
-    const t1 = setTimeout(() => setStage("flash"), 2000);
-    // Stage 2: Flash/Explosion (2-2.5s)
-    const t2 = setTimeout(() => setStage("success"), 2500);
-    // Stage 3: Auto-complete after 5 seconds of showing success
-    const t3 = setTimeout(() => onComplete(), 7500);
+    if (status !== "done") return;
+    if (reduced) {
+      setStage("card");
+      return;
+    }
+    setStage("flash");
+    const t = setTimeout(() => setStage("card"), 700);
+    return () => clearTimeout(t);
+  }, [status, reduced]);
 
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [onComplete]);
+  useEffect(() => {
+    if (status === "ready" || status === "expired" || (status === "done" && stage === "card")) {
+      primaryRef.current?.focus();
+    }
+  }, [status, stage]);
+
+  const progress =
+    status === "waiting"
+      ? Math.min(1, Math.max(0, 1 - (blocksUntilReveal ?? REVEAL_DELAY_BLOCKS) / REVEAL_DELAY_BLOCKS))
+      : status === "expired"
+        ? 0
+        : 1;
+  const dist = 112 * (1 - progress) + 6;
+
+  const hex = hybrid ? (RARITY_HEX[hybrid.rarity] ?? RARITY_HEX[0]) : "#22d3ee";
+  const bestParent = Math.max(parent1.rarity, parent2.rarity);
+  const upgraded = hybrid ? hybrid.rarity > bestParent : false;
+
+  const sparks = useMemo(() => {
+    if (!hybrid) return [];
+    const r = rng(hybrid.hybridId * 7919 + hybrid.rarity);
+    const palette = [hex, ...hybrid.topNotes, ...hybrid.heartNotes, ...hybrid.baseNotes].map((n) =>
+      n.startsWith("#") ? n : noteColor(n)
+    );
+    return Array.from({ length: SPARKS[hybrid.rarity] ?? 0 }, (_, i) => {
+      const angle = r() * Math.PI * 2;
+      const d = 140 + r() * 260;
+      return {
+        id: i,
+        tx: Math.cos(angle) * d,
+        ty: Math.sin(angle) * d,
+        size: 4 + r() * 6,
+        delay: r() * 0.4,
+        color: palette[Math.floor(r() * palette.length)] ?? hex,
+      };
+    });
+  }, [hybrid, hex]);
+
+  let title = "";
+  let body = "";
+  if (status === "waiting") {
+    title = "Fusing in progress";
+    body = `Your two fragrances are sealed in the lab. The reveal opens in about ${seconds(blocksUntilReveal ?? REVEAL_DELAY_BLOCKS)} seconds.`;
+  } else if (status === "ready") {
+    title = "The fusion is ready";
+    body = "Reveal your hybrid now. The reveal window is short, so do not wait.";
+  } else if (status === "revealing") {
+    title = "Forging your hybrid";
+    body = "Confirm in your wallet if asked, then give it a moment.";
+  } else if (status === "expired") {
+    title = "The reveal window closed";
+    body = `You can take your two fragrances back. The ${feeLabel ?? "blend"} fee is kept.`;
+  }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md">
-      {/* Background Ambient Glow */}
-      <div className="absolute inset-0 bg-gradient-to-b from-cyan-900/20 via-transparent to-teal-900/20 pointer-events-none" />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Scent alchemy"
+      className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-black/90 p-4 backdrop-blur-md"
+    >
+      <div
+        className="pointer-events-none absolute inset-0 transition-opacity duration-700"
+        style={{ background: `radial-gradient(circle at 50% 45%, ${hex}33, transparent 60%)` }}
+      />
+      <div className="sr-only" role="status" aria-live="polite">
+        {status === "done" && hybrid ? `${RARITY_LABEL[hybrid.rarity]} hybrid ${hybrid.name} forged` : title}
+      </div>
 
-      {/* STAGE 1: FUSING */}
-      {stage === "fusing" && (
-        <div className="relative flex flex-col items-center gap-8 animate-fade-in">
-          <div className="flex items-center gap-8">
-            {/* Parent 1 Orb */}
-            <div className="w-24 h-24 rounded-full bg-slate-800/80 border-2 border-white/20 flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.1)] animate-pulse">
-              <span className="text-xs text-white/60 text-center px-2 truncate max-w-[80px]">{parent1Name}</span>
+      {status !== "done" && (
+        <div className="relative flex w-full max-w-md flex-col items-center gap-6 text-center">
+          <div className="relative h-[280px] w-[280px]">
+            <div className={status === "revealing" ? "ar-orbit-fast absolute inset-0" : "ar-orbit absolute inset-0"}>
+              <Orb parent={parent1} fast={status === "revealing"} style={{ transform: `translate(${-dist}px, 0)`, transition: "transform 500ms ease-out" }} />
+              <Orb parent={parent2} fast={status === "revealing"} style={{ transform: `translate(${dist}px, 0)`, transition: "transform 500ms ease-out" }} />
             </div>
-            
-            {/* Alchemy Symbol */}
-            <div className="text-4xl text-cyan-400 animate-spin-slow">⚗️</div>
-            
-            {/* Parent 2 Orb */}
-            <div className="w-24 h-24 rounded-full bg-slate-800/80 border-2 border-white/20 flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.1)] animate-pulse" style={{ animationDelay: "0.5s" }}>
-              <span className="text-xs text-white/60 text-center px-2 truncate max-w-[80px]">{parent2Name}</span>
+            <div
+              className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-cyan-200"
+              style={{
+                background: "radial-gradient(circle, #22d3ee55, transparent 70%)",
+                opacity: 0.25 + progress * 0.75,
+                transform: `translate(-50%, -50%) scale(${0.7 + progress * 0.6})`,
+                transition: "opacity 500ms, transform 500ms",
+              }}
+            >
+              <Flask className="h-8 w-8" />
             </div>
           </div>
-          <p className="text-cyan-300 font-semibold tracking-widest uppercase animate-pulse">Fusing Fragrances...</p>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold tracking-tight text-white">{title}</h2>
+            <p className="mx-auto max-w-sm text-sm text-white/60">{body}</p>
+            {blocksUntilExpiry !== undefined && (status === "waiting" || status === "ready") && (
+              <p className="text-xs text-white/40">Window closes in about {seconds(blocksUntilExpiry)} seconds</p>
+            )}
+          </div>
+
+          {error && (
+            <p className="w-full rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
+          )}
+
+          {status === "ready" && onReveal && (
+            <button
+              ref={primaryRef}
+              onClick={onReveal}
+              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02]"
+            >
+              Reveal the hybrid
+            </button>
+          )}
+          {status === "expired" && onRecover && (
+            <button
+              ref={primaryRef}
+              onClick={onRecover}
+              className="w-full rounded-xl border border-white/20 bg-white/10 py-3 font-semibold text-white transition hover:bg-white/20"
+            >
+              Recover my fragrances
+            </button>
+          )}
+          {txUrl && (
+            <a href={txUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-300/80 underline">
+              View transaction
+            </a>
+          )}
         </div>
       )}
 
-      {/* STAGE 2: FLASH */}
-      {stage === "flash" && (
-        <div className="absolute inset-0 bg-cyan-400 animate-flash pointer-events-none z-[201]" />
+      {status === "done" && hybrid && stage === "flash" && (
+        <div className="ar-flash pointer-events-none absolute inset-0 z-[201]" style={{ background: hex }} />
       )}
 
-      {/* STAGE 3: SUCCESS */}
-      {stage === "success" && (
-        <div className="relative z-[202] flex flex-col items-center animate-scale-in">
-          {/* Success Card */}
-          <div className="relative p-8 rounded-2xl bg-gradient-to-br from-cyan-950/80 via-teal-900/60 to-slate-900/80 border border-cyan-500/50 shadow-[0_0_60px_rgba(34,211,238,0.3)] backdrop-blur-xl max-w-sm w-full text-center">
-            
-            {/* Decorative spinning ring */}
-            <div className="absolute -inset-1 rounded-2xl border border-dashed border-cyan-400/30 animate-spin-slow pointer-events-none" />
-            
-            <div className="relative">
-              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-cyan-500/20 border-2 border-cyan-400 flex items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.5)]">
-                <svg className="w-10 h-10 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                </svg>
-              </div>
-              
-              <h2 className="text-2xl font-bold text-white mb-2">Hybrid Forged!</h2>
-              <p className="text-cyan-200/80 text-sm mb-6">
-                A unique new fragrance has been created from the essence of your previous scents.
+      {status === "done" && hybrid && stage === "card" && (
+        <div className="relative z-[202] w-full max-w-sm">
+          {sparks.map((s) => (
+            <span
+              key={s.id}
+              className="ar-spark pointer-events-none absolute left-1/2 top-1/3 rounded-full"
+              style={{
+                width: s.size,
+                height: s.size,
+                background: s.color,
+                boxShadow: `0 0 ${s.size * 3}px ${s.color}`,
+                animationDelay: `${s.delay}s`,
+                "--tx": `${s.tx}px`,
+                "--ty": `${s.ty}px`,
+              } as CSSProperties}
+            />
+          ))}
+          <div
+            className="ar-rise relative rounded-2xl border bg-slate-950/90 p-6 text-center backdrop-blur-xl"
+            style={{ borderColor: `${hex}99`, boxShadow: `0 0 60px ${hex}44` }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: hex }}>
+              {upgraded ? "Rarity upgraded" : "Hybrid forged"}
+            </p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">{hybrid.name}</h2>
+            <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+              <span className="rounded-full border px-3 py-1 font-bold" style={{ borderColor: hex, color: hex }}>
+                {RARITY_LABEL[hybrid.rarity]}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">{GENDER[hybrid.gender] ?? "Unisex"}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">{TYPE[hybrid.pType] ?? "Parfum"}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">{hybrid.concentration}%</span>
+            </div>
+            {upgraded && (
+              <p className="mt-3 text-sm text-white/70">
+                Your best parent was {RARITY_LABEL[bestParent]}. The fusion lifted it to {RARITY_LABEL[hybrid.rarity]}.
               </p>
-              
-              <div className="p-4 rounded-xl bg-black/30 border border-cyan-500/20 mb-6">
-                <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Potential Rarity Upgrade</p>
-                <div className="flex justify-center gap-2">
-                  <span className="px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 text-xs border border-cyan-500/40">15% Chance</span>
+            )}
+            <div className="mt-5 grid grid-cols-3 gap-3 text-left">
+              {([["Top", hybrid.topNotes], ["Heart", hybrid.heartNotes], ["Base", hybrid.baseNotes]] as const).map(([label, notes]) => (
+                <div key={label}>
+                  <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">{label}</p>
+                  <ul className="space-y-1">
+                    {notes.map((n, i) => (
+                      <li key={`${n}-${i}`} className="flex items-center gap-1.5 text-xs text-white/80">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: noteColor(n), boxShadow: `0 0 6px ${noteColor(n)}` }} />
+                        <span className="truncate">{n}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
-
-              <button
-                onClick={onComplete}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-[1.02] transition-all"
-              >
-                View in Collection →
-              </button>
+              ))}
             </div>
+            <p className="mt-5 text-xs text-white/40">
+              Forged from #{parent1.tokenId} ({parent1.name}) and #{parent2.tokenId} ({parent2.name}). Both parents were burned.
+            </p>
+            <button
+              ref={primaryRef}
+              onClick={onComplete}
+              className="mt-5 w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02]"
+            >
+              View in collection
+            </button>
+            {txUrl && (
+              <a href={txUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-xs text-cyan-300/80 underline">
+                View transaction
+              </a>
+            )}
           </div>
         </div>
       )}
 
-      <style jsx>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
+      <style>{`
+        @keyframes ar-orbit { to { transform: rotate(360deg); } }
+        @keyframes ar-orbit-rev { to { transform: rotate(-360deg); } }
+        @keyframes ar-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+        @keyframes ar-flash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes ar-rise { from { opacity: 0; transform: translateY(32px) scale(.94); } to { opacity: 1; transform: none; } }
+        @keyframes ar-spark {
+          from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          to { opacity: 0; transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(.2); }
         }
-        @keyframes scale-in {
-          from { opacity: 0; transform: scale(0.8); }
-          to { opacity: 1; transform: scale(1); }
+        .ar-orbit { animation: ar-orbit 14s linear infinite; }
+        .ar-orbit-fast { animation: ar-orbit 1.6s linear infinite; }
+        .ar-counter { animation: ar-orbit-rev 14s linear infinite; }
+        .ar-counter-fast { animation: ar-orbit-rev 1.6s linear infinite; }
+        .ar-pulse { animation: ar-pulse 2.4s ease-in-out infinite; }
+        .ar-pulse-fast { animation: ar-pulse .8s ease-in-out infinite; }
+        .ar-flash { animation: ar-flash 700ms ease-out forwards; opacity: 0; }
+        .ar-rise { animation: ar-rise 600ms cubic-bezier(.2,.8,.2,1) both; }
+        .ar-spark { animation: ar-spark 1800ms ease-out forwards; opacity: 0; }
+        @media (prefers-reduced-motion: reduce) {
+          .ar-orbit, .ar-orbit-fast, .ar-counter, .ar-counter-fast, .ar-pulse, .ar-pulse-fast, .ar-flash, .ar-rise, .ar-spark { animation: none !important; }
+          .ar-spark { display: none; }
         }
-        @keyframes flash {
-          0% { opacity: 0; }
-          20% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-fade-in { animation: fade-in 0.8s ease-out forwards; }
-        .animate-scale-in { animation: scale-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        .animate-flash { animation: flash 0.5s ease-out forwards; }
-        .animate-spin-slow { animation: spin-slow 8s linear infinite; }
       `}</style>
     </div>
   );
