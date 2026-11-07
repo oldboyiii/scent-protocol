@@ -254,7 +254,13 @@ export default function NFTCard({
               <p className="text-xs text-white/40 uppercase tracking-wider">
                 {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
               </p>
-              <h3 className="text-xl font-bold text-white mt-1 truncate max-w-[200px]">
+              
+              {/* ✅ ИСПРАВЛЕНИЕ: Динамический размер шрифта для длинных названий */}
+              <h3 
+                className={`font-bold text-white mt-1 truncate max-w-[200px] ${
+                  name.length > 20 ? 'text-[1.1rem] leading-tight' : 'text-xl leading-tight'
+                }`}
+              >
                 {name}
               </h3>
             </div>
