@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ScentCrest from "@/components/ScentCrest";
+import FitTitle from "@/components/FitTitle"; // 
 
 // --- CONTRACT ADDRESSES ---
 const NFT_CONTRACT_ADDRESS = "0x87950a56456Df786A249F484e9E56dF00fF207cb"; // V3
@@ -688,16 +689,8 @@ export default function GalleryPage() {
                           )}
                         </div>
                         
-                       {/* ✅ FIX: Dynamic font size for long names in the gallery */}
-                        <h3 
-  className={`font-bold text-white mt-1 group-hover:text-amber-300 transition-colors truncate ${
-    item.name.length > 25 ? 'text-sm leading-tight' : 
-    item.name.length > 18 ? 'text-[0.95rem] leading-tight' : 'text-xl leading-tight'
-  }`}
-  title={item.name}
->
-  {item.name}
-</h3>
+                        {/* ✅ ЗАМЕНА: Используем FitTitle вместо жестко заданного h3 */}
+                        <FitTitle text={item.name} className="font-bold text-white mt-1 leading-tight group-hover:text-amber-300 transition-colors" />
                       </div>
                     </div>
                     
