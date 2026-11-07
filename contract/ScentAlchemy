@@ -2,48 +2,78 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 
 /**
  * @title Interface for the main ScentProtocol contract.
- * @notice This interface MUST exactly match the struct layout of the target main contract (e.g., ScentProtocolV3).
+ * @notice The return tuple is one struct, matching ScentProtocolV3.getPerfume.
  */
 interface IScentProtocolMain {
+    struct PerfumeData {
+        uint256 tokenId;
+        string name;
+        uint8 gender;
+        uint8 pType;
+        string[3] topNotes;
+        string[3] heartNotes;
+        string[3] baseNotes;
+        uint8 concentration;
+        uint8 rarity;
+        uint256 createdAt;
+        address creator;
+        bool isAlchemy;
+        uint256 parentTokenA;
+        uint256 parentTokenB;
+    }
+
+    function getPerfume(uint256 tokenId) external view returns (PerfumeData memory);
+    function transferFrom(address from, address to, uint256 tokenId) external;
     function burn(uint256 tokenId) external;
     function ownerOf(uint256 tokenId) external view returns (address);
-    function getPerfume(uint256 tokenId) external view returns (
-        uint256, string memory, uint8, uint8, 
-        string[3] memory, string[3] memory, string[3] memory, 
-        uint8, uint8, uint256, address, bool, uint256, uint256
-    );
 }
 
 /**
  * @title ScentAlchemy
- * @notice A dedicated contract for blending two ScentProtocol NFTs into a unique, mutated Hybrid.
- * @dev Features deflationary burning, rarity mutation, ERC2981 royalties, and proper metadata with image URLs.
+ * @notice Escrows two ScentProtocol NFTs, then burns them to mint a mutated Hybrid.
+ * @dev Anyone, including a keeper, should finalize promptly after REVEAL_BLOCKS.
+ * Reveal between request block + 6 and request block + 250 inclusive, without a
+ * blender secret. Pausing only stops new requests. Expiry forfeits the fee.
+ * No payable entry points or ERC721 receiver hook are provided: parents enter via
+ * transferFrom during requestBlend, not via unsolicited safe transfers.
+ * Randomness derives from a future blockhash: a block producer could bias rarity;
+ * no verifiable randomness source is used. USDC held for fees depends on its issuer
+ * not blocklisting this contract.
  */
-contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard, ERC2981 {
+contract ScentAlchemy is ERC721, ERC721Burnable, Ownable2Step, ReentrancyGuard, ERC2981 {
     using SafeERC20 for IERC20;
     using Strings for uint256;
 
-    // --- State Variables ---
     IScentProtocolMain public immutable mainContract;
     IERC20 public immutable usdc;
-    
-    uint256 public blendFee;           // Fee in USDC (e.g., 100000 for 0.1 USDC) charged per blend
-    address public feeRecipient;       // Address that receives the blend fees and royalties
-    uint256 public nextHybridId;       // Auto-incrementing ID for new hybrid NFTs
-    bool public isPaused;              // Emergency pause switch
 
-    // --- Data Structures ---
+    uint256 public constant REVEAL_BLOCKS = 5;
+    // Deliberately below 256 so the entropy blockhash remains available.
+    uint256 public constant REVEAL_WINDOW = 250;
+    uint256 private constant ARC_MAINNET_CHAIN_ID = 5042;
+    uint256 private constant ARC_TESTNET_CHAIN_ID = 5042002;
+
+    uint256 public blendFee;
+    address public feeRecipient;
+    uint256 public nextHybridId;
+    uint256 public nextBlendId;
+    uint256 public totalPendingFees;
+    uint256 public accruedFees;
+    bool public isPaused;
+
     struct HybridPerfume {
         uint256 hybridId;
         uint256 parentTokenId1;
@@ -60,22 +90,47 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
         address alchemist;
     }
 
-    // --- Mappings ---
+    struct PendingBlend {
+        address blender;
+        uint256 tokenId1;
+        uint256 tokenId2;
+        uint256 blockNumber;
+        address recipient;
+        uint256 fee;
+    }
+
     mapping(uint256 => HybridPerfume) public hybridPerfumes;
     mapping(address => uint256[]) public ownerHybrids;
+    mapping(uint256 => uint256) private _hybridIndexInOwnerArray;
+    mapping(uint256 => PendingBlend) public pendingBlends;
 
-    // --- Events ---
     event ScentBlended(uint256 indexed hybridId, uint256 burnedToken1, uint256 burnedToken2, address indexed alchemist, uint8 newRarity);
+    event BlendRequested(uint256 indexed blendId, address indexed blender, uint256 tokenId1, uint256 tokenId2, uint256 blockNumber, address recipient, uint256 fee);
+    event BlendRevealed(uint256 indexed blendId, uint256 indexed hybridId, address indexed blender);
+    event BlendCancelled(uint256 indexed blendId, address indexed blender, uint256 tokenId1, uint256 tokenId2);
+    event BlendFeeAccrued(uint256 indexed blendId, uint256 fee);
+    event FeesClaimed(address indexed recipient, uint256 amount);
     event BlendFeeUpdated(uint256 newFee);
     event FeeRecipientUpdated(address newRecipient);
     event Paused(bool status);
+    event TokenRescued(address indexed token, address indexed to, uint256 amount);
 
-    // --- Custom Errors ---
-    error Alchemy__SameToken();
-    error Alchemy__NotOwner();
+    error Alchemy__SameToken(uint256 tokenId);
+    error Alchemy__NotOwner(address caller, uint256 tokenId);
+    error Alchemy__NotBlender(uint256 blendId, address caller);
     error Alchemy__Paused();
     error Alchemy__ZeroAddress();
     error Alchemy__NoFeesToWithdraw();
+    error Alchemy__WrongNetwork(uint256 actualChainId);
+    error Alchemy__NotContract(address account);
+    error Alchemy__InvalidDecimals(address token, uint8 actualDecimals);
+    error Alchemy__FeeExceedsMax(uint256 actualFee, uint256 maxFee);
+    error Alchemy__NoPendingBlend(uint256 blendId);
+    error Alchemy__TooEarly(uint256 blendId, uint256 currentBlock, uint256 earliestBlock);
+    error Alchemy__TooLate(uint256 blendId, uint256 currentBlock, uint256 latestBlock);
+    error Alchemy__BlockhashUnavailable(uint256 blendId, uint256 entropyBlock);
+    error Alchemy__BlendNotExpired(uint256 blendId, uint256 currentBlock, uint256 earliestBlock);
+    error Alchemy__RenounceDisabled();
 
     // --- Note Pools for Mutation ---
     string[10] private topNotes = ["Bergamot", "Lemon", "Lavender", "Grapefruit", "Orange", "Mint", "Eucalyptus", "Basil", "Rosemary", "Thyme"];
@@ -84,106 +139,198 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
     string[10] private adjectives = ["Hybrid", "Mutated", "Fused", "Alchemical", "Twisted", "Resonant", "Echoing", "Dual", "Synthesized", "Chimeric"];
     string[10] private nouns = ["Elixir", "Fusion", "Anomaly", "Paradox", "Convergence", "Harmony", "Discord", "Essence", "Spectrum", "Nexus"];
 
-    /**
-     * @notice Initializes the Alchemy contract.
-     */
-    constructor(
-        address _mainContractAddress,
-        address _usdcAddress,
-        address _feeRecipient,
-        uint256 _blendFee
-    ) ERC721("ScentProtocol: Hybrids", "HYBRID") Ownable(msg.sender) {
-        if (_mainContractAddress == address(0) || _usdcAddress == address(0) || _feeRecipient == address(0)) {
+    constructor(address mainContract_, address usdc_, address feeRecipient_, uint256 blendFee_)
+        ERC721("ScentProtocol: Hybrids", "HYBRID")
+        Ownable(msg.sender)
+    {
+        if (block.chainid != ARC_MAINNET_CHAIN_ID && block.chainid != ARC_TESTNET_CHAIN_ID) {
+            revert Alchemy__WrongNetwork(block.chainid);
+        }
+        if (mainContract_ == address(0) || usdc_ == address(0) || feeRecipient_ == address(0)) {
             revert Alchemy__ZeroAddress();
         }
-        
-        mainContract = IScentProtocolMain(_mainContractAddress);
-        usdc = IERC20(_usdcAddress);
-        feeRecipient = _feeRecipient;
-        blendFee = _blendFee;
-        nextHybridId = 1;
-        isPaused = false;
+        if (mainContract_.code.length == 0) revert Alchemy__NotContract(mainContract_);
+        if (usdc_.code.length == 0) revert Alchemy__NotContract(usdc_);
+        uint8 usdcDecimals = IERC20Metadata(usdc_).decimals();
+        if (usdcDecimals != 6) revert Alchemy__InvalidDecimals(usdc_, usdcDecimals);
 
-        // Set 5% royalty for the hybrid collection
-        _setDefaultRoyalty(_feeRecipient, 500);
+        mainContract = IScentProtocolMain(mainContract_);
+        usdc = IERC20(usdc_);
+        feeRecipient = feeRecipient_;
+        blendFee = blendFee_;
+        nextHybridId = 1;
+        nextBlendId = 1;
+        _setDefaultRoyalty(feeRecipient_, 500);
+        emit BlendFeeUpdated(blendFee_);
+        emit FeeRecipientUpdated(feeRecipient_);
+    }
+
+    /// @notice Approve this contract for both parents and for the USDC fee first.
+    /// @dev A contract recipient must be able to hold ERC-721s at its own risk:
+    /// no receiver callback is invoked on mint. Finalized blends are irrevocable.
+    function requestBlend(uint256 tokenId1, uint256 tokenId2, address recipient, uint256 maxFee)
+        external
+        nonReentrant
+        returns (uint256 blendId)
+    {
+        if (isPaused) revert Alchemy__Paused();
+        if (tokenId1 == tokenId2) revert Alchemy__SameToken(tokenId1);
+        if (recipient == address(0)) revert Alchemy__ZeroAddress();
+        if (blendFee > maxFee) revert Alchemy__FeeExceedsMax(blendFee, maxFee);
+        if (mainContract.ownerOf(tokenId1) != msg.sender) revert Alchemy__NotOwner(msg.sender, tokenId1);
+        if (mainContract.ownerOf(tokenId2) != msg.sender) revert Alchemy__NotOwner(msg.sender, tokenId2);
+
+        blendId = nextBlendId++;
+        PendingBlend memory pending = PendingBlend({
+            blender: msg.sender,
+            tokenId1: tokenId1,
+            tokenId2: tokenId2,
+            blockNumber: block.number,
+            recipient: recipient,
+            fee: blendFee
+        });
+        pendingBlends[blendId] = pending;
+        totalPendingFees += pending.fee;
+
+        _emitBlendRequested(blendId, pending);
+        mainContract.transferFrom(msg.sender, address(this), tokenId1);
+        mainContract.transferFrom(msg.sender, address(this), tokenId2);
+        if (pending.fee != 0) usdc.safeTransferFrom(msg.sender, address(this), pending.fee);
+    }
+
+    /// @notice Anyone, including a keeper, should finalize promptly after REVEAL_BLOCKS.
+    function revealBlend(uint256 blendId)
+        external
+        nonReentrant
+        returns (uint256 hybridId)
+    {
+        PendingBlend memory pending = _getExistingPending(blendId);
+        uint256 entropy = _revealEntropy(blendId, pending);
+        // Parent reads happen while this contract still owns the escrowed parents.
+        HybridPerfume memory hybrid = _buildHybrid(pending, entropy);
+
+        // Effects precede burns and mint.
+        hybridId = nextHybridId++;
+        hybrid.hybridId = hybridId;
+        hybridPerfumes[hybridId] = hybrid;
+        _consumePending(blendId, pending.fee);
+        _executeBlend(blendId, pending, hybrid);
     }
 
     /**
-     * @notice The core function: Burns 2 NFTs from the main contract and mints 1 Hybrid.
+     * @notice Only the blender may return the parents after the reveal window expires.
+     * @dev The fee is accrued for claiming, NOT refunded. Anyone, including a keeper,
+     * should finalize promptly after REVEAL_BLOCKS to avoid expiry and fee forfeiture.
+     * Uses transferFrom so a blender without an ERC721 receiver hook can recover.
      */
-    function blend(uint256 tokenId1, uint256 tokenId2) external nonReentrant {
-        if (isPaused) revert Alchemy__Paused();
-        if (tokenId1 == tokenId2) revert Alchemy__SameToken();
-        
-        // 1. Verify ownership in the main contract
-        if (mainContract.ownerOf(tokenId1) != msg.sender || mainContract.ownerOf(tokenId2) != msg.sender) {
-            revert Alchemy__NotOwner();
+    function cancelExpiredBlend(uint256 blendId) external nonReentrant {
+        PendingBlend memory pending = _getExistingPending(blendId);
+        if (pending.blender != msg.sender) revert Alchemy__NotBlender(blendId, msg.sender);
+        if (block.number <= pending.blockNumber + REVEAL_WINDOW) {
+            revert Alchemy__BlendNotExpired(blendId, block.number, pending.blockNumber + REVEAL_WINDOW + 1);
         }
+        _consumePending(blendId, pending.fee);
 
-        // 2. CRITICAL FIX: FETCH PARENT DATA *BEFORE* BURNING!
-        // We must read the data while the tokens still exist and belong to the user.
-        (, string memory name1, , , string[3] memory top1, string[3] memory heart1, string[3] memory base1, , uint8 rarity1, , , , , ) = mainContract.getPerfume(tokenId1);
-        (, string memory name2, , , string[3] memory top2, string[3] memory heart2, string[3] memory base2, , uint8 rarity2, , , , , ) = mainContract.getPerfume(tokenId2);
+        emit BlendCancelled(blendId, pending.blender, pending.tokenId1, pending.tokenId2);
+        mainContract.transferFrom(address(this), pending.blender, pending.tokenId1);
+        mainContract.transferFrom(address(this), pending.blender, pending.tokenId2);
+    }
 
-        // 3. Collect the blending fee in USDC
-        if (blendFee > 0) {
-            usdc.safeTransferFrom(msg.sender, address(this), blendFee);
+    function _getExistingPending(uint256 blendId) internal view returns (PendingBlend memory pending) {
+        pending = pendingBlends[blendId];
+        if (pending.blender == address(0)) revert Alchemy__NoPendingBlend(blendId);
+    }
+
+    function _revealEntropy(uint256 blendId, PendingBlend memory pending)
+        internal
+        view
+        returns (uint256)
+    {
+        if (block.number <= pending.blockNumber + REVEAL_BLOCKS) {
+            revert Alchemy__TooEarly(blendId, block.number, pending.blockNumber + REVEAL_BLOCKS + 1);
         }
-
-        // 4. BURN tokens directly. 
-        // Now it is safe to burn because we already extracted and stored the necessary data in memory.
-        mainContract.burn(tokenId1);
-        mainContract.burn(tokenId2);
-
-        // 5. Generate a deterministic mutation seed
-        uint256 hybridSeed = uint256(keccak256(abi.encodePacked(
-            name1, name2, msg.sender, block.timestamp, blockhash(block.number - 1), tokenId1, tokenId2
+        if (block.number > pending.blockNumber + REVEAL_WINDOW) {
+            revert Alchemy__TooLate(blendId, block.number, pending.blockNumber + REVEAL_WINDOW);
+        }
+        bytes32 bh = blockhash(pending.blockNumber + REVEAL_BLOCKS);
+        if (bh == bytes32(0)) revert Alchemy__BlockhashUnavailable(blendId, pending.blockNumber + REVEAL_BLOCKS);
+        IScentProtocolMain.PerfumeData memory parentA = mainContract.getPerfume(pending.tokenId1);
+        IScentProtocolMain.PerfumeData memory parentB = mainContract.getPerfume(pending.tokenId2);
+        return uint256(keccak256(abi.encode(
+            bh, blendId, pending.tokenId1, pending.tokenId2, parentA.name, parentB.name
         )));
+    }
 
-        // 6. Mutate the notes (1 from Parent A, 1 from Parent B, 1 random from pool)
-        string[3] memory newTop = [top1[0], top2[0], topNotes[hybridSeed % 10]];
-        string[3] memory newHeart = [heart1[1], heart2[1], heartNotes[(hybridSeed >> 4) % 10]];
-        string[3] memory newBase = [base1[2], base2[2], baseNotes[(hybridSeed >> 8) % 10]];
-        
-        // 7. Generate Hybrid Name
-        string memory adj = adjectives[hybridSeed % 10];
-        string memory noun = nouns[(hybridSeed >> 4) % 10];
-        string memory hybridName = string.concat(adj, " ", noun);
+    function _buildHybrid(PendingBlend memory pending, uint256 seed)
+        internal
+        view
+        returns (HybridPerfume memory hybrid)
+    {
+        IScentProtocolMain.PerfumeData memory parentA = mainContract.getPerfume(pending.tokenId1);
+        IScentProtocolMain.PerfumeData memory parentB = mainContract.getPerfume(pending.tokenId2);
+        hybrid.parentTokenId1 = pending.tokenId1;
+        hybrid.parentTokenId2 = pending.tokenId2;
+        hybrid.name = string.concat(adjectives[seed % 10], " ", nouns[(seed >> 4) % 10]);
+        hybrid.gender = uint8(seed % 3);
+        hybrid.pType = uint8((seed >> 2) % 4);
+        hybrid.concentration = uint8(20 + (seed % 11));
+        hybrid.rarity = _mutatedRarity(parentA.rarity, parentB.rarity, seed);
+        hybrid.createdAt = block.timestamp;
+        hybrid.alchemist = pending.blender;
+        _mutateNotes(hybrid, parentA, parentB, seed);
+    }
 
-        // 8. Calculate Mutated Rarity (15% chance to upgrade by 1 tier, capped at 3)
-        uint8 baseRarity = rarity1 > rarity2 ? rarity1 : rarity2;
-        uint8 mutationChance = uint8(hybridSeed % 100);
-        uint8 finalRarity = (mutationChance < 15 && baseRarity < 3) ? baseRarity + 1 : baseRarity;
+    function _mutateNotes(
+        HybridPerfume memory hybrid,
+        IScentProtocolMain.PerfumeData memory parentA,
+        IScentProtocolMain.PerfumeData memory parentB,
+        uint256 seed
+    ) internal view {
+        hybrid.topNotes[0] = parentA.topNotes[0];
+        hybrid.topNotes[1] = parentB.topNotes[0];
+        hybrid.topNotes[2] = topNotes[seed % 10];
+        hybrid.heartNotes[0] = parentA.heartNotes[1];
+        hybrid.heartNotes[1] = parentB.heartNotes[1];
+        hybrid.heartNotes[2] = heartNotes[(seed >> 4) % 10];
+        hybrid.baseNotes[0] = parentA.baseNotes[2];
+        hybrid.baseNotes[1] = parentB.baseNotes[2];
+        hybrid.baseNotes[2] = baseNotes[(seed >> 8) % 10];
+    }
 
-        // 9. Mint the new Hybrid NFT
-        uint256 newHybridId = nextHybridId++;
-        
-        // 10. Save hybrid data on-chain BEFORE external calls (Checks-Effects-Interactions pattern)
-        hybridPerfumes[newHybridId] = HybridPerfume({
-            hybridId: newHybridId,
-            parentTokenId1: tokenId1,
-            parentTokenId2: tokenId2,
-            name: hybridName,
-            gender: uint8(hybridSeed % 3),
-            pType: uint8((hybridSeed >> 2) % 4),
-            topNotes: newTop,
-            heartNotes: newHeart,
-            baseNotes: newBase,
-            concentration: uint8(20 + (hybridSeed % 11)),
-            rarity: finalRarity,
-            createdAt: block.timestamp,
-            alchemist: msg.sender
-        });
-        
-        ownerHybrids[msg.sender].push(newHybridId);
-        
-        // 11. Set Data URI (Includes the "image" key for OpenSea/Arc Explorer compatibility)
-        _setTokenURI(newHybridId, _buildHybridDataURI(hybridPerfumes[newHybridId]));
+    function _mutatedRarity(uint8 rarityA, uint8 rarityB, uint256 seed) internal pure returns (uint8) {
+        uint8 rarity = rarityA > rarityB ? rarityA : rarityB;
+        if (rarity >= 3) return 3;
+        return seed % 100 < 15 ? rarity + 1 : rarity;
+    }
 
-        // 12. Execute mint
-        _safeMint(msg.sender, newHybridId);
+    function _consumePending(uint256 blendId, uint256 fee) internal {
+        delete pendingBlends[blendId];
+        totalPendingFees -= fee;
+        accruedFees += fee;
+        emit BlendFeeAccrued(blendId, fee);
+    }
 
-        emit ScentBlended(newHybridId, tokenId1, tokenId2, msg.sender, finalRarity);
+    function _executeBlend(uint256 blendId, PendingBlend memory pending, HybridPerfume memory hybrid) internal {
+        mainContract.burn(pending.tokenId1);
+        mainContract.burn(pending.tokenId2);
+        emit ScentBlended(hybrid.hybridId, pending.tokenId1, pending.tokenId2, pending.blender, hybrid.rarity);
+        emit BlendRevealed(blendId, hybrid.hybridId, pending.blender);
+        _mint(pending.recipient, hybrid.hybridId);
+    }
+
+    /// @notice Anyone may pay all accrued fees to the current fee recipient.
+    function claimFees() external nonReentrant {
+        uint256 amount = accruedFees;
+        if (amount == 0) revert Alchemy__NoFeesToWithdraw();
+        address recipient = feeRecipient;
+        accruedFees = 0;
+        emit FeesClaimed(recipient, amount);
+        usdc.safeTransfer(recipient, amount);
+    }
+
+    function _emitBlendRequested(uint256 blendId, PendingBlend memory pending) internal {
+        emit BlendRequested(blendId, pending.blender, pending.tokenId1, pending.tokenId2,
+            pending.blockNumber, pending.recipient, pending.fee);
     }
 
     // --- View Functions ---
@@ -193,6 +340,19 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
 
     function getOwnerHybrids(address owner) external view returns (uint256[] memory) {
         return ownerHybrids[owner];
+    }
+
+    function getPendingBlend(uint256 blendId) external view returns (PendingBlend memory) {
+        return pendingBlends[blendId];
+    }
+
+    /// @notice Blocks until cancellation is available (request block + 251).
+    /// @dev At the last valid reveal block this returns 1, not 0. Missing/expired records return 0.
+    function getRemainingBlendWindow(uint256 blendId) external view returns (uint256) {
+        PendingBlend memory pending = pendingBlends[blendId];
+        if (pending.blender == address(0)) return 0;
+        uint256 cancelBlock = pending.blockNumber + REVEAL_WINDOW + 1;
+        return block.number >= cancelBlock ? 0 : cancelBlock - block.number;
     }
 
     // --- Admin Functions ---
@@ -213,70 +373,99 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
         emit Paused(isPaused);
     }
 
-    /**
-     * @notice Withdraws all accumulated USDC fees to the feeRecipient (creator).
-     */
-    function withdrawFees() external onlyOwner nonReentrant {
-        uint256 balance = usdc.balanceOf(address(this));
-        if (balance == 0) revert Alchemy__NoFeesToWithdraw();
-        usdc.safeTransfer(feeRecipient, balance);
+    function renounceOwnership() public override onlyOwner {
+        revert Alchemy__RenounceDisabled();
     }
 
-    /**
-     * @notice Data URI Builder with proper "image" key for marketplace visibility.
-     * @dev Changed from `pure` to `view` to allow access to `address(this)` for the image URL.
-     */
-    function _buildHybridDataURI(HybridPerfume memory p) internal view returns (string memory) {
-        // Generate the image URL pointing to your Next.js API route
-        string memory imageUrl = string.concat(
-            "https://scent-protocol-pi.vercel.app/api/metadata/",
-            Strings.toHexString(uint160(address(this)), 20),
-            "/",
-            p.hybridId.toString(),
-            "/image"
-        );
+    /// @notice Recover stray ERC20s without spending pending or accrued USDC fees.
+    function rescueToken(address token, address to) external onlyOwner nonReentrant {
+        if (token == address(0) || to == address(0)) revert Alchemy__ZeroAddress();
+        uint256 amount = IERC20(token).balanceOf(address(this));
+        if (token == address(usdc)) {
+            uint256 reserved = totalPendingFees + accruedFees;
+            if (amount <= reserved) revert Alchemy__NoFeesToWithdraw();
+            amount -= reserved;
+        }
+        if (amount == 0) revert Alchemy__NoFeesToWithdraw();
+        emit TokenRescued(token, to, amount);
+        IERC20(token).safeTransfer(to, amount);
+    }
 
-        string memory header = string.concat(
-            "data:application/json,{",
-            '"name":"', p.name, '",',
-            '"description":"ScentProtocol Alchemical Hybrid - ', p.name, '. ",',
-            '"image":"', imageUrl, '",', // <-- CRITICAL FIX: Added image key for OpenSea/Arc Explorer
-            '"attributes":['
-        );
-        
-        string memory attrs1 = string.concat(
-            '{"trait_type":"Gender","value":"', _genderLabel(p.gender), '"},',
-            '{"trait_type":"Type","value":"', _typeLabel(p.pType), '"},',
-            '{"trait_type":"Concentration","value":"', uint256(p.concentration).toString(), '%"},',
-            '{"trait_type":"Rarity","value":"', _rarityLabel(p.rarity), '"},'
-        );
-        
-        string memory attrs2 = string.concat(
-            '{"trait_type":"TopNote1","value":"', p.topNotes[0], '"},',
-            '{"trait_type":"TopNote2","value":"', p.topNotes[1], '"},',
-            '{"trait_type":"TopNote3","value":"', p.topNotes[2], '"},'
-        );
-        
-        string memory attrs3 = string.concat(
-            '{"trait_type":"HeartNote1","value":"', p.heartNotes[0], '"},',
-            '{"trait_type":"HeartNote2","value":"', p.heartNotes[1], '"},',
-            '{"trait_type":"HeartNote3","value":"', p.heartNotes[2], '"},'
-        );
-        
-        string memory attrs4 = string.concat(
-            '{"trait_type":"BaseNote1","value":"', p.baseNotes[0], '"},',
-            '{"trait_type":"BaseNote2","value":"', p.baseNotes[1], '"},',
-            '{"trait_type":"BaseNote3","value":"', p.baseNotes[2], '"},'
-        );
-        
-        string memory attrs5 = string.concat(
-            '{"trait_type":"Collection","value":"Hybrid"},',
-            '{"trait_type":"Parent1","value":"', uint256(p.parentTokenId1).toString(), '"},',
-            '{"trait_type":"Parent2","value":"', uint256(p.parentTokenId2).toString(), '"}',
-            ']}'
-        );
-        
-        return string.concat(header, attrs1, attrs2, attrs3, attrs4, attrs5);
+    // --- On-chain Metadata ---
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        _requireOwned(tokenId);
+        return _buildHybridDataURI(hybridPerfumes[tokenId]);
+    }
+
+    function _buildHybridDataURI(HybridPerfume memory p) internal view returns (string memory) {
+        string memory json = string.concat(_metadataHeader(p), _coreAttributes(p));
+        json = string.concat(json, _noteAttributes("TopNote", p.topNotes));
+        json = string.concat(json, _noteAttributes("HeartNote", p.heartNotes));
+        json = string.concat(json, _noteAttributes("BaseNote", p.baseNotes));
+        json = string.concat(json, _parentAttributes(p), "]}");
+        return string.concat("data:application/json;base64,", Base64.encode(bytes(json)));
+    }
+
+    function _metadataHeader(HybridPerfume memory p) internal view returns (string memory) {
+        string memory name = _escapeJSON(p.name);
+        string memory header = string.concat('{"name":"', name,
+            '","description":"ScentProtocol Alchemical Hybrid - ', name, '. ",');
+        return string.concat(header, '"image":"', _imageURL(p.hybridId), '","attributes":[');
+    }
+
+    function _imageURL(uint256 hybridId) internal view returns (string memory) {
+        return string.concat("https://scent-protocol-pi.vercel.app/api/metadata/",
+            Strings.toHexString(uint160(address(this)), 20), "/", hybridId.toString(), "/image");
+    }
+
+    function _attribute(string memory trait, string memory value) internal pure returns (string memory) {
+        return string.concat('{"trait_type":"', trait, '","value":"', _escapeJSON(value), '"}');
+    }
+
+    function _coreAttributes(HybridPerfume memory p) internal pure returns (string memory) {
+        string memory result = string.concat(_attribute("Gender", _genderLabel(p.gender)), ",",
+            _attribute("Type", _typeLabel(p.pType)));
+        result = string.concat(result, ",", _attribute("Concentration", string.concat(uint256(p.concentration).toString(), "%")));
+        return string.concat(result, ",", _attribute("Rarity", _rarityLabel(p.rarity)));
+    }
+
+    function _noteAttributes(string memory tier, string[3] memory notes) internal pure returns (string memory result) {
+        for (uint256 i = 0; i < 3; ++i) {
+            result = string.concat(result, ",", _attribute(string.concat(tier, (i + 1).toString()), notes[i]));
+        }
+    }
+
+    function _parentAttributes(HybridPerfume memory p) internal pure returns (string memory) {
+        string memory result = string.concat(",", _attribute("Collection", "Hybrid"));
+        result = string.concat(result, ",", _attribute("Parent1", p.parentTokenId1.toString()));
+        return string.concat(result, ",", _attribute("Parent2", p.parentTokenId2.toString()));
+    }
+
+    // Parent note strings are external data; escape JSON delimiters and control bytes.
+    function _escapeJSON(string memory value) internal pure returns (string memory) {
+        bytes memory source = bytes(value);
+        bytes memory escaped = new bytes(source.length * 6);
+        bytes memory hexDigits = "0123456789abcdef";
+        uint256 length = 0;
+        for (uint256 i = 0; i < source.length; ++i) {
+            uint8 c = uint8(source[i]);
+            if (c == 34 || c == 92) {
+                escaped[length++] = bytes1(uint8(92));
+                escaped[length++] = source[i];
+            } else if (c < 32) {
+                escaped[length++] = bytes1(uint8(92));
+                escaped[length++] = "u";
+                escaped[length++] = "0";
+                escaped[length++] = "0";
+                escaped[length++] = hexDigits[c >> 4];
+                escaped[length++] = hexDigits[c & 15];
+            } else {
+                escaped[length++] = source[i];
+            }
+        }
+        bytes memory result = new bytes(length);
+        for (uint256 i = 0; i < length; ++i) result[i] = escaped[i];
+        return string(result);
     }
 
     function _rarityLabel(uint8 rarity) internal pure returns (string memory) {
@@ -300,11 +489,28 @@ contract ScentAlchemy is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGuard
     }
 
     // --- Standard Overrides ---
-    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
-        return super.tokenURI(tokenId);
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
+        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage, ERC2981) returns (bool) {
-        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
+    /// @dev O(1) owner enumeration, including self-transfers and authorized burns.
+    function _update(address to, uint256 tokenId, address auth) internal override returns (address from) {
+        from = super._update(to, tokenId, auth);
+        if (from == to) return from;
+        if (from != address(0)) {
+            uint256[] storage tokens = ownerHybrids[from];
+            uint256 index = _hybridIndexInOwnerArray[tokenId];
+            uint256 lastId = tokens[tokens.length - 1];
+            if (index != tokens.length - 1) {
+                tokens[index] = lastId;
+                _hybridIndexInOwnerArray[lastId] = index;
+            }
+            tokens.pop();
+            delete _hybridIndexInOwnerArray[tokenId];
+        }
+        if (to != address(0)) {
+            _hybridIndexInOwnerArray[tokenId] = ownerHybrids[to].length;
+            ownerHybrids[to].push(tokenId);
+        }
     }
 }
