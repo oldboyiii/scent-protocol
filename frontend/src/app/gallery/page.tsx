@@ -690,13 +690,14 @@ export default function GalleryPage() {
                         
                        {/* ✅ FIX: Dynamic font size for long names in the gallery */}
                         <h3 
-                          className={`font-bold text-white mt-1 group-hover:text-amber-300 transition-colors truncate ${
-                            item.name.length > 20 ? 'text-[1.1rem] leading-tight' : 'text-xl leading-tight'
-                          }`}
-                          title={item.name}
-                        >
-                          {item.name}
-                        </h3>
+  className={`font-bold text-white mt-1 group-hover:text-amber-300 transition-colors truncate ${
+    item.name.length > 25 ? 'text-sm leading-tight' : 
+    item.name.length > 18 ? 'text-[0.95rem] leading-tight' : 'text-xl leading-tight'
+  }`}
+  title={item.name}
+>
+  {item.name}
+</h3>
                       </div>
                     </div>
                     
