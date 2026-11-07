@@ -110,24 +110,36 @@ export default function PerfumeCard({
 
         {/* Header */}
         <div className="relative flex justify-between items-start mb-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Scent Crest Logo */}
-            <ScentCrest
-              seed={`${perfume.creator}-${perfume.name}`}
-              name={perfume.name}
-              rarity={perfume.rarity}
-              size={60}
-            />
-            <div>
-              <p className="text-xs text-white/40 uppercase tracking-wider">
+            <div className="flex-shrink-0">
+              <ScentCrest
+                seed={`${perfume.creator}-${perfume.name}`}
+                name={perfume.name}
+                rarity={perfume.rarity}
+                size={60}
+              />
+            </div>
+            
+            {/* ✅ FIX: Added min-w-0 to allow flexbox to shrink the text container properly */}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-white/40 uppercase tracking-wider truncate">
                 {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
               </p>
-              <h3 className="text-xl font-bold text-white mt-1 group-hover:text-amber-300 transition-colors">
+              
+              {/* ✅ FIX: Dynamic font size for long names */}
+              <h3 
+                className={`font-bold text-white mt-1 group-hover:text-amber-300 transition-colors leading-tight ${
+                  perfume.name.length > 25 ? 'text-sm' : 
+                  perfume.name.length > 18 ? 'text-[0.95rem]' : 'text-xl'
+                }`}
+                title={perfume.name}
+              >
                 {perfume.name}
               </h3>
             </div>
           </div>
-          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0 ml-2`}>
             {RARITY_MAP[perfume.rarity]}
           </span>
         </div>
