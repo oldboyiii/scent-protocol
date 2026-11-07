@@ -7,6 +7,7 @@ import { getContract } from "@/utils/contract";
 import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
+import FitTitle from "@/components/FitTitle"; // 
 
 // ============================================================
 // CONTRACT ADDRESSES
@@ -783,7 +784,6 @@ export default function CollectionPage() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      {/* FIXED: Removed flex-wrap, added conditional sizing for MFW badge */}
                       <div className="flex items-center gap-1.5 mb-1">
                         <p className="text-xs text-white/40 uppercase tracking-wider whitespace-nowrap flex-shrink-0 truncate">
                           {isGenesis ? "Genesis" : isMFW ? "MFW2026" : isViral ? "Viral" : isHybrid ? "Hybrid" : "Scent"} #{s.tokenId}
@@ -794,7 +794,6 @@ export default function CollectionPage() {
                           </span>
                         )}
                         
-                        {/* FIXED: Conditional sizing for MFW badge - smaller for Common */}
                         {isMFW && (
                           <span className={`font-bold px-1 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-0.5 whitespace-nowrap flex-shrink-0 ${rarity === 0 ? 'text-[8px]' : 'text-[9px]'}`}>
                             <svg className={`${rarity === 0 ? 'w-2 h-2' : 'w-2.5 h-2.5'} flex-shrink-0`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -819,9 +818,11 @@ export default function CollectionPage() {
                         )}
                       </div>
                       
-                      <h3 className="text-xl font-bold text-white mt-1 truncate" title={perfume?.name || s.name || `Scent #${s.tokenId}`}>
-                        {perfume?.name || s.name || `Scent #${s.tokenId}`}
-                      </h3>
+                      {/* ✅ ЗАМЕНА: Используем FitTitle вместо жестко заданного h3 */}
+                      <FitTitle 
+                        text={perfume?.name || s.name || `Scent #${s.tokenId}`} 
+                        className="font-bold text-white mt-1 leading-tight" 
+                      />
                     </div>
                   </div>
                   <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
