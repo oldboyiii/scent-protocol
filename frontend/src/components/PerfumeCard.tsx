@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP } from "@/utils/contract";
 import ScentCrest from "@/components/ScentCrest";
-import FitTitle from "@/components/FitTitle"; // ✅ Added FitTitle import
+import FitTitle from "@/components/FitTitle";
+import ScentPlayer from "@/components/sound/ScentPlayer"; // ✅ Added audio player import
 
 interface PerfumeCardProps {
   tokenId: number;
@@ -233,8 +234,23 @@ export default function PerfumeCard({
 
         {/* Footer */}
         <div className="relative flex items-center justify-between pt-2 border-t border-white/10">
-          <span className="text-sm text-white/50">View Details</span>
-          <span className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+          {/* ✅ ADDED: Compact sound player for the card */}
+          <ScentPlayer
+            variant="compact"
+            tokenId={tokenId}
+            perfume={{
+              name: perfume.name,
+              rarity: perfume.rarity,
+              creator: perfume.creator || "",
+              topNotes: perfume.topNotes,
+              heartNotes: perfume.heartNotes,
+              baseNotes: perfume.baseNotes,
+            }}
+          />
+          
+          <span className="text-xs text-amber-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+            View Details →
+          </span>
         </div>
 
         <style>{`
