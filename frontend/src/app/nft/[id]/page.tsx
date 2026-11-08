@@ -597,32 +597,32 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
-                {/* COMPACT DESCRIPTION BOX */}
+                        {/* COMPACT DESCRIPTION BOX */}
         <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-4 text-sm leading-relaxed ${descBg}`}>
           {description}
         </div>
 
-        {/* ✅ ADDED: Compact audio player to avoid duplicating notes and save space */}
-        <div className="mb-4 flex items-center gap-3">
+        {/* ✅ ADDED: Full audio player with volume control and description */}
+        <div className="mb-6">
           <ScentPlayer
-            variant="compact"
+            variant="full"
             tokenId={id}
             perfume={{
               name: perfume.name,
               rarity: perfume.rarity,
-              creator: perfume.creator,
-              topNotes: perfume.topNotes,
-              heartNotes: perfume.heartNotes,
-              baseNotes: perfume.baseNotes,
+              creator: perfume.creator || "",
+              topNotes: perfume.topNotes || [],
+              heartNotes: perfume.heartNotes || [],
+              baseNotes: perfume.baseNotes || [],
             }}
           />
-          <span className="text-xs text-white/40">Tap to listen</span>
         </div>
 
         {/* SLIGHTLY LARGER META INFO */}
         <div className="relative text-sm text-white/40 space-y-1">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
+          <p>Concentration: {perfume.concentration}%</p> {/* ✅ Restored the exact concentration percentage */}
           {isGenesis && (
             <p className="text-amber-300 font-bold mt-2 flex items-center gap-2">
               <img src="/arc-logo.png" alt="Arc" className="w-5 h-5 inline-block" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }} />
