@@ -18,7 +18,7 @@ interface ScentPlayerProps {
   tokenId?: number | string;
   variant?: "compact" | "full";
   className?: string;
-  hideNotes?: boolean; // ✅ Added to prevent duplication on detail page
+  hideNotes?: boolean;
 }
 
 const RARITY_HEX = ["#94a3b8", "#60a5fa", "#c084fc", "#fbbf24"];
@@ -124,11 +124,11 @@ export default function ScentPlayer({ perfume, tokenId, variant = "compact", cla
 
   return (
     <section
-      className={`rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-lg ${className}`}
+      className={`rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-lg ${className}`}
       aria-label="Hear this fragrance"
     >
-      <div className="flex items-center gap-4">
-        {button("h-14 w-14")}
+      <div className="flex items-center gap-3">
+        {button("h-12 w-12")}
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: hex }}>
             {playing ? "Now playing" : "Hear this scent"}
@@ -154,7 +154,7 @@ export default function ScentPlayer({ perfume, tokenId, variant = "compact", cla
       
       {/* ✅ Conditionally render notes to avoid duplication on the detail page */}
       {!hideNotes && (
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-xs">
+        <dl className="mt-3 grid grid-cols-3 gap-3 text-xs">
           {tiers.map(([label, role, notes]) => (
             <div key={label} className="rounded-xl border border-white/10 bg-black/20 p-2.5">
               <dt className="font-semibold uppercase tracking-wider text-white/80">{label}</dt>
