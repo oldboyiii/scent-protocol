@@ -47,6 +47,10 @@ interface AlchemyRevealProps {
   feeLabel?: string;
   txUrl?: string;
   error?: string | null;
+  /** A soft, non-error message, for example "not ready yet". Shown in amber. */
+  notice?: string | null;
+  /** True while the reveal block has passed but the network has not yet confirmed it can be revealed. */
+  syncing?: boolean;
   onReveal?: () => void;
   onRecover?: () => void;
   /** Called only when the person taps the final button. Never on a timer. */
@@ -144,11 +148,18 @@ function Orb({ parent, style, fast }: { parent: ParentInfo; style: CSSProperties
 }
 
 export default function AlchemyReveal(props: AlchemyRevealProps) {
-  const { parent1, parent2, status, blocksUntilReveal, blocksUntilExpiry, hybrid, feeLabel, txUrl, error } = props;
+  const { parent1, parent2, status, blocksUntilReveal, blocksUntilExpiry, hybrid, feeLabel, txUrl, error, notice, syncing } = props;
   const { onReveal, onRecover, onComplete } = props;
   const reduced = usePrefersReducedMotion();
   const [stage, setStage] = useState<"flash" | "card">("flash");
   const primaryRef = useRef<HTMLButtonElement | null>(null);
+  // Stops rapid repeat clicks on the reveal button.
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    if (!locked) return;
+    const t = setTimeout(() => setLocked(false), 4000);
+    return () => clearTimeout(t);
+  }, [locked]);
 
   useEffect(() => {
     if (status !== "done") return;
@@ -201,7 +212,10 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
 
   let title = "";
   let body = "";
-  if (status === "waiting") {
+  if (status === "waiting" && (syncing || blocksUntilReveal === 0)) {
+    title = "Almost there";
+    body = "The network is confirming your fusion can be revealed. This takes a few seconds and needs nothing from you.";
+  } else if (status === "waiting") {
     title = "Fusing in progress";
     body = `Your two fragrances are sealed in the lab. The reveal opens in about ${seconds(blocksUntilReveal ?? REVEAL_DELAY_BLOCKS)} seconds.`;
   } else if (status === "ready") {
@@ -258,17 +272,24 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
             )}
           </div>
 
+          {notice && !error && (
+            <p role="status" className="w-full rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm text-amber-200">{notice}</p>
+          )}
           {error && (
-            <p className="w-full rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
+            <p role="alert" className="w-full rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
           )}
 
           {status === "ready" && onReveal && (
             <button
               ref={primaryRef}
-              onClick={onReveal}
-              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02]"
+              disabled={locked}
+              onClick={() => {
+                setLocked(true);
+                onReveal();
+              }}
+              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-60 disabled:hover:scale-100"
             >
-              Reveal the hybrid
+              {locked ? "One moment..." : "Reveal the hybrid"}
             </button>
           )}
           {status === "expired" && onRecover && (
@@ -391,3 +412,4 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
     </div>
   );
 }
+
