@@ -141,7 +141,8 @@ export class ScentSoundEngine {
   private intervals: ReturnType<typeof setInterval>[] = [];
   private running = false;
   private volume = 0.8;
-  private noise: AudioBuffer | null = null;
+  private whiteNoise: AudioBuffer | null = null;
+  private pinkNoise: AudioBuffer | null = null; // NEW: Softer noise
   private tuning: Tuning;
   private tone: BiquadFilterNode | null = null;
   private wet: GainNode | null = null;
@@ -155,7 +156,7 @@ export class ScentSoundEngine {
   private readonly base: Profile;
   private readonly scale: number[];
   private readonly rootMidi: number;
-  private readonly tempoMod: number; // NEW: Dynamic tempo based on scent
+  private readonly tempoMod: number;
   /** Called when playback ends, including when another scent takes over. */
   onStop: (() => void) | null = null;
 
@@ -166,14 +167,9 @@ export class ScentSoundEngine {
     this.heart = average(input.heartNotes);
     this.base = average(input.baseNotes);
     
-    // NEW LOGIC: Force Major scale for bright/scintillating scents, Minor for dark/rumbling ones
     const mood = (this.top.bright + this.top.sparkle) - (this.base.warm + this.base.rumble);
     this.scale = mood > 0 ? MAJOR_PENTA : MINOR_PENTA;
-    
-    // NEW LOGIC: Bright scents play higher, dark scents play lower
-    this.rootMidi = mood > 0 ? 60 + Math.floor(this.rand() * 5) : 43 + Math.floor(this.rand() * 4); // C4 range vs F2 range
-    
-    // NEW LOGIC: Sparkle makes it faster, Rumble makes it slower
+    this.rootMidi = mood > 0 ? 60 + Math.floor(this.rand() * 5) : 43 + Math.floor(this.rand() * 4);
     this.tempoMod = 1.0 + (this.top.sparkle * 0.6) - (this.base.rumble * 0.6);
   }
 
@@ -221,7 +217,8 @@ export class ScentSoundEngine {
     comp.connect(this.analyser);
     this.analyser.connect(ctx.destination);
 
-    this.noise = this.noiseBuffer(ctx, 2);
+    this.whiteNoise = this.noiseBuffer(ctx, 2, "white");
+    this.pinkNoise = this.noiseBuffer(ctx, 2, "pink"); // NEW
     this.master.gain.linearRampToValueAtTime(this.volume, ctx.currentTime + 1.8);
 
     this.buildDrone(rarity);
@@ -246,7 +243,6 @@ export class ScentSoundEngine {
     this.onStop?.();
   }
 
-  /** Change mix settings while playing. Reverb length applies on the next start. */
   setTuning(next: Partial<Tuning>): void {
     this.tuning = { ...this.tuning, ...next };
     const ctx = this.ctx;
@@ -266,7 +262,6 @@ export class ScentSoundEngine {
     }
   }
 
-  /** Current loudness from 0 to 1, for visuals. */
   getLevel(): number {
     if (!this.analyser || !this.data) return 0;
     this.analyser.getByteTimeDomainData(this.data as unknown as Parameters<AnalyserNode["getByteTimeDomainData"]>[0]);
@@ -319,6 +314,16 @@ export class ScentSoundEngine {
       osc.type = type;
       osc.frequency.value = freq;
       osc.detune.value = (this.rand() - 0.5) * 8;
+      
+      // NEW: Add vibrato for more organic sound
+      const vibrato = ctx.createOscillator();
+      const vibratoGain = ctx.createGain();
+      vibrato.frequency.value = 4 + this.rand() * 2; // 4-6 Hz vibrato
+      vibratoGain.gain.value = 2 + this.rand() * 3; // 2-5 cents vibrato depth
+      vibrato.connect(vibratoGain);
+      vibratoGain.connect(osc.frequency);
+      vibrato.start();
+      
       og.gain.value = g;
       osc.connect(og);
       og.connect(lp);
@@ -328,15 +333,15 @@ export class ScentSoundEngine {
     gain.connect(this.dry);
     gain.connect(this.send);
 
-    if (this.base.rumble > 0.2 && this.noise) {
+    if (this.base.rumble > 0.2 && this.whiteNoise) {
       const src = ctx.createBufferSource();
-      src.buffer = this.noise;
+      src.buffer = this.whiteNoise;
       src.loop = true;
       const f = ctx.createBiquadFilter();
       f.type = "lowpass";
       f.frequency.value = 110;
       const g = ctx.createGain();
-      g.gain.value = 0.25 * this.base.rumble; // Increased rumble impact
+      g.gain.value = 0.25 * this.base.rumble;
       src.connect(f);
       f.connect(g);
       g.connect(this.dry);
@@ -363,7 +368,6 @@ export class ScentSoundEngine {
     const lift = this.heart.bright > 0.55 ? 12 : 0;
     const steps = [root, root + 2, root + 4, ...(rarity >= 2 ? [root + 7] : [])];
     
-    // Dynamic duration: fast for citrus, slow for oud
     const dur = (9 + this.rand() * 5) * this.tuning.tempo * this.tempoMod;
     const now = ctx.currentTime;
     const level = (0.05 + 0.05 * this.heart.warm) * this.tuning.pad;
@@ -412,7 +416,6 @@ export class ScentSoundEngine {
 
   private tick(): void {
     if (!this.ctx || !this.running) return;
-    // Density is now heavily influenced by the top note profile
     const density = (0.05 + 0.8 * this.top.sparkle) * this.tuning.chimeDensity;
     if (this.rand() < density * 0.3) {
       this.bell(this.step(Math.floor(this.rand() * 10)) + 12, (0.05 + 0.04 * this.top.bright) * this.tuning.chimes);
@@ -450,10 +453,10 @@ export class ScentSoundEngine {
 
   private breath(): void {
     const ctx = this.ctx;
-    if (!ctx || !this.noise || !this.send) return;
+    if (!ctx || !this.pinkNoise || !this.send) return; // CHANGED: Use pink noise for softer breath
     const t = ctx.currentTime;
     const src = ctx.createBufferSource();
-    src.buffer = this.noise;
+    src.buffer = this.pinkNoise; // CHANGED
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
     bp.frequency.value = 2800 + this.rand() * 3000;
@@ -471,10 +474,10 @@ export class ScentSoundEngine {
 
   private crackle(): void {
     const ctx = this.ctx;
-    if (!ctx || !this.noise || !this.dry) return;
+    if (!ctx || !this.whiteNoise || !this.dry) return;
     const t = ctx.currentTime;
     const src = ctx.createBufferSource();
-    src.buffer = this.noise;
+    src.buffer = this.whiteNoise;
     const hp = ctx.createBiquadFilter();
     hp.type = "highpass";
     hp.frequency.value = 1500 + this.rand() * 2500;
@@ -491,10 +494,38 @@ export class ScentSoundEngine {
 
   // ---------------------------------------------------------------- buffers
 
-  private noiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
+  // NEW: Generate different types of noise
+  private noiseBuffer(ctx: AudioContext, seconds: number, type: "white" | "pink" | "brown"): AudioBuffer {
     const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
     const ch = buf.getChannelData(0);
-    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    
+    if (type === "white") {
+      for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    } else if (type === "pink") {
+      // Pink noise: softer, more natural (like wind or breath)
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < ch.length; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        ch[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+        b6 = white * 0.115926;
+      }
+    } else { // brown
+      // Brown noise: deep, rumbling (like thunder or distant waterfall)
+      let lastOut = 0;
+      for (let i = 0; i < ch.length; i++) {
+        const white = Math.random() * 2 - 1;
+        ch[i] = (lastOut + (0.02 * white)) / 1.02;
+        lastOut = ch[i];
+        ch[i] *= 3.5;
+      }
+    }
+    
     return buf;
   }
 
@@ -512,8 +543,6 @@ export class ScentSoundEngine {
 // Only one scent plays at a time.
 let active: ScentSoundEngine | null = null;
 
-// Once you have tuned the sound in the Sound Lab, paste the values into DEFAULT_TUNING.
-// setGlobalTuning is for experiments: it changes the starting mix for scents played afterwards.
 let globalTuning: Partial<Tuning> = {};
 export function setGlobalTuning(next: Partial<Tuning>): void {
   globalTuning = { ...globalTuning, ...next };
