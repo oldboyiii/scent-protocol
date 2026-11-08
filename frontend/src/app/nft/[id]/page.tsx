@@ -257,7 +257,7 @@ export default function NFTDetailPage() {
             if (data && data.name) {
               setPerfume({ 
                 name: data.name, 
-                gender: Number(data.gender), // ✅ Convert bigint to number to prevent rendering/audio issues
+                gender: Number(data.gender), 
                 pType: Number(data.pType), 
                 topNotes: Array.from(data.topNotes || []) as string[], 
                 heartNotes: Array.from(data.heartNotes || []) as string[], 
@@ -581,30 +581,31 @@ export default function NFTDetailPage() {
             </div>
             
             <div>
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <p className="text-xs text-white/40 uppercase tracking-wider">
+              {/* ✅ Ultra-compact badges for special collections to match V3 height */}
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                <p className="text-[10px] text-white/40 uppercase tracking-wider">
                   {isHybrid ? "HYBRID" : isViral ? "VIRAL" : isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
                 </p>
                 {isGenesis && (
-                  <span className="text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
-                    <svg viewBox="0 0 24 16" className="w-3 h-2"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-amber-500/40 text-amber-50 border-amber-400/80 flex items-center gap-1">
+                    <svg viewBox="0 0 24 16" className="w-2.5 h-2"><path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
                     Genesis
                   </span>
                 )}
                 {isMFW && (
-                  <span className="text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
-                    <MFWBottleIcon className="w-3 h-3" /> MFW 2026
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-purple-500/40 text-purple-50 border-purple-400/80 flex items-center gap-1">
+                    <MFWBottleIcon className="w-2.5 h-2.5" /> MFW 2026
                   </span>
                 )}
                 {isViral && (
-                  <span className="text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
-                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-fuchsia-500/40 text-fuchsia-50 border-fuchsia-400/80 flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                     Viral
                   </span>
                 )}
                 {isHybrid && (
-                  <span className="text-xs font-bold px-2 py-1 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1">
-                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-md bg-cyan-500/40 text-cyan-50 border-cyan-400/80 flex items-center gap-1">
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
                     Hybrid
                   </span>
                 )}
@@ -622,7 +623,6 @@ export default function NFTDetailPage() {
           </span>
         </div>
 
-        {/* ✅ Meta info with concentration percentage */}
         <div className="relative flex flex-wrap gap-2 text-sm mb-4">
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{GENDER[perfume.gender]}</span>
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{TYPE[perfume.pType]}</span>
@@ -660,7 +660,7 @@ export default function NFTDetailPage() {
           {description}
         </div>
 
-               {/* ✅ Compact full player with volume control, without duplicate notes grid */}
+        {/* ✅ Compact full player with volume control, without duplicate notes grid */}
         <div className="mb-2">
           <ScentPlayer
             variant="full"
@@ -677,29 +677,30 @@ export default function NFTDetailPage() {
           />
         </div>
 
-        <div className="relative text-sm text-white/40 space-y-1">
+        {/* ✅ Ultra-compact footer metadata for special collections */}
+        <div className="relative text-xs text-white/40 space-y-0.5">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
           {isGenesis && (
-            <p className="text-amber-300 font-bold mt-2 flex items-center gap-2">
-              <img src="/arc-logo.png" alt="Arc" className="w-5 h-5 inline-block" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }} />
+            <p className="text-amber-300 font-bold flex items-center gap-1.5">
+              <img src="/arc-logo.png" alt="Arc" className="w-3.5 h-3.5 inline-block" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }} />
               Arc Mainnet Genesis
             </p>
           )}
           {isMFW && (
-            <p className="text-purple-300 font-bold mt-2 flex items-center gap-2">
-              <MFWBottleIcon className="w-5 h-5" /> Milan Fashion Week 2026
+            <p className="text-purple-300 font-bold flex items-center gap-1.5">
+              <MFWBottleIcon className="w-3.5 h-3.5" /> Milan Fashion Week 2026
             </p>
           )}
           {isViral && (
-            <p className="text-fuchsia-300 font-bold mt-2 flex items-center gap-2">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <p className="text-fuchsia-300 font-bold flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
               Viral Scent Experiment
             </p>
           )}
           {isHybrid && (
-            <p className="text-cyan-300 font-bold mt-2 flex items-center gap-2">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
+            <p className="text-cyan-300 font-bold flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 3v6l-6 9h18l-6-9V3H9z"/><path d="M9 9h6"/></svg>
               Scent Alchemy Hybrid
             </p>
           )}
