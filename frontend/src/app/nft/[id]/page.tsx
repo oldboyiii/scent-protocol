@@ -660,8 +660,8 @@ export default function NFTDetailPage() {
           {description}
         </div>
 
-        {/* ✅ FULL player with volume control, but WITHOUT duplicate notes grid to save space */}
-        <div className="mb-4">
+               {/* ✅ Compact full player with volume control, without duplicate notes grid */}
+        <div className="mb-3">
           <ScentPlayer
             variant="full"
             hideNotes={true}
