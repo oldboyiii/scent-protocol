@@ -203,7 +203,7 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
   let body = "";
   if (status === "waiting") {
     title = "Fusing in progress";
-    body = `Your two fragrances are sealed in the lab. The reveal opens in about ${seconds(blocksUntilReveal ?? REVEAL_DELAY_BLOCKS)} seconds.`;
+    body = `Your two fragrances are sealed in the lab. The reveal opens shortly.`;
   } else if (status === "ready") {
     title = "The fusion is ready";
     body = "Reveal your hybrid now. The reveal window is short, so do not wait.";
@@ -250,18 +250,41 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3 w-full">
             <h2 className="text-2xl font-bold tracking-tight text-white">{title}</h2>
             <p className="mx-auto max-w-sm text-sm text-white/60">{body}</p>
+            
+            {/* ✅ Clear timer for waiting state (no block counts) */}
+            {status === "waiting" && blocksUntilReveal !== undefined && (
+              <div className="w-full rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-center">
+                <p className="text-2xl font-bold text-cyan-300 tabular-nums">
+                  {seconds(blocksUntilReveal)}s
+                </p>
+                <p className="text-xs text-white/60 mt-1">
+                  until reveal opens. Please wait...
+                </p>
+              </div>
+            )}
+            
             {blocksUntilExpiry !== undefined && (status === "waiting" || status === "ready") && (
               <p className="text-xs text-white/40">Window closes in about {seconds(blocksUntilExpiry)} seconds</p>
             )}
+
+            {/* ✅ Friendly error message instead of raw revert */}
+            {error && (
+              <div className={`w-full rounded-xl px-4 py-3 text-sm text-center ${
+                status === "waiting" 
+                  ? "border border-amber-500/30 bg-amber-500/10 text-amber-300" 
+                  : "border border-red-500/30 bg-red-500/10 text-red-300"
+              }`}>
+                {status === "waiting" 
+                  ? "Too early! The fusion is still in progress. Please wait for the timer above." 
+                  : (error.includes("reverted") || error.includes("early") ? "Transaction failed. Please try again in a moment." : error)}
+              </div>
+            )}
           </div>
 
-          {error && (
-            <p className="w-full rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
-          )}
-
+          {/* ✅ Only show Reveal button when ready */}
           {status === "ready" && onReveal && (
             <button
               ref={primaryRef}
@@ -271,6 +294,34 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
               Reveal the hybrid
             </button>
           )}
+          
+          {/* ✅ Disabled button placeholder when waiting so UI doesn't jump and user knows it's working */}
+          {status === "waiting" && (
+            <button
+              disabled
+              className="w-full rounded-xl border border-white/10 bg-white/5 py-3 font-semibold text-white/30 cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <svg className="animate-spin h-4 w-4 text-white/50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Fusing...
+            </button>
+          )}
+
+          {status === "revealing" && (
+            <button
+              disabled
+              className="w-full rounded-xl border border-cyan-500/30 bg-cyan-500/10 py-3 font-semibold text-cyan-300 cursor-wait flex items-center justify-center gap-2"
+            >
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Processing transaction...
+            </button>
+          )}
+
           {status === "expired" && onRecover && (
             <button
               ref={primaryRef}
