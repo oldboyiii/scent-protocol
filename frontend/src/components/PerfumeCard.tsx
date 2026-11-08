@@ -14,6 +14,8 @@ interface PerfumeCardProps {
   isGenesis?: boolean;
   isMFW?: boolean;
   isHybrid?: boolean;
+  /** Detail page link. Pass `/nft/<id>?contract=<address>` for non-V3 collections, otherwise the card opens the V3 token with the same id. */
+  href?: string;
 }
 
 const RARITY_STYLE: Record<number, { bg: string; border: string; badge: string; text: string; glow: string; hex: string; }> = {
@@ -48,7 +50,8 @@ export default function PerfumeCard({
   highlight = false,
   isGenesis = false,
   isMFW = false,
-  isHybrid = false
+  isHybrid = false,
+  href,
 }: PerfumeCardProps) {
   // Determine style: Collection-specific styles take precedence over rarity
   const style = isHybrid 
@@ -58,7 +61,7 @@ export default function PerfumeCard({
       : (RARITY_STYLE[perfume.rarity] || RARITY_STYLE[0]);
 
   return (
-    <Link href={`/nft/${tokenId}`}>
+    <Link href={href ?? `/nft/${tokenId}`}>
       <div 
         className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02] ${
           highlight ? "ring-4 ring-amber-400/50 ring-offset-2 ring-offset-slate-900" : ""
