@@ -597,15 +597,15 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
-        {/* COMPACT DESCRIPTION BOX */}
+                {/* COMPACT DESCRIPTION BOX */}
         <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-4 text-sm leading-relaxed ${descBg}`}>
           {description}
         </div>
 
-        {/* ✅ ADDED: Audio player for experiencing the fragrance */}
-        <div className="mb-6">
+        {/* ✅ ADDED: Compact audio player to avoid duplicating notes and save space */}
+        <div className="mb-4 flex items-center gap-3">
           <ScentPlayer
-            variant="full"
+            variant="compact"
             tokenId={id}
             perfume={{
               name: perfume.name,
@@ -616,6 +616,7 @@ export default function NFTDetailPage() {
               baseNotes: perfume.baseNotes,
             }}
           />
+          <span className="text-xs text-white/40">Tap to listen</span>
         </div>
 
         {/* SLIGHTLY LARGER META INFO */}
