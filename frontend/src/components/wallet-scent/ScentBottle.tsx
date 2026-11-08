@@ -60,7 +60,7 @@ export default function ScentBottle({ name, description, colors, topNotes, heart
 
       <div className="ws-rise" style={{ animationDelay: "1.4s" }}>
         <p className="text-xs font-medium uppercase tracking-widest text-purple-300">Your wallet smells like</p>
-        <h3 className="mt-1 bg-gradient-to-r from-purple-300 via-pink-300 to-amber-300 bg-clip-text text-4xl font-bold text-transparent">{name}</h3>
+        <h3 className="mt-1 bg-gradient-to-r from-purple-300 via-pink-300 to-amber-300 bg-clip-text pb-2 text-4xl font-bold leading-[1.25] text-transparent">{name}</h3>
       </div>
 
       <div className="ws-rise" style={{ animationDelay: "1.7s" }}>
