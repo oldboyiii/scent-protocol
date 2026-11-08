@@ -1,66 +1,178 @@
 // frontend/src/utils/weather.ts
+//
+// Current weather and time of day, used for the AI Advisor "vibe" and for the weather layer
+// of the scent sound. Weather comes from Open-Meteo, which needs no API key, so nothing secret
+// ships in the browser bundle (the old NEXT_PUBLIC_OPENWEATHER_API_KEY is no longer used and can be removed).
+//
+// Privacy: location is requested only when a person asks for it. Coordinates are rounded to
+// about 11 km before they leave the browser, and nothing is stored except the weather result,
+// kept in sessionStorage for 10 minutes. If location is unavailable, the result falls back
+// to time of day only and no network request is made.
 
-// Get current weather and time context for AI fragrance generation
-export async function getCurrentVibe(): Promise<string> {
-  try {
-    // Step 1: Get user location via browser geolocation
-    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: false,
-        timeout: 5000,
-        maximumAge: 600000 // 10 minutes cache
-      });
-    });
+export type WeatherCondition = "clear" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "thunder";
+export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
 
-    const { latitude, longitude } = position.coords;
+export interface WeatherContext {
+  /** "location" means real weather. "time" means only the clock was used. */
+  source: "location" | "time";
+  condition: WeatherCondition;
+  tempC: number | null;
+  windKph: number;
+  isNight: boolean;
+  timeOfDay: TimeOfDay;
+}
 
-    // Step 2: Fetch weather data from OpenWeatherMap
-    const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
-    if (!apiKey) throw new Error("Weather API key not configured");
+const CACHE_KEY = "scent-weather-v1";
+const CACHE_MS = 10 * 60 * 1000;
 
-    const weatherResponse = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&appid=${apiKey}`
-    );
+function timeOfDayFor(hour: number): TimeOfDay {
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 17) return "afternoon";
+  if (hour >= 17 && hour < 22) return "evening";
+  return "night";
+}
 
-    if (!weatherResponse.ok) throw new Error("Weather API request failed");
+function timeOnly(): WeatherContext {
+  const hour = new Date().getHours();
+  return {
+    source: "time",
+    condition: "clear",
+    tempC: null,
+    windKph: 0,
+    isNight: hour >= 20 || hour < 6,
+    timeOfDay: timeOfDayFor(hour),
+  };
+}
 
-    const weatherData = await weatherResponse.json();
+// WMO weather interpretation codes used by Open-Meteo.
+function conditionFromCode(code: number): WeatherCondition {
+  if (code === 45 || code === 48) return "fog";
+  if (code >= 95) return "thunder";
+  if ([51, 53, 55, 56, 57].includes(code)) return "drizzle";
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "rain";
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return "snow";
+  if (code === 3) return "cloudy";
+  return "clear";
+}
 
-    // Step 3: Extract relevant info
-    const temperature = Math.round(weatherData.main.temp);
-    const weatherCondition = weatherData.weather[0].description.toLowerCase();
-    const cityName = weatherData.name;
-
-    // Step 4: Determine time of day
-    const hour = new Date().getHours();
-    let timeOfDay = "";
-    if (hour >= 5 && hour < 12) timeOfDay = "morning";
-    else if (hour >= 12 && hour < 17) timeOfDay = "afternoon";
-    else if (hour >= 17 && hour < 22) timeOfDay = "evening";
-    else timeOfDay = "night";
-
-    // Step 5: Build vibe string for AI
-    return `It's ${temperature}°C and ${weatherCondition} in ${cityName}, ${timeOfDay} time`;
-  } catch (error) {
-    console.error("Failed to get current vibe:", error);
-    
-    // Fallback: IP-based location (works without geolocation permission)
-    try {
-      const ipResponse = await fetch("https://ipapi.co/json/");
-      if (!ipResponse.ok) throw new Error("IP location failed");
-      
-      const ipData = await ipResponse.json();
-      const hour = new Date().getHours();
-      let timeOfDay = "";
-      if (hour >= 5 && hour < 12) timeOfDay = "morning";
-      else if (hour >= 12 && hour < 17) timeOfDay = "afternoon";
-      else if (hour >= 17 && hour < 22) timeOfDay = "evening";
-      else timeOfDay = "night";
-
-      return `Currently ${timeOfDay} time in ${ipData.city || "your location"}`;
-    } catch (fallbackError) {
-      console.error("Fallback location failed:", fallbackError);
-      throw new Error("Unable to determine your location. Please enter your vibe manually.");
+function getPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      reject(new Error("Geolocation is not available"));
+      return;
     }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      timeout: 6000,
+      maximumAge: CACHE_MS,
+    });
+  });
+}
+
+async function locationAlreadyGranted(): Promise<boolean> {
+  try {
+    const status = await navigator.permissions?.query({ name: "geolocation" as PermissionName });
+    return status?.state === "granted";
+  } catch {
+    return false;
   }
+}
+
+function readCache(): WeatherContext | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { at, ctx } = JSON.parse(raw) as { at: number; ctx: WeatherContext };
+    return Date.now() - at < CACHE_MS ? ctx : null;
+  } catch {
+    return null;
+  }
+}
+
+let last: WeatherContext | null = null;
+const listeners = new Set<(w: WeatherContext) => void>();
+
+function publish(w: WeatherContext): WeatherContext {
+  last = w;
+  listeners.forEach((cb) => cb(w));
+  return w;
+}
+
+export function getLastWeather(): WeatherContext | null {
+  return last;
+}
+
+export function subscribeWeather(cb: (w: WeatherContext) => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+/**
+ * Current weather where the person is. Never throws: when location or the weather service
+ * is unavailable it returns a time-of-day-only context (source "time").
+ * Pass { prompt: false } to avoid showing the browser's location prompt.
+ */
+export async function getWeatherContext(options: { prompt?: boolean } = {}): Promise<WeatherContext> {
+  const cached = readCache();
+  if (cached) return publish(cached);
+
+  try {
+    if (options.prompt === false && !(await locationAlreadyGranted())) return publish(timeOnly());
+
+    const { latitude, longitude } = (await getPosition()).coords;
+    const lat = latitude.toFixed(1);
+    const lon = longitude.toFixed(1);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+        `&current=temperature_2m,weather_code,wind_speed_10m,is_day&wind_speed_unit=kmh&timezone=auto`,
+      { signal: controller.signal },
+    ).finally(() => clearTimeout(timer));
+    if (!res.ok) throw new Error("Weather request failed");
+
+    const data = (await res.json()) as {
+      current: { temperature_2m: number; weather_code: number; wind_speed_10m: number; is_day: number };
+    };
+    const c = data.current;
+    const ctx: WeatherContext = {
+      source: "location",
+      condition: conditionFromCode(c.weather_code),
+      tempC: Math.round(c.temperature_2m),
+      windKph: Math.round(c.wind_speed_10m),
+      isNight: c.is_day === 0,
+      timeOfDay: timeOfDayFor(new Date().getHours()),
+    };
+    try {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), ctx }));
+    } catch {
+      // Private mode or full storage: skip the cache.
+    }
+    return publish(ctx);
+  } catch {
+    return publish(timeOnly());
+  }
+}
+
+const PHRASES: Record<WeatherCondition, string> = {
+  clear: "clear",
+  cloudy: "cloudy",
+  fog: "foggy",
+  drizzle: "drizzling",
+  rain: "rainy",
+  snow: "snowy",
+  thunder: "stormy",
+};
+
+/** A short sentence the AI Advisor can use as the "vibe". */
+export function describeWeather(w: WeatherContext): string {
+  if (w.source === "time" || w.tempC === null) return `It's ${w.timeOfDay} time`;
+  const wind = w.windKph >= 30 ? " with strong wind" : "";
+  return `It's ${w.tempC}°C and ${PHRASES[w.condition]}${wind}, ${w.timeOfDay} time`;
+}
+
+/** Kept for the AI Advisor. Falls back to time of day when location is unavailable. */
+export async function getCurrentVibe(): Promise<string> {
+  return describeWeather(await getWeatherContext());
 }
