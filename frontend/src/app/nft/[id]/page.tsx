@@ -9,7 +9,7 @@ import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
 import FitTitle from "@/components/FitTitle";
-import ScentPlayer from "@/components/sound/ScentPlayer"; //✅ Added audio player import
+import ScentPlayer from "@/components/sound/ScentPlayer"; // ✅ Added audio player import
 
 // ============================================================
 // CONTRACT ADDRESSES & ABIs
@@ -552,7 +552,7 @@ export default function NFTDetailPage() {
               <FitTitle 
                 text={perfume.name} 
                 className="font-bold text-white leading-tight"
-                maxRem={1.875} // Позволяет вырасти до text-3xl (30px), если места достаточно
+                maxRem={1.875} // Allows growing up to text-3xl (30px) if space permits
               />
             </div>
           </div>
