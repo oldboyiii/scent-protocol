@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import FitTitle from "@/components/FitTitle"; // 
+import FitTitle from "@/components/FitTitle";
+import ScentPlayer from "@/components/sound/ScentPlayer"; // ✅ Added audio player import
 
 interface NFTCardProps {
   tokenId: number;
@@ -256,7 +257,7 @@ export default function NFTCard({
                 {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
               </p>
               
-              {/* ✅ ЗАМЕНА: Используем FitTitle вместо жестко заданного h3 */}
+              {/* ✅ REPLACEMENT: Using FitTitle instead of a hardcoded h3 */}
               <FitTitle 
                 text={name} 
                 className="font-bold text-white mt-1 leading-tight" 
@@ -366,15 +367,19 @@ export default function NFTCard({
 
         {/* Footer */}
         <div className="relative flex items-center justify-between pt-4 border-t border-white/10">
-          <div className="flex items-center gap-2">
-            {/* Arc Network Badge */}
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
-              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-white/60" fill="none">
-                <path d="M3 20 Q12 2 21 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span className="text-[10px] text-white/40">Arc Network</span>
-            </div>
-          </div>
+          {/* ✅ ADDED: Compact sound player for the card */}
+          <ScentPlayer
+            variant="compact"
+            tokenId={tokenId}
+            perfume={{
+              name,
+              rarity,
+              creator,
+              topNotes,
+              heartNotes,
+              baseNotes,
+            }}
+          />
 
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <span className="text-xs text-amber-400 font-medium">View Details →</span>
