@@ -28,6 +28,17 @@ const ALCHEMY_EXTRA_ABI = [
   "function REVEAL_BLOCKS() view returns (uint256)",
   "function REVEAL_WINDOW() view returns (uint256)",
   "function cancelExpiredBlend(uint256 blendId)",
+  // Custom errors, so a revert shows its name instead of "unknown custom error".
+  "error Alchemy__TooEarly(uint256 blendId, uint256 currentBlock, uint256 earliestBlock)",
+  "error Alchemy__TooLate(uint256 blendId, uint256 currentBlock, uint256 latestBlock)",
+  "error Alchemy__NoPendingBlend(uint256 blendId)",
+  "error Alchemy__BlockhashUnavailable(uint256 blendId, uint256 entropyBlock)",
+  "error Alchemy__BlendNotExpired(uint256 blendId, uint256 currentBlock, uint256 earliestBlock)",
+  "error Alchemy__NotBlender(uint256 blendId, address caller)",
+  "error Alchemy__NotOwner(address caller, uint256 tokenId)",
+  "error Alchemy__SameToken(uint256 tokenId)",
+  "error Alchemy__FeeExceedsMax(uint256 actualFee, uint256 maxFee)",
+  "error Alchemy__Paused()",
 ];
 const EXPLORER = process.env.NEXT_PUBLIC_EXPLORER_URL || "https://explorer.arc.io";
 
@@ -54,12 +65,28 @@ async function getSigner() {
   return new ethers.BrowserProvider(eth).getSigner();
 }
 
+// The wallet's own node is the one that will receive the transaction, so measure readiness there.
+// A public RPC can be a few blocks ahead of the node behind the wallet.
+function readerProvider(): ethers.Provider {
+  const eth = typeof window !== "undefined" ? (window as unknown as { ethereum?: ethers.Eip1193Provider }).ethereum : undefined;
+  return eth ? new ethers.BrowserProvider(eth) : getProvider();
+}
+
+function revertName(err: unknown): string | null {
+  const e = err as { revert?: { name?: string }; message?: string; shortMessage?: string };
+  if (e.revert?.name) return e.revert.name;
+  const m = /Alchemy__\w+/.exec(`${e.shortMessage ?? ""} ${e.message ?? ""}`);
+  return m ? m[0] : null;
+}
+
 function explain(err: unknown): string {
   const e = err as { code?: string | number; shortMessage?: string; reason?: string; message?: string };
   if (e.code === 4001 || e.code === "ACTION_REJECTED") return "Transaction rejected in your wallet.";
   const text = e.reason || e.shortMessage || e.message || "";
   if (/TooLate/i.test(text)) return "The reveal window closed. Recover your fragrances instead.";
-  if (/TooEarly/i.test(text)) return "Reveal is not open yet. Wait a few more blocks.";
+  if (/TooEarly/i.test(text)) return "Not ready yet. The network needs a few more seconds.";
+  if (/NoPendingBlend/i.test(text)) return "This blend was already revealed or no longer exists. Check your collection.";
+  if (/BlockhashUnavailable/i.test(text)) return "The reveal window passed. Recover your fragrances instead.";
   if (/Paused/i.test(text)) return "Alchemy is paused right now.";
   if (/FeeExceedsMax/i.test(text)) return "The fee changed. Refresh the page and try again.";
   return text.slice(0, 220) || "Something went wrong. Check the console.";
@@ -100,6 +127,8 @@ export default function AlchemyPage() {
   const [result, setResult] = useState<ResultState | null>(null);
   const [currentBlock, setCurrentBlock] = useState(0);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [readyBlendId, setReadyBlendId] = useState<number | null>(null);
+  const [softNotice, setSoftNotice] = useState<string | null>(null);
 
   // Contract settings: read on-chain instead of hard-coding the fee or timing.
   useEffect(() => {
@@ -175,7 +204,7 @@ export default function AlchemyPage() {
     if (!pending) return;
     let live = true;
     const tick = () => {
-      getProvider()
+      readerProvider()
         .getBlockNumber()
         .then((n) => live && setCurrentBlock(n))
         .catch(() => undefined);
@@ -300,6 +329,7 @@ export default function AlchemyPage() {
     if (!pending || !address) return;
     setBusy("reveal");
     setError(null);
+    setSoftNotice(null);
     try {
       const signer = await getSigner();
       const alchemy = alchemyAt(signer);
@@ -338,7 +368,16 @@ export default function AlchemyPage() {
       setPending(null);
     } catch (err) {
       console.error("Reveal failed:", err);
-      setError(explain(err));
+      const name = revertName(err);
+      if (name === "Alchemy__TooEarly") {
+        // Not an error: the node behind the wallet is a few blocks behind. Wait for the silent check to unlock the button.
+        setReadyBlendId(null);
+        setSoftNotice("Not ready yet. The network needs a few more seconds. The button unlocks as soon as it is ready.");
+      } else if (name === "Alchemy__NoPendingBlend") {
+        clearRevealed();
+      } else {
+        setError(explain(err));
+      }
     } finally {
       setBusy(null);
     }
@@ -366,12 +405,50 @@ export default function AlchemyPage() {
     }
   };
 
+  // The blend was already revealed (by an earlier attempt or by someone else): nothing is left to do here.
+  const clearRevealed = () => {
+    if (address) localStorage.removeItem(storageKey(address));
+    setPending(null);
+    setReadyBlendId(null);
+    setSoftNotice(null);
+    setNotice("This blend was already revealed. Your hybrid is in your collection.");
+  };
+
+  // Silent readiness check: before the button appears, ask the wallet's own node whether the reveal would succeed.
+  const blendId = pending?.blendId;
+  const openFrom = pending ? pending.blockNumber + timing.revealBlocks : 0;
+  const closesAt = pending ? pending.blockNumber + timing.window : 0;
+  const inWindow = !!pending && currentBlock >= openFrom && currentBlock <= closesAt;
+  const canReveal = blendId !== undefined && readyBlendId === blendId;
+  useEffect(() => {
+    if (blendId === undefined || !inWindow || canReveal || busy === "reveal") return;
+    let live = true;
+    const check = async () => {
+      try {
+        await alchemyAt(readerProvider()).revealBlend.staticCall(blendId);
+        if (live) {
+          setReadyBlendId(blendId);
+          setSoftNotice(null);
+        }
+      } catch (e) {
+        if (live && revertName(e) === "Alchemy__NoPendingBlend") clearRevealed();
+      }
+    };
+    void check();
+    const id = setInterval(check, 1500);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blendId, inWindow, canReveal, busy]);
+
   const revealAt = pending ? pending.blockNumber + timing.revealBlocks + 1 : 0;
   const expiresAt = pending ? pending.blockNumber + timing.window : 0;
   let status: AlchemyStatus = "waiting";
   if (busy === "reveal") status = "revealing";
   else if (currentBlock > 0 && currentBlock > expiresAt) status = "expired";
-  else if (currentBlock >= revealAt) status = "ready";
+  else if (currentBlock >= revealAt && canReveal) status = "ready";
 
   const feeLabel = fee !== null ? `${ethers.formatUnits(fee, 6)} USDC` : "the alchemy fee";
   const canStart = isConnected && !!slot1 && !!slot2 && !busy && !paused && fee !== null && !pending;
@@ -460,6 +537,8 @@ export default function AlchemyPage() {
           feeLabel={feeLabel}
           txUrl={txHash ? `${EXPLORER}/tx/${txHash}` : undefined}
           error={error}
+          notice={softNotice}
+          syncing={!result && status === "waiting" && inWindow}
           onReveal={handleReveal}
           onRecover={handleRecover}
           onComplete={() => {
@@ -633,3 +712,4 @@ function NFTCard({ nft }: { nft: SelectedNFT }) {
     </div>
   );
 }
+
