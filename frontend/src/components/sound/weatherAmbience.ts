@@ -1,178 +1,101 @@
-// frontend/src/utils/weather.ts
-//
-// Current weather and time of day, used for the AI Advisor "vibe" and for the weather layer
-// of the scent sound. Weather comes from Open-Meteo, which needs no API key, so nothing secret
-// ships in the browser bundle (the old NEXT_PUBLIC_OPENWEATHER_API_KEY is no longer used and can be removed).
-//
-// Privacy: location is requested only when a person asks for it. Coordinates are rounded to
-// about 11 km before they leave the browser, and nothing is stored except the weather result,
-// kept in sessionStorage for 10 minutes. If location is unavailable, the result falls back
-// to time of day only and no network request is made.
+"use client";
 
-export type WeatherCondition = "clear" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "thunder";
-export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
+import { useSyncExternalStore } from "react";
+import { describeWeather, getWeatherContext } from "@/utils/weather";
+import { NEUTRAL_AMBIENCE, ambienceFromWeather, setGlobalAmbience } from "./scentSound";
 
-export interface WeatherContext {
-  /** "location" means real weather. "time" means only the clock was used. */
-  source: "location" | "time";
-  condition: WeatherCondition;
-  tempC: number | null;
-  windKph: number;
-  isNight: boolean;
-  timeOfDay: TimeOfDay;
+// Shared on/off switch for the weather layer. Every ScentPlayer reads the same state,
+// so turning it on once affects every scent, including the one playing right now.
+
+type Status = "off" | "loading" | "on";
+
+interface WeatherSoundState {
+  status: Status;
+  /** "location" is real weather. "time" means only the time of day is used. */
+  source: "location" | "time" | null;
+  label: string | null;
 }
 
-const CACHE_KEY = "scent-weather-v1";
-const CACHE_MS = 10 * 60 * 1000;
+const FLAG = "scent-weather-sound";
+const REFRESH_MS = 15 * 60 * 1000;
+const INITIAL: WeatherSoundState = { status: "off", source: null, label: null };
 
-function timeOfDayFor(hour: number): TimeOfDay {
-  if (hour >= 5 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "afternoon";
-  if (hour >= 17 && hour < 22) return "evening";
-  return "night";
+let state: WeatherSoundState = INITIAL;
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let restored = false;
+const listeners = new Set<() => void>();
+
+function set(next: WeatherSoundState): void {
+  state = next;
+  listeners.forEach((l) => l());
 }
 
-function timeOnly(): WeatherContext {
-  const hour = new Date().getHours();
-  return {
-    source: "time",
-    condition: "clear",
-    tempC: null,
-    windKph: 0,
-    isNight: hour >= 20 || hour < 6,
-    timeOfDay: timeOfDayFor(hour),
-  };
+async function apply(prompt: boolean): Promise<void> {
+  const w = await getWeatherContext({ prompt });
+  setGlobalAmbience(ambienceFromWeather(w));
+  set({ status: "on", source: w.source, label: describeWeather(w) });
 }
 
-// WMO weather interpretation codes used by Open-Meteo.
-function conditionFromCode(code: number): WeatherCondition {
-  if (code === 45 || code === 48) return "fog";
-  if (code >= 95) return "thunder";
-  if ([51, 53, 55, 56, 57].includes(code)) return "drizzle";
-  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "rain";
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return "snow";
-  if (code === 3) return "cloudy";
-  return "clear";
+export async function enableWeatherSound(): Promise<void> {
+  if (state.status === "loading") return;
+  set({ ...state, status: "loading" });
+  await apply(true);
+  try {
+    localStorage.setItem(FLAG, "1");
+  } catch {
+    // Storage may be blocked; the switch still works for this visit.
+  }
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => void apply(false), REFRESH_MS);
 }
 
-function getPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      reject(new Error("Geolocation is not available"));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 6000,
-      maximumAge: CACHE_MS,
-    });
+export function disableWeatherSound(): void {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = null;
+  setGlobalAmbience(NEUTRAL_AMBIENCE);
+  set(INITIAL);
+  try {
+    localStorage.removeItem(FLAG);
+  } catch {
+    // Ignore.
+  }
+}
+
+/** Re-enable after a reload without showing the location prompt again. */
+function restoreOnce(): void {
+  if (restored || typeof window === "undefined") return;
+  restored = true;
+  let wasOn = false;
+  try {
+    wasOn = localStorage.getItem(FLAG) === "1";
+  } catch {
+    // Ignore.
+  }
+  if (!wasOn) return;
+  set({ ...state, status: "loading" });
+  void apply(false).then(() => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => void apply(false), REFRESH_MS);
   });
 }
 
-async function locationAlreadyGranted(): Promise<boolean> {
-  try {
-    const status = await navigator.permissions?.query({ name: "geolocation" as PermissionName });
-    return status?.state === "granted";
-  } catch {
-    return false;
-  }
-}
-
-function readCache(): WeatherContext | null {
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const { at, ctx } = JSON.parse(raw) as { at: number; ctx: WeatherContext };
-    return Date.now() - at < CACHE_MS ? ctx : null;
-  } catch {
-    return null;
-  }
-}
-
-let last: WeatherContext | null = null;
-const listeners = new Set<(w: WeatherContext) => void>();
-
-function publish(w: WeatherContext): WeatherContext {
-  last = w;
-  listeners.forEach((cb) => cb(w));
-  return w;
-}
-
-export function getLastWeather(): WeatherContext | null {
-  return last;
-}
-
-export function subscribeWeather(cb: (w: WeatherContext) => void): () => void {
+function subscribe(cb: () => void): () => void {
   listeners.add(cb);
+  restoreOnce();
   return () => listeners.delete(cb);
 }
 
-/**
- * Current weather where the person is. Never throws: when location or the weather service
- * is unavailable it returns a time-of-day-only context (source "time").
- * Pass { prompt: false } to avoid showing the browser's location prompt.
- */
-export async function getWeatherContext(options: { prompt?: boolean } = {}): Promise<WeatherContext> {
-  const cached = readCache();
-  if (cached) return publish(cached);
-
-  try {
-    if (options.prompt === false && !(await locationAlreadyGranted())) return publish(timeOnly());
-
-    const { latitude, longitude } = (await getPosition()).coords;
-    const lat = latitude.toFixed(1);
-    const lon = longitude.toFixed(1);
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-        `&current=temperature_2m,weather_code,wind_speed_10m,is_day&wind_speed_unit=kmh&timezone=auto`,
-      { signal: controller.signal },
-    ).finally(() => clearTimeout(timer));
-    if (!res.ok) throw new Error("Weather request failed");
-
-    const data = (await res.json()) as {
-      current: { temperature_2m: number; weather_code: number; wind_speed_10m: number; is_day: number };
-    };
-    const c = data.current;
-    const ctx: WeatherContext = {
-      source: "location",
-      condition: conditionFromCode(c.weather_code),
-      tempC: Math.round(c.temperature_2m),
-      windKph: Math.round(c.wind_speed_10m),
-      isNight: c.is_day === 0,
-      timeOfDay: timeOfDayFor(new Date().getHours()),
-    };
-    try {
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), ctx }));
-    } catch {
-      // Private mode or full storage: skip the cache.
-    }
-    return publish(ctx);
-  } catch {
-    return publish(timeOnly());
-  }
+export function useWeatherSound(): WeatherSoundState & {
+  enable: () => Promise<void>;
+  disable: () => void;
+  toggle: () => Promise<void>;
+} {
+  const snapshot = useSyncExternalStore(subscribe, () => state, () => INITIAL);
+  return {
+    ...snapshot,
+    enable: enableWeatherSound,
+    disable: disableWeatherSound,
+    toggle: async () => (state.status === "on" ? disableWeatherSound() : enableWeatherSound()),
+  };
 }
 
-const PHRASES: Record<WeatherCondition, string> = {
-  clear: "clear",
-  cloudy: "cloudy",
-  fog: "foggy",
-  drizzle: "drizzling",
-  rain: "rainy",
-  snow: "snowy",
-  thunder: "stormy",
-};
-
-/** A short sentence the AI Advisor can use as the "vibe". */
-export function describeWeather(w: WeatherContext): string {
-  if (w.source === "time" || w.tempC === null) return `It's ${w.timeOfDay} time`;
-  const wind = w.windKph >= 30 ? " with strong wind" : "";
-  return `It's ${w.tempC}°C and ${PHRASES[w.condition]}${wind}, ${w.timeOfDay} time`;
-}
-
-/** Kept for the AI Advisor. Falls back to time of day when location is unavailable. */
-export async function getCurrentVibe(): Promise<string> {
-  return describeWeather(await getWeatherContext());
-}
