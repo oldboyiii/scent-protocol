@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { describeWeather, getWeatherContext } from "@/utils/weather";
-import ScentPlayer from "@/components/sound/ScentPlayer";
-
+import { getCurrentVibe } from "@/utils/weather";
+import ScentPlayer from "@/components/sound/ScentPlayer"; // 
 // --- INTERFACES ---
 
 export interface MintContext {
@@ -97,21 +96,13 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   const [selectedGender, setSelectedGender] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   
-  // State to handle geolocation or API errors
   const [error, setError] = useState<string | null>(null);
-
-  // Shown when the weather could not be read and only the time of day was used
-  const [vibeNote, setVibeNote] = useState<string | null>(null);
-  
-  // State to hold the analyzed result for Deep Mode before applying
   const [deepSuggestion, setDeepSuggestion] = useState<MintContext | null>(null);
 
-  // Generates a unique seed string based on the mood
   const generateSeedString = (baseMood: string): string => {
     return `${baseMood.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   };
 
-  // Returns a creative description based on gender and perfume type
   const getCreativeDescription = (gender: number, pType: number): string => {
     if (gender in CREATIVE_DESCRIPTIONS && pType in CREATIVE_DESCRIPTIONS[gender]) {
       return CREATIVE_DESCRIPTIONS[gender][pType];
@@ -119,7 +110,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     return "";
   };
 
-  // Generates an array of 8 hex colors based on the fragrance notes
   const generateDNAColors = (notes: { top?: string[]; heart?: string[]; base?: string[] }): string[] => {
     const allNotes = [...(notes.top || []), ...(notes.heart || []), ...(notes.base || [])];
     const colors: string[] = [];
@@ -136,7 +126,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     return colors.slice(0, 8);
   };
 
-  // Quick Mode: Instant apply (keeps the fast UX for scenarios)
   const handleQuickPick = (scenarioTags: string) => {
     setLoading(true);
     setTimeout(() => {
@@ -169,8 +158,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     }, 400);
   };
 
-  // Deep Mode: Analyzes the input text and generates a fragrance suggestion
-  // Accepts an optional overrideText for auto-triggering after weather fetch
   const analyzeDeepMood = (overrideText?: string) => {
     const textToAnalyze = overrideText || input;
     if (!textToAnalyze.trim()) return;
@@ -208,7 +195,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
       const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
       
       const vibe = uniqueTags.length > 0 ? uniqueTags.join(", ") : "unique and mysterious";
-      
       const dnaColors = generateDNAColors({ top: topNotes, heart: heartNotes, base: baseNotes });
 
       let reason = matchedTags.length === 0 
@@ -250,7 +236,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
 
   return (
     <div className="glass-card p-6 max-w-2xl w-full border border-white/10">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-5">
         <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center shadow-lg">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -263,7 +248,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </div>
       </div>
 
-      {/* Mode Tabs */}
       <div className="flex p-1 bg-white/5 rounded-lg mb-5 border border-white/10">
         <button
           onClick={() => { setMode('quick'); setDeepSuggestion(null); setError(null); }}
@@ -283,7 +267,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </button>
       </div>
 
-      {/* QUICK MODE UI */}
       {mode === 'quick' && (
         <div className="animate-fade-up">
           <div className="mb-5">
@@ -322,24 +305,19 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
         </div>
       )}
 
-      {/* DEEP MODE UI */}
       {mode === 'deep' && (
         <div className="animate-fade-up">
           {!deepSuggestion ? (
             <>
               <p className="text-sm text-white/60 mb-3">Describe your current mood, location, or occasion:</p>
               
-              {/* Button to automatically fetch weather and time context */}
               <button
                 onClick={async () => {
                   setLoading(true);
                   setError(null);
                   try {
-                    const weather = await getWeatherContext();
-                    const vibe = describeWeather(weather);
-                    setVibeNote(weather.source === "time" ? "Location unavailable, so only the time of day was used." : null);
+                    const vibe = await getCurrentVibe();
                     setInput(vibe);
-                    // Auto-trigger analysis after a short delay so the user sees the text populate
                     setTimeout(() => analyzeDeepMood(vibe), 300);
                   } catch (err: any) {
                     setError(err.message || "Failed to detect location. Please enter manually.");
@@ -356,9 +334,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 {loading ? "Detecting your vibe..." : "Get my current vibe"}
               </button>
 
-              {vibeNote && <p className="mb-3 text-center text-xs text-amber-300/80">{vibeNote}</p>}
-
-              {/* Error message display if geolocation fails */}
               {error && (
                 <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center">
                   {error}
@@ -393,7 +368,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
               </div>
             </>
           ) : (
-            // The beautiful Result Card displayed after analysis
             <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-5 border border-white/10 animate-fade-up">
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -410,8 +384,24 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 </div>
               </div>
 
+              {/* ✅ ADDED: ScentPlayer for mood sound preview */}
+              <div className="mb-5">
+                <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Preview of this mood:</p>
+                <ScentPlayer
+                  variant="full"
+                  tokenId={`advisor-${deepSuggestion.seedString}`}
+                  perfume={{
+                    name: deepSuggestion.archetype || "Your mood",
+                    rarity: 1,
+                    topNotes: deepSuggestion.topNotes ?? [],
+                    heartNotes: deepSuggestion.heartNotes ?? [],
+                    baseNotes: deepSuggestion.baseNotes ?? [],
+                  }}
+                />
+              </div>
+
               <div className="mb-4">
-                <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Scent DNA</p>
+                <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Suggested Scent DNA</p>
                 <div className="h-2.5 rounded-full overflow-hidden flex">
                   {deepSuggestion.dnaColors?.map((color, i) => (
                     <div 
@@ -422,7 +412,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                   ))}
                 </div>
                 <p className="text-xs text-white/40 mt-2">
-                  Unique formula generated for on-chain minting
+                  *Actual minted notes will be generated on-chain based on this vibe.
                 </p>
               </div>
 
@@ -457,25 +447,9 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 </div>
               </div>
 
-              {/* Sound preview built from the suggested notes */}
-              <div className="mb-5">
-                <p className="mb-2 text-xs uppercase tracking-wider text-white/40">Hear this mood</p>
-                <ScentPlayer
-                  variant="full"
-                  tokenId={deepSuggestion.seedString}
-                  perfume={{
-                    name: deepSuggestion.archetype || "Your mood",
-                    rarity: 1,
-                    topNotes: deepSuggestion.topNotes ?? [],
-                    heartNotes: deepSuggestion.heartNotes ?? [],
-                    baseNotes: deepSuggestion.baseNotes ?? [],
-                  }}
-                />
-              </div>
-
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setDeepSuggestion(null); setInput(""); setVibeNote(null); }}
+                  onClick={() => { setDeepSuggestion(null); setInput(""); }}
                   className="flex-1 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-semibold border border-white/10 transition-all"
                 >
                   Try Again
