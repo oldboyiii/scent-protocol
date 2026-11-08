@@ -8,7 +8,8 @@ import { getContract } from "@/utils/contract";
 import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
-import FitTitle from "@/components/FitTitle"; // 
+import FitTitle from "@/components/FitTitle";
+import ScentPlayer from "@/components/sound/ScentPlayer"; //✅ Added audio player import
 
 // ============================================================
 // CONTRACT ADDRESSES & ABIs
@@ -547,7 +548,7 @@ export default function NFTDetailPage() {
                 )}
               </div>
               
-              {/* ✅ ЗАМЕНА 1: Используем FitTitle вместо жестко заданного h1 */}
+              {/* ✅ REPLACEMENT 1: Use FitTitle instead of a hardcoded h1 */}
               <FitTitle 
                 text={perfume.name} 
                 className="font-bold text-white leading-tight"
@@ -599,6 +600,22 @@ export default function NFTDetailPage() {
         {/* COMPACT DESCRIPTION BOX */}
         <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-4 text-sm leading-relaxed ${descBg}`}>
           {description}
+        </div>
+
+        {/* ✅ ADDED: Audio player for experiencing the fragrance */}
+        <div className="mb-6">
+          <ScentPlayer
+            variant="full"
+            tokenId={id}
+            perfume={{
+              name: perfume.name,
+              rarity: perfume.rarity,
+              creator: perfume.creator,
+              topNotes: perfume.topNotes,
+              heartNotes: perfume.heartNotes,
+              baseNotes: perfume.baseNotes,
+            }}
+          />
         </div>
 
         {/* SLIGHTLY LARGER META INFO */}
@@ -791,7 +808,7 @@ export default function NFTDetailPage() {
               
               {/* CREST INFO */}
               <div className="mt-10 text-center space-y-3">
-                {/* ✅ ЗАМЕНА 2: Используем FitTitle и в модальном окне */}
+                {/* ✅ REPLACEMENT 2: Use FitTitle in the modal window as well */}
                 <FitTitle 
                   text={perfume.name} 
                   className="font-bold text-white"
