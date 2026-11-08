@@ -203,7 +203,7 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
   let body = "";
   if (status === "waiting") {
     title = "Fusing in progress";
-    body = `Your two fragrances are sealed in the lab. The reveal opens shortly.`;
+    body = "Your two fragrances are sealed in the lab. The reveal opens shortly.";
   } else if (status === "ready") {
     title = "The fusion is ready";
     body = "Reveal your hybrid now. The reveal window is short, so do not wait.";
@@ -254,7 +254,7 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
             <h2 className="text-2xl font-bold tracking-tight text-white">{title}</h2>
             <p className="mx-auto max-w-sm text-sm text-white/60">{body}</p>
             
-            {/* ✅ Clear timer for waiting state (no block counts) */}
+            {/* ✅ Smart Timer: Only shown when waiting */}
             {status === "waiting" && blocksUntilReveal !== undefined && (
               <div className="w-full rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-center">
                 <p className="text-2xl font-bold text-cyan-300 tabular-nums">
@@ -270,21 +270,17 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
               <p className="text-xs text-white/40">Window closes in about {seconds(blocksUntilExpiry)} seconds</p>
             )}
 
-            {/* ✅ Friendly error message instead of raw revert */}
-            {error && (
-              <div className={`w-full rounded-xl px-4 py-3 text-sm text-center ${
-                status === "waiting" 
-                  ? "border border-amber-500/30 bg-amber-500/10 text-amber-300" 
-                  : "border border-red-500/30 bg-red-500/10 text-red-300"
-              }`}>
-                {status === "waiting" 
-                  ? "Too early! The fusion is still in progress. Please wait for the timer above." 
-                  : (error.includes("reverted") || error.includes("early") ? "Transaction failed. Please try again in a moment." : error)}
+            {/* ✅ Smart Error: Hidden during "waiting" because the timer already explains the state */}
+            {error && status !== "waiting" && (
+              <div className="w-full rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-center text-red-300">
+                {error.includes("reverted") || error.includes("early") 
+                  ? "Transaction failed. Please try again in a moment." 
+                  : error}
               </div>
             )}
           </div>
 
-          {/* ✅ Only show Reveal button when ready */}
+          {/* ✅ Active button only when ready */}
           {status === "ready" && onReveal && (
             <button
               ref={primaryRef}
@@ -295,7 +291,7 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
             </button>
           )}
           
-          {/* ✅ Disabled button placeholder when waiting so UI doesn't jump and user knows it's working */}
+          {/* ✅ Disabled placeholder when waiting (prevents spam clicks, shows system is working) */}
           {status === "waiting" && (
             <button
               disabled
@@ -309,6 +305,7 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
             </button>
           )}
 
+          {/* ✅ Processing state */}
           {status === "revealing" && (
             <button
               disabled
@@ -322,6 +319,7 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
             </button>
           )}
 
+          {/* ✅ Expired state */}
           {status === "expired" && onRecover && (
             <button
               ref={primaryRef}
@@ -331,6 +329,7 @@ export default function AlchemyReveal(props: AlchemyRevealProps) {
               Recover my fragrances
             </button>
           )}
+          
           {txUrl && (
             <a href={txUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-300/80 underline">
               View transaction
