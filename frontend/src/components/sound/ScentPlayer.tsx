@@ -1,10 +1,5 @@
 "use client";
 
-// Play button (and optional full panel) that lets people hear a fragrance.
-//   <ScentPlayer perfume={perfume} tokenId={tokenId} variant="compact" />  on cards
-//   <ScentPlayer perfume={perfume} tokenId={tokenId} variant="full" />     on the detail page
-// Sound starts only when the person taps the button, and only one scent plays at a time.
-
 import { useEffect, useRef } from "react";
 import type { MouseEvent } from "react";
 import { useScentSound } from "./useScentSound";
@@ -23,6 +18,7 @@ interface ScentPlayerProps {
   tokenId?: number | string;
   variant?: "compact" | "full";
   className?: string;
+  hideNotes?: boolean; // ✅ Added to prevent duplication on detail page
 }
 
 const RARITY_HEX = ["#94a3b8", "#60a5fa", "#c084fc", "#fbbf24"];
@@ -38,7 +34,7 @@ function SpeakerIcon() {
   );
 }
 
-export default function ScentPlayer({ perfume, tokenId, variant = "compact", className = "" }: ScentPlayerProps) {
+export default function ScentPlayer({ perfume, tokenId, variant = "compact", className = "", hideNotes = false }: ScentPlayerProps) {
   const hex = RARITY_HEX[perfume.rarity] ?? RARITY_HEX[0];
   const { state, error, toggle, setVolume, getLevel } = useScentSound({
     seed: `${perfume.creator ?? ""}-${perfume.name}-${tokenId ?? ""}`,
@@ -51,7 +47,6 @@ export default function ScentPlayer({ perfume, tokenId, variant = "compact", cla
   const ringRef = useRef<HTMLSpanElement>(null);
   const barRefs = useRef<Array<HTMLSpanElement | null>>([]);
 
-  // Drive the glow and the bars from the real audio level, straight on the DOM (no re-render per frame).
   useEffect(() => {
     if (!playing) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -77,7 +72,6 @@ export default function ScentPlayer({ perfume, tokenId, variant = "compact", cla
   }, [playing, getLevel]);
 
   const onClick = (e: MouseEvent<HTMLButtonElement>) => {
-    // Cards are wrapped in links: tapping sound must not open the NFT page.
     e.preventDefault();
     e.stopPropagation();
     void toggle();
@@ -106,9 +100,7 @@ export default function ScentPlayer({ perfume, tokenId, variant = "compact", cla
           {Array.from({ length: BAR_COUNT }).map((_, i) => (
             <span
               key={i}
-              ref={(el) => {
-                barRefs.current[i] = el;
-              }}
+              ref={(el) => { barRefs.current[i] = el; }}
               className="w-[2px] rounded-sm bg-white"
               style={{ height: "40%" }}
             />
@@ -159,15 +151,20 @@ export default function ScentPlayer({ perfume, tokenId, variant = "compact", cla
           />
         </label>
       </div>
-      <dl className="mt-4 grid grid-cols-3 gap-3 text-xs">
-        {tiers.map(([label, role, notes]) => (
-          <div key={label} className="rounded-xl border border-white/10 bg-black/20 p-2.5">
-            <dt className="font-semibold uppercase tracking-wider text-white/80">{label}</dt>
-            <dd className="text-[10px] text-white/40">{role}</dd>
-            <dd className="mt-1 text-white/60">{notes.join(", ")}</dd>
-          </div>
-        ))}
-      </dl>
+      
+      {/* ✅ Conditionally render notes to avoid duplication on the detail page */}
+      {!hideNotes && (
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-xs">
+          {tiers.map(([label, role, notes]) => (
+            <div key={label} className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+              <dt className="font-semibold uppercase tracking-wider text-white/80">{label}</dt>
+              <dd className="text-[10px] text-white/40">{role}</dd>
+              <dd className="mt-1 text-white/60">{notes.join(", ")}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      
       {error && <p role="alert" className="mt-3 text-xs text-red-400">{error}</p>}
     </section>
   );
