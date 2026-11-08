@@ -22,6 +22,8 @@ interface NFTCardProps {
   isListed?: boolean;
   price?: string;
   seller?: string;
+  /** Detail page link. Pass `/nft/<id>?contract=<address>` for non-V3 collections, otherwise the card opens the V3 token with the same id. */
+  href?: string;
 }
 
 const RARITY_STYLE: Record<number, { 
@@ -100,6 +102,7 @@ export default function NFTCard({
   isListed = false,
   price,
   seller,
+  href,
 }: NFTCardProps) {
   // Determine style based on collection type
   const style = isHybrid 
@@ -108,8 +111,11 @@ export default function NFTCard({
       ? MFW_STYLE 
       : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
+  // Full class names so Tailwind generates them (a class built from `via-${color}-500` is never emitted).
+  const decorationLine = isHybrid ? "via-cyan-500/50" : isMFW ? "via-purple-500/50" : "via-amber-500/50";
+
   return (
-    <Link href={`/nft/${tokenId}`}>
+    <Link href={href ?? `/nft/${tokenId}`}>
       <div
         className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} border ${style.border} ${style.glow} transition-all duration-300 hover:-translate-y-2 overflow-hidden cursor-pointer`}
       >
@@ -388,16 +394,17 @@ export default function NFTCard({
 
         {/* Bottom Decoration */}
         {(isGenesis || isMFW || isHybrid) && (
-          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-${isHybrid ? 'cyan' : isMFW ? 'purple' : 'amber'}-500/50 to-transparent`} />
+          <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent ${decorationLine} to-transparent`} />
         )}
-      </div>
 
-      <style jsx>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
+        {/* Plain <style> (not styled-jsx): styled-jsx renames keyframes, so the inline "shimmer" animation above would not find them. */}
+        <style>{`
+          @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+        `}</style>
+      </div>
     </Link>
   );
 }
