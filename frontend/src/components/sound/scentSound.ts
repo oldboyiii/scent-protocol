@@ -60,17 +60,26 @@ export const DEFAULT_TUNING: Tuning = {
 const P = (bright: number, warm: number, sparkle: number, air: number, rumble: number, crackle: number): Profile =>
   ({ bright, warm, sparkle, air, rumble, crackle });
 
-// Keyword families. Unknown notes fall back to a profile derived from the note's name.
+// Keyword families. MADE MORE EXTREME to force distinct sounds.
 const FAMILIES: Array<[string[], Profile]> = [
-  [["bergamot", "lemon", "orange", "grapefruit", "lime", "mandarin", "citrus", "fig"], P(0.9, 0.45, 0.9, 0.15, 0, 0)],
-  [["mint", "eucalyptus", "basil", "rosemary", "thyme", "sage"], P(0.7, 0.35, 0.5, 0.8, 0, 0)],
-  [["lavender", "violet", "iris", "chamomile"], P(0.6, 0.6, 0.45, 0.35, 0, 0)],
-  [["rose", "peony", "geranium"], P(0.6, 0.7, 0.4, 0.15, 0, 0)],
-  [["jasmine", "lily", "neroli", "ylang", "tuberose", "gardenia", "freesia", "heliotrope", "petitgrain", "blossom"], P(0.65, 0.65, 0.5, 0.2, 0, 0)],
-  [["sandalwood", "cedarwood", "cedar", "wood"], P(0.2, 0.7, 0.1, 0.05, 0.5, 0.7)],
-  [["vanilla", "tonka", "benzoin", "amber", "honey", "caramel"], P(0.25, 0.9, 0.15, 0.05, 0.35, 0.1)],
-  [["musk"], P(0.3, 0.8, 0.15, 0.3, 0.3, 0)],
-  [["patchouli", "vetiver", "oud", "leather", "tobacco", "moss"], P(0.1, 0.5, 0.05, 0.05, 0.9, 0.35)],
+  // Citrus: Very bright, high sparkle, fast, no rumble
+  [["bergamot", "lemon", "orange", "grapefruit", "lime", "mandarin", "citrus", "fig"], P(1.2, 0.2, 1.2, 0.3, 0, 0)],
+  // Herbs: Airy, medium sparkle, light
+  [["mint", "eucalyptus", "basil", "rosemary", "thyme", "sage"], P(0.8, 0.3, 0.6, 1.0, 0, 0)],
+  // Soft florals: Balanced, gentle
+  [["lavender", "violet", "iris", "chamomile"], P(0.6, 0.6, 0.4, 0.4, 0, 0)],
+  // Warm florals: Richer, warmer
+  [["rose", "peony", "geranium"], P(0.5, 0.8, 0.3, 0.2, 0, 0)],
+  // Exotic florals: Complex, medium warmth
+  [["jasmine", "lily", "neroli", "ylang", "tuberose", "gardenia", "freesia", "heliotrope", "petitgrain", "blossom"], P(0.7, 0.7, 0.5, 0.3, 0, 0)],
+  // Woods: Low rumble, crackle, dark
+  [["sandalwood", "cedarwood", "cedar", "wood"], P(0.2, 0.7, 0.1, 0.1, 0.8, 0.8)],
+  // Sweet/Resin: Very warm, slow, deep
+  [["vanilla", "tonka", "benzoin", "amber", "honey", "caramel"], P(0.3, 1.0, 0.1, 0.1, 0.6, 0.2)],
+  // Musk: Airy but deep
+  [["musk"], P(0.4, 0.8, 0.2, 0.5, 0.5, 0)],
+  // Dark/Earthy: Maximum rumble, minimum brightness
+  [["patchouli", "vetiver", "oud", "leather", "tobacco", "moss"], P(0.1, 0.9, 0, 0, 1.2, 0.5)],
 ];
 
 function hash(str: string): number {
@@ -146,6 +155,7 @@ export class ScentSoundEngine {
   private readonly base: Profile;
   private readonly scale: number[];
   private readonly rootMidi: number;
+  private readonly tempoMod: number; // NEW: Dynamic tempo based on scent
   /** Called when playback ends, including when another scent takes over. */
   onStop: (() => void) | null = null;
 
@@ -155,9 +165,16 @@ export class ScentSoundEngine {
     this.top = average(input.topNotes);
     this.heart = average(input.heartNotes);
     this.base = average(input.baseNotes);
-    const warmth = (this.heart.warm + this.base.warm) / 2;
-    this.scale = warmth >= 0.55 ? MAJOR_PENTA : MINOR_PENTA;
-    this.rootMidi = 45 + Math.floor(this.rand() * 8); // A2 to E3
+    
+    // NEW LOGIC: Force Major scale for bright/scintillating scents, Minor for dark/rumbling ones
+    const mood = (this.top.bright + this.top.sparkle) - (this.base.warm + this.base.rumble);
+    this.scale = mood > 0 ? MAJOR_PENTA : MINOR_PENTA;
+    
+    // NEW LOGIC: Bright scents play higher, dark scents play lower
+    this.rootMidi = mood > 0 ? 60 + Math.floor(this.rand() * 5) : 43 + Math.floor(this.rand() * 4); // C4 range vs F2 range
+    
+    // NEW LOGIC: Sparkle makes it faster, Rumble makes it slower
+    this.tempoMod = 1.0 + (this.top.sparkle * 0.6) - (this.base.rumble * 0.6);
   }
 
   get isRunning(): boolean {
@@ -274,7 +291,7 @@ export class ScentSoundEngine {
     const ctx = this.ctx;
     if (!ctx || !this.dry || !this.send) return;
     const f0 = mtof(this.rootMidi - 12);
-    const level = 0.22 + 0.1 * this.base.warm;
+    const level = 0.22 + 0.15 * this.base.warm;
     this.droneLevel = level;
     const gain = ctx.createGain();
     gain.gain.value = level * this.tuning.drone;
@@ -319,7 +336,7 @@ export class ScentSoundEngine {
       f.type = "lowpass";
       f.frequency.value = 110;
       const g = ctx.createGain();
-      g.gain.value = 0.18 * this.base.rumble;
+      g.gain.value = 0.25 * this.base.rumble; // Increased rumble impact
       src.connect(f);
       f.connect(g);
       g.connect(this.dry);
@@ -337,7 +354,7 @@ export class ScentSoundEngine {
     }
   }
 
-  /** Heart notes: a pad that moves to a new chord every ten seconds or so. */
+  /** Heart notes: a pad that moves to a new chord. Tempo is now dynamic. */
   private nextChord(index: number, rarity: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.running || !this.dry || !this.send) return;
@@ -345,7 +362,9 @@ export class ScentSoundEngine {
     const root = progression[index % progression.length];
     const lift = this.heart.bright > 0.55 ? 12 : 0;
     const steps = [root, root + 2, root + 4, ...(rarity >= 2 ? [root + 7] : [])];
-    const dur = (9 + this.rand() * 5) * this.tuning.tempo;
+    
+    // Dynamic duration: fast for citrus, slow for oud
+    const dur = (9 + this.rand() * 5) * this.tuning.tempo * this.tempoMod;
     const now = ctx.currentTime;
     const level = (0.05 + 0.05 * this.heart.warm) * this.tuning.pad;
 
@@ -393,7 +412,8 @@ export class ScentSoundEngine {
 
   private tick(): void {
     if (!this.ctx || !this.running) return;
-    const density = (0.08 + 0.55 * this.top.sparkle) * this.tuning.chimeDensity; // chimes per second
+    // Density is now heavily influenced by the top note profile
+    const density = (0.05 + 0.8 * this.top.sparkle) * this.tuning.chimeDensity;
     if (this.rand() < density * 0.3) {
       this.bell(this.step(Math.floor(this.rand() * 10)) + 12, (0.05 + 0.04 * this.top.bright) * this.tuning.chimes);
     }
