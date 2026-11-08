@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { getCurrentVibe } from "@/utils/weather";
+import { describeWeather, getWeatherContext } from "@/utils/weather";
+import ScentPlayer from "@/components/sound/ScentPlayer";
 
 // --- INTERFACES ---
 
@@ -98,6 +99,9 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   
   // State to handle geolocation or API errors
   const [error, setError] = useState<string | null>(null);
+
+  // Shown when the weather could not be read and only the time of day was used
+  const [vibeNote, setVibeNote] = useState<string | null>(null);
   
   // State to hold the analyzed result for Deep Mode before applying
   const [deepSuggestion, setDeepSuggestion] = useState<MintContext | null>(null);
@@ -331,7 +335,9 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                   setLoading(true);
                   setError(null);
                   try {
-                    const vibe = await getCurrentVibe();
+                    const weather = await getWeatherContext();
+                    const vibe = describeWeather(weather);
+                    setVibeNote(weather.source === "time" ? "Location unavailable, so only the time of day was used." : null);
                     setInput(vibe);
                     // Auto-trigger analysis after a short delay so the user sees the text populate
                     setTimeout(() => analyzeDeepMood(vibe), 300);
@@ -349,6 +355,8 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 </svg>
                 {loading ? "Detecting your vibe..." : "Get my current vibe"}
               </button>
+
+              {vibeNote && <p className="mb-3 text-center text-xs text-amber-300/80">{vibeNote}</p>}
 
               {/* Error message display if geolocation fails */}
               {error && (
@@ -449,9 +457,25 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 </div>
               </div>
 
+              {/* Sound preview built from the suggested notes */}
+              <div className="mb-5">
+                <p className="mb-2 text-xs uppercase tracking-wider text-white/40">Hear this mood</p>
+                <ScentPlayer
+                  variant="full"
+                  tokenId={deepSuggestion.seedString}
+                  perfume={{
+                    name: deepSuggestion.archetype || "Your mood",
+                    rarity: 1,
+                    topNotes: deepSuggestion.topNotes ?? [],
+                    heartNotes: deepSuggestion.heartNotes ?? [],
+                    baseNotes: deepSuggestion.baseNotes ?? [],
+                  }}
+                />
+              </div>
+
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setDeepSuggestion(null); setInput(""); }}
+                  onClick={() => { setDeepSuggestion(null); setInput(""); setVibeNote(null); }}
                   className="flex-1 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-semibold border border-white/10 transition-all"
                 >
                   Try Again
