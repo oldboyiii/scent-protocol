@@ -1,18 +1,59 @@
-// Procedural "Sonic Notes" engine. No audio files, no network, no dependencies.
-//
-// A perfume's sound is built from its onchain notes:
-//   top notes   -> the introduction and the bright, sparkling layer (chimes, airy breath)
-//   heart notes -> the main body (a slowly moving pad)
-//   base notes  -> the low atmosphere (drone, rumble, crackle)
-// The same notes and seed always give the same key, chords and timbre, so every NFT
-// has a stable sound that nobody has to store anywhere.
-//
-// Browsers only allow audio after a user gesture, so call start() from a click handler.
+// Procedural "Sonic Notes" engine with Weather Ambience integration.
+// No audio files, no network, no dependencies.
+
+export interface AmbientContext {
+  isNight: boolean;
+  isRain: boolean;
+  isSnow: boolean;
+  isFog: boolean;
+  windSpeed: number;
+  weatherCode: number;
+}
+
+export const NEUTRAL_AMBIENCE: AmbientContext = {
+  isNight: false,
+  isRain: false,
+  isSnow: false,
+  isFog: false,
+  windSpeed: 0,
+  weatherCode: 0,
+};
+
+let globalAmbience: AmbientContext = NEUTRAL_AMBIENCE;
+const ambienceListeners = new Set<() => void>();
+
+export function setGlobalAmbience(ambience: AmbientContext) {
+  globalAmbience = ambience;
+  ambienceListeners.forEach((listener) => listener());
+}
+
+export function subscribeToAmbience(listener: () => void) {
+  ambienceListeners.add(listener);
+  return () => ambienceListeners.delete(listener);
+}
+
+export function getGlobalAmbience(): AmbientContext {
+  return globalAmbience;
+}
+
+export function ambienceFromWeather(data: any): AmbientContext {
+  const code = data?.weathercode ?? 0;
+  const isRain = code >= 51 && code <= 67;
+  const isSnow = code >= 71 && code <= 77;
+  const isFog = code >= 45 && code <= 48;
+  
+  return {
+    isNight: data?.is_day === 0,
+    isRain,
+    isSnow,
+    isFog,
+    windSpeed: data?.windspeed ?? 0,
+    weatherCode: code,
+  };
+}
 
 export interface ScentSoundInput {
-  /** Anything stable per NFT, for example `${creator}-${name}-${tokenId}`. */
   seed: string;
-  /** 0 Common, 1 Rare, 2 Epic, 3 Legendary. */
   rarity: number;
   topNotes: string[];
   heartNotes: string[];
@@ -28,19 +69,18 @@ interface Profile {
   crackle: number;
 }
 
-/** Mix levels and character. Every value is a multiplier, so 1 means the original sound. */
 export interface Tuning {
-  drone: number; // base drone level
-  pad: number; // heart pad level
-  chimes: number; // chime level
-  chimeDensity: number; // how often chimes play
-  breath: number; // airy herbal breath
-  crackle: number; // wood crackle
-  reverbWet: number; // reverb return level (0 to 1.5)
-  reverbSend: number; // how much of each layer goes to the reverb (0 to 1.5)
-  reverbLength: number; // reverb tail length, applied when playback starts
-  brightness: number; // overall tone, lower is darker
-  tempo: number; // chord length, lower is faster
+  drone: number;
+  pad: number;
+  chimes: number;
+  chimeDensity: number;
+  breath: number;
+  crackle: number;
+  reverbWet: number;
+  reverbSend: number;
+  reverbLength: number;
+  brightness: number;
+  tempo: number;
 }
 
 export const DEFAULT_TUNING: Tuning = {
@@ -60,25 +100,15 @@ export const DEFAULT_TUNING: Tuning = {
 const P = (bright: number, warm: number, sparkle: number, air: number, rumble: number, crackle: number): Profile =>
   ({ bright, warm, sparkle, air, rumble, crackle });
 
-// Keyword families. MADE MORE EXTREME to force distinct sounds.
 const FAMILIES: Array<[string[], Profile]> = [
-  // Citrus: Very bright, high sparkle, fast, no rumble
   [["bergamot", "lemon", "orange", "grapefruit", "lime", "mandarin", "citrus", "fig"], P(1.2, 0.2, 1.2, 0.3, 0, 0)],
-  // Herbs: Airy, medium sparkle, light
   [["mint", "eucalyptus", "basil", "rosemary", "thyme", "sage"], P(0.8, 0.3, 0.6, 1.0, 0, 0)],
-  // Soft florals: Balanced, gentle
   [["lavender", "violet", "iris", "chamomile"], P(0.6, 0.6, 0.4, 0.4, 0, 0)],
-  // Warm florals: Richer, warmer
   [["rose", "peony", "geranium"], P(0.5, 0.8, 0.3, 0.2, 0, 0)],
-  // Exotic florals: Complex, medium warmth
   [["jasmine", "lily", "neroli", "ylang", "tuberose", "gardenia", "freesia", "heliotrope", "petitgrain", "blossom"], P(0.7, 0.7, 0.5, 0.3, 0, 0)],
-  // Woods: Low rumble, crackle, dark
   [["sandalwood", "cedarwood", "cedar", "wood"], P(0.2, 0.7, 0.1, 0.1, 0.8, 0.8)],
-  // Sweet/Resin: Very warm, slow, deep
   [["vanilla", "tonka", "benzoin", "amber", "honey", "caramel"], P(0.3, 1.0, 0.1, 0.1, 0.6, 0.2)],
-  // Musk: Airy but deep
   [["musk"], P(0.4, 0.8, 0.2, 0.5, 0.5, 0)],
-  // Dark/Earthy: Maximum rumble, minimum brightness
   [["patchouli", "vetiver", "oud", "leather", "tobacco", "moss"], P(0.1, 0.9, 0, 0, 1.2, 0.5)],
 ];
 
@@ -142,7 +172,7 @@ export class ScentSoundEngine {
   private running = false;
   private volume = 0.8;
   private whiteNoise: AudioBuffer | null = null;
-  private pinkNoise: AudioBuffer | null = null; // NEW: Softer noise
+  private pinkNoise: AudioBuffer | null = null;
   private tuning: Tuning;
   private tone: BiquadFilterNode | null = null;
   private wet: GainNode | null = null;
@@ -157,11 +187,12 @@ export class ScentSoundEngine {
   private readonly scale: number[];
   private readonly rootMidi: number;
   private readonly tempoMod: number;
-  /** Called when playback ends, including when another scent takes over. */
+  private readonly ambient: AmbientContext;
   onStop: (() => void) | null = null;
 
-  constructor(private readonly input: ScentSoundInput, tuning: Partial<Tuning> = {}) {
+  constructor(private readonly input: ScentSoundInput, tuning: Partial<Tuning> = {}, ambient?: Partial<AmbientContext>) {
     this.tuning = { ...DEFAULT_TUNING, ...tuning };
+    this.ambient = { ...NEUTRAL_AMBIENCE, ...ambient };
     this.rand = makeRng(hash(input.seed));
     this.top = average(input.topNotes);
     this.heart = average(input.heartNotes);
@@ -171,11 +202,25 @@ export class ScentSoundEngine {
     this.scale = mood > 0 ? MAJOR_PENTA : MINOR_PENTA;
     this.rootMidi = mood > 0 ? 60 + Math.floor(this.rand() * 5) : 43 + Math.floor(this.rand() * 4);
     this.tempoMod = 1.0 + (this.top.sparkle * 0.6) - (this.base.rumble * 0.6);
+
+    // Apply ambient context modifiers
+    if (this.ambient.isNight) {
+      this.tuning.brightness *= 0.75;
+      this.tuning.reverbLength *= 1.3;
+      this.tuning.chimeDensity *= 0.6;
+    }
+    if (this.ambient.isRain || this.ambient.isFog) {
+      this.tuning.reverbLength *= 1.2;
+      this.tuning.breath *= 1.5;
+      this.tuning.chimes *= 0.7;
+    }
+    if (this.ambient.isSnow) {
+      this.tuning.brightness *= 0.8;
+      this.tuning.reverbLength *= 1.4;
+    }
   }
 
-  get isRunning(): boolean {
-    return this.running;
-  }
+  get isRunning(): boolean { return this.running; }
 
   async start(): Promise<void> {
     const Ctor = audioContextCtor();
@@ -218,7 +263,7 @@ export class ScentSoundEngine {
     this.analyser.connect(ctx.destination);
 
     this.whiteNoise = this.noiseBuffer(ctx, 2, "white");
-    this.pinkNoise = this.noiseBuffer(ctx, 2, "pink"); // NEW
+    this.pinkNoise = this.noiseBuffer(ctx, 2, "pink");
     this.master.gain.linearRampToValueAtTime(this.volume, ctx.currentTime + 1.8);
 
     this.buildDrone(rarity);
@@ -273,15 +318,12 @@ export class ScentSoundEngine {
     return Math.min(1, Math.sqrt(sum / this.data.length) * 6);
   }
 
-  // ---------------------------------------------------------------- layers
-
   private step(n: number): number {
     const len = this.scale.length;
     const oct = Math.floor(n / len);
     return this.scale[((n % len) + len) % len] + 12 * oct;
   }
 
-  /** Base notes: a low drone with optional rumble and wood crackle. */
   private buildDrone(rarity: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.dry || !this.send) return;
@@ -315,11 +357,10 @@ export class ScentSoundEngine {
       osc.frequency.value = freq;
       osc.detune.value = (this.rand() - 0.5) * 8;
       
-      // NEW: Add vibrato for more organic sound
       const vibrato = ctx.createOscillator();
       const vibratoGain = ctx.createGain();
-      vibrato.frequency.value = 4 + this.rand() * 2; // 4-6 Hz vibrato
-      vibratoGain.gain.value = 2 + this.rand() * 3; // 2-5 cents vibrato depth
+      vibrato.frequency.value = 4 + this.rand() * 2;
+      vibratoGain.gain.value = 2 + this.rand() * 3;
       vibrato.connect(vibratoGain);
       vibratoGain.connect(osc.frequency);
       vibrato.start();
@@ -359,7 +400,6 @@ export class ScentSoundEngine {
     }
   }
 
-  /** Heart notes: a pad that moves to a new chord. Tempo is now dynamic. */
   private nextChord(index: number, rarity: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.running || !this.dry || !this.send) return;
@@ -406,7 +446,6 @@ export class ScentSoundEngine {
     this.timers.push(setTimeout(() => this.nextChord(index + 1, rarity), (dur - 1) * 1000));
   }
 
-  /** Top notes: a short opening arpeggio, then occasional chimes and breath. */
   private intro(rarity: number): void {
     const count = 3 + rarity;
     for (let i = 0; i < count; i++) {
@@ -453,10 +492,10 @@ export class ScentSoundEngine {
 
   private breath(): void {
     const ctx = this.ctx;
-    if (!ctx || !this.pinkNoise || !this.send) return; // CHANGED: Use pink noise for softer breath
+    if (!ctx || !this.pinkNoise || !this.send) return;
     const t = ctx.currentTime;
     const src = ctx.createBufferSource();
-    src.buffer = this.pinkNoise; // CHANGED
+    src.buffer = this.pinkNoise;
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
     bp.frequency.value = 2800 + this.rand() * 3000;
@@ -492,9 +531,6 @@ export class ScentSoundEngine {
     src.stop(t + 0.1);
   }
 
-  // ---------------------------------------------------------------- buffers
-
-  // NEW: Generate different types of noise
   private noiseBuffer(ctx: AudioContext, seconds: number, type: "white" | "pink" | "brown"): AudioBuffer {
     const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
     const ch = buf.getChannelData(0);
@@ -502,7 +538,6 @@ export class ScentSoundEngine {
     if (type === "white") {
       for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
     } else if (type === "pink") {
-      // Pink noise: softer, more natural (like wind or breath)
       let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
       for (let i = 0; i < ch.length; i++) {
         const white = Math.random() * 2 - 1;
@@ -515,8 +550,7 @@ export class ScentSoundEngine {
         ch[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
         b6 = white * 0.115926;
       }
-    } else { // brown
-      // Brown noise: deep, rumbling (like thunder or distant waterfall)
+    } else {
       let lastOut = 0;
       for (let i = 0; i < ch.length; i++) {
         const white = Math.random() * 2 - 1;
@@ -525,7 +559,6 @@ export class ScentSoundEngine {
         ch[i] *= 3.5;
       }
     }
-    
     return buf;
   }
 
@@ -540,10 +573,9 @@ export class ScentSoundEngine {
   }
 }
 
-// Only one scent plays at a time.
 let active: ScentSoundEngine | null = null;
-
 let globalTuning: Partial<Tuning> = {};
+
 export function setGlobalTuning(next: Partial<Tuning>): void {
   globalTuning = { ...globalTuning, ...next };
 }
@@ -552,9 +584,9 @@ export function getActiveEngine(): ScentSoundEngine | null {
   return active;
 }
 
-export async function playScent(input: ScentSoundInput, tuning: Partial<Tuning> = {}): Promise<ScentSoundEngine> {
+export async function playScent(input: ScentSoundInput, tuning: Partial<Tuning> = {}, ambient?: Partial<AmbientContext>): Promise<ScentSoundEngine> {
   active?.stop(0.6);
-  const engine = new ScentSoundEngine(input, { ...globalTuning, ...tuning });
+  const engine = new ScentSoundEngine(input, { ...globalTuning, ...tuning }, ambient);
   active = engine;
   await engine.start();
   return engine;
