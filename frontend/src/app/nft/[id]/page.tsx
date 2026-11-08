@@ -257,13 +257,13 @@ export default function NFTDetailPage() {
             if (data && data.name) {
               setPerfume({ 
                 name: data.name, 
-                gender: Number(data.gender), // ✅ Convert bigint to number
-                pType: Number(data.pType), // ✅ Convert bigint to number
+                gender: Number(data.gender), // ✅ Convert bigint to number to prevent rendering/audio issues
+                pType: Number(data.pType), 
                 topNotes: Array.from(data.topNotes || []) as string[], 
                 heartNotes: Array.from(data.heartNotes || []) as string[], 
                 baseNotes: Array.from(data.baseNotes || []) as string[], 
-                concentration: Number(data.concentration), // ✅ Convert bigint to number
-                rarity: Number(data.rarity), // ✅ Convert bigint to number
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
                 createdAt: Number(data.createdAt), 
                 creator: data.creator 
               });
@@ -280,13 +280,13 @@ export default function NFTDetailPage() {
             if (data && data.name) {
               setPerfume({ 
                 name: data.name, 
-                gender: Number(data.gender), // ✅ Convert bigint to number
-                pType: Number(data.pType), // ✅ Convert bigint to number
+                gender: Number(data.gender), 
+                pType: Number(data.pType), 
                 topNotes: Array.from(data.topNotes || []) as string[], 
                 heartNotes: Array.from(data.heartNotes || []) as string[], 
                 baseNotes: Array.from(data.baseNotes || []) as string[], 
-                concentration: Number(data.concentration), // ✅ Convert bigint to number
-                rarity: Number(data.rarity), // ✅ Convert bigint to number
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
                 createdAt: Number(data.createdAt), 
                 creator: data.creator 
               });
@@ -303,13 +303,13 @@ export default function NFTDetailPage() {
             if (data && data.name) {
               setPerfume({ 
                 name: data.name, 
-                gender: Number(data.gender), // ✅ Convert bigint to number
-                pType: Number(data.pType), // ✅ Convert bigint to number
+                gender: Number(data.gender), 
+                pType: Number(data.pType), 
                 topNotes: Array.from(data.topNotes || []) as string[], 
                 heartNotes: Array.from(data.heartNotes || []) as string[], 
                 baseNotes: Array.from(data.baseNotes || []) as string[], 
-                concentration: Number(data.concentration), // ✅ Convert bigint to number
-                rarity: Number(data.rarity), // ✅ Convert bigint to number
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
                 createdAt: Number(data.createdAt), 
                 creator: data.creator 
               });
@@ -351,13 +351,13 @@ export default function NFTDetailPage() {
             if (data && data.name) {
               setPerfume({
                 name: data.name,
-                gender: Number(data.gender), // ✅ Convert bigint to number
-                pType: Number(data.pType), // ✅ Convert bigint to number
+                gender: Number(data.gender), 
+                pType: Number(data.pType), 
                 topNotes: Array.from(data.topNotes || []) as string[],
                 heartNotes: Array.from(data.heartNotes || []) as string[],
                 baseNotes: Array.from(data.baseNotes || []) as string[],
-                concentration: Number(data.concentration), // ✅ Convert bigint to number
-                rarity: Number(data.rarity), // ✅ Convert bigint to number
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
                 createdAt: Number(data.createdAt),
                 creator: data.creator
               });
@@ -660,10 +660,11 @@ export default function NFTDetailPage() {
           {description}
         </div>
 
-        {/* ✅ SLIM player - removes duplicate notes grid, saves space */}
+        {/* ✅ FULL player with volume control, but WITHOUT duplicate notes grid to save space */}
         <div className="mb-4">
           <ScentPlayer
-            variant="slim"
+            variant="full"
+            hideNotes={true}
             tokenId={id}
             perfume={{
               name: perfume.name,
@@ -715,7 +716,7 @@ export default function NFTDetailPage() {
         </div>
       </div>
 
-      {/* Marketplace section remains the same... */}
+      {/* Marketplace Actions Section */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
         <div className="flex gap-4 border-b border-white/10 mb-4">
           <button 
