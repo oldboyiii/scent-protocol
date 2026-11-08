@@ -9,7 +9,7 @@ import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
 import FitTitle from "@/components/FitTitle";
-import ScentPlayer from "@/components/sound/ScentPlayer"; // ✅ Added audio player import
+import ScentPlayer from "@/components/sound/ScentPlayer";
 
 // ============================================================
 // CONTRACT ADDRESSES & ABIs
@@ -235,8 +235,6 @@ export default function NFTDetailPage() {
   const [offerDays, setOfferDays] = useState(7);
   const [offerLoading, setOfferLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "offers">("details");
-  
-  // NEW: State for Crest zoom modal
   const [showCrestModal, setShowCrestModal] = useState(false);
 
   // Fetch NFT data
@@ -257,8 +255,22 @@ export default function NFTDetailPage() {
           try {
             const data = await new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider).getPerfume(id);
             if (data && data.name) {
-              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
-              setIsMFW(true); setIsGenesis(false); setIsViral(false); setIsHybrid(false);
+              setPerfume({ 
+                name: data.name, 
+                gender: Number(data.gender), 
+                pType: Number(data.pType), 
+                topNotes: Array.from(data.topNotes || []) as string[], 
+                heartNotes: Array.from(data.heartNotes || []) as string[], 
+                baseNotes: Array.from(data.baseNotes || []) as string[], 
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
+                createdAt: Number(data.createdAt), 
+                creator: data.creator 
+              });
+              setIsMFW(true); 
+              setIsGenesis(false); 
+              setIsViral(false); 
+              setIsHybrid(false);
               found = true;
             }
           } catch (e) {}
@@ -266,8 +278,22 @@ export default function NFTDetailPage() {
           try {
             const data = await new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider).getPerfume(id);
             if (data && data.name) {
-              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
-              setIsGenesis(true); setIsMFW(false); setIsViral(false); setIsHybrid(false);
+              setPerfume({ 
+                name: data.name, 
+                gender: Number(data.gender), 
+                pType: Number(data.pType), 
+                topNotes: Array.from(data.topNotes || []) as string[], 
+                heartNotes: Array.from(data.heartNotes || []) as string[], 
+                baseNotes: Array.from(data.baseNotes || []) as string[], 
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
+                createdAt: Number(data.createdAt), 
+                creator: data.creator 
+              });
+              setIsGenesis(true); 
+              setIsMFW(false); 
+              setIsViral(false); 
+              setIsHybrid(false);
               found = true;
             }
           } catch (e) {}
@@ -275,8 +301,22 @@ export default function NFTDetailPage() {
           try {
             const data = await new ethers.Contract(VIRAL_CONTRACT_ADDRESS, VIRAL_ABI, provider).getPerfume(id);
             if (data && data.name) {
-              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.creator });
-              setIsViral(true); setIsGenesis(false); setIsMFW(false); setIsHybrid(false);
+              setPerfume({ 
+                name: data.name, 
+                gender: Number(data.gender), 
+                pType: Number(data.pType), 
+                topNotes: Array.from(data.topNotes || []) as string[], 
+                heartNotes: Array.from(data.heartNotes || []) as string[], 
+                baseNotes: Array.from(data.baseNotes || []) as string[], 
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
+                createdAt: Number(data.createdAt), 
+                creator: data.creator 
+              });
+              setIsViral(true); 
+              setIsGenesis(false); 
+              setIsMFW(false); 
+              setIsHybrid(false);
               found = true;
             }
           } catch (e) {}
@@ -284,20 +324,36 @@ export default function NFTDetailPage() {
           try {
             const data = await new ethers.Contract(ALCHEMY_CONTRACT_ADDRESS, ALCHEMY_ABI, provider).getHybridPerfume(id);
             if (data && data.name) {
-              setPerfume({ name: data.name, gender: Number(data.gender), pType: Number(data.pType), topNotes: Array.from(data.topNotes || []) as string[], heartNotes: Array.from(data.heartNotes || []) as string[], baseNotes: Array.from(data.baseNotes || []) as string[], concentration: Number(data.concentration), rarity: Number(data.rarity), createdAt: Number(data.createdAt), creator: data.alchemist });
-              setIsHybrid(true); setIsGenesis(false); setIsMFW(false); setIsViral(false);
+              setPerfume({ 
+                name: data.name, 
+                gender: Number(data.gender), 
+                pType: Number(data.pType), 
+                topNotes: Array.from(data.topNotes || []) as string[], 
+                heartNotes: Array.from(data.heartNotes || []) as string[], 
+                baseNotes: Array.from(data.baseNotes || []) as string[], 
+                concentration: Number(data.concentration), 
+                rarity: Number(data.rarity), 
+                createdAt: Number(data.createdAt), 
+                creator: data.alchemist 
+              });
+              setIsHybrid(true); 
+              setIsGenesis(false); 
+              setIsMFW(false); 
+              setIsViral(false);
               found = true;
             }
           } catch (e) {}
         }
 
-        // Fallback to main contract
         if (!found) {
           try {
             const data = await getContract(provider).getPerfume(id);
             if (data && data.name) {
               setPerfume(data);
-              setIsGenesis(false); setIsMFW(false); setIsViral(false); setIsHybrid(false);
+              setIsGenesis(false); 
+              setIsMFW(false); 
+              setIsViral(false); 
+              setIsHybrid(false);
               found = true;
             }
           } catch (e) {}
@@ -356,7 +412,7 @@ export default function NFTDetailPage() {
               if (offer.price > 0n && Number(offer.expiry) > now) {
                 validOffers.push({ offerer: event.args.offerer, price: offer.price, expiry: Number(offer.expiry) });
               }
-            } catch (e) { /* ignore */ }
+            } catch (e) { }
           }
         }
         setOffers(validOffers);
@@ -436,7 +492,6 @@ export default function NFTDetailPage() {
     }
   };
 
-  // Loading State
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-4 animate-pulse">
@@ -447,7 +502,6 @@ export default function NFTDetailPage() {
     );
   }
 
-  // Error State
   if (error || !perfume || !perfume.name) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
@@ -470,7 +524,6 @@ export default function NFTDetailPage() {
         ← Back
       </button>
 
-      {/* COMPACT CARD: Removed min-h, reduced padding to p-6 to save vertical space */}
       <div className={`group relative rounded-2xl p-6 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500`}>
         
         {(isGenesis || isMFW || isViral || isHybrid) && (
@@ -498,7 +551,6 @@ export default function NFTDetailPage() {
 
         <div className="relative flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
-            {/* CLICKABLE CREST WITH ZOOM INDICATOR */}
             <div 
               className="relative cursor-pointer group/crest"
               onClick={() => setShowCrestModal(true)}
@@ -510,7 +562,6 @@ export default function NFTDetailPage() {
                 rarity={perfume.rarity} 
                 size={64} 
               />
-              {/* HOVER OVERLAY WITH ZOOM ICON */}
               <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover/crest:opacity-100 transition-opacity flex items-center justify-center">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
@@ -548,28 +599,24 @@ export default function NFTDetailPage() {
                 )}
               </div>
               
-              {/* ✅ REPLACEMENT 1: Use FitTitle instead of a hardcoded h1 */}
               <FitTitle 
                 text={perfume.name} 
                 className="font-bold text-white leading-tight"
-                maxRem={1.875} // Allows growing up to text-3xl (30px) if space permits
+                maxRem={1.875}
               />
             </div>
           </div>
-          {/* LARGER RARITY BADGE */}
           <span className={`relative text-sm font-bold px-3 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
             {RARITY[perfume.rarity]}
           </span>
         </div>
 
-        {/* LARGER TAGS, COMPACT MARGIN */}
         <div className="relative flex flex-wrap gap-2 text-sm mb-4">
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{GENDER[perfume.gender]}</span>
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{TYPE[perfume.pType]}</span>
           <span className="px-3 py-1 rounded-full bg-black/30 text-white/80 border border-white/10">{perfume.concentration}%</span>
         </div>
 
-        {/* COMPACT VERTICAL SPACING FOR NOTES, BUT LARGER TEXT */}
         <div className="relative space-y-3 mb-4">
           <div>
             <span className={`text-xs uppercase tracking-wider ${labelColor}`}>Top Notes</span>
@@ -597,12 +644,11 @@ export default function NFTDetailPage() {
           </div>
         </div>
 
-                        {/* COMPACT DESCRIPTION BOX */}
         <div className={`relative rounded-lg p-4 text-white/70 italic border-l-2 mb-4 text-sm leading-relaxed ${descBg}`}>
           {description}
         </div>
 
-        {/* ✅ ADDED: Full audio player with volume control and description */}
+        {/* ✅ AUDIO PLAYER - Full version with volume and description */}
         <div className="mb-6">
           <ScentPlayer
             variant="full"
@@ -618,11 +664,9 @@ export default function NFTDetailPage() {
           />
         </div>
 
-        {/* SLIGHTLY LARGER META INFO */}
         <div className="relative text-sm text-white/40 space-y-1">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
-          <p>Concentration: {perfume.concentration}%</p> {/* ✅ Restored the exact concentration percentage */}
           {isGenesis && (
             <p className="text-amber-300 font-bold mt-2 flex items-center gap-2">
               <img src="/arc-logo.png" alt="Arc" className="w-5 h-5 inline-block" style={{ filter: "drop-shadow(0 0 6px rgba(251,191,36,0.6))" }} />
@@ -659,7 +703,6 @@ export default function NFTDetailPage() {
         </div>
       </div>
 
-      {/* Marketplace Actions Section */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
         <div className="flex gap-4 border-b border-white/10 mb-4">
           <button 
@@ -777,7 +820,6 @@ export default function NFTDetailPage() {
         )}
       </div>
 
-      {/* CREST ZOOM MODAL */}
       {showCrestModal && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 pt-20"
@@ -787,7 +829,6 @@ export default function NFTDetailPage() {
             className="relative max-w-3xl w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* CLOSE BUTTON - moved inside and repositioned */}
             <button 
               onClick={() => setShowCrestModal(false)}
               className="absolute -top-4 -right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-all hover:scale-110 z-10"
@@ -798,7 +839,6 @@ export default function NFTDetailPage() {
               </svg>
             </button>
 
-            {/* LARGE CREST DISPLAY */}
             <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-3xl p-12 flex flex-col items-center justify-center shadow-2xl">
               <ScentCrest 
                 seed={`${perfume.creator}-${perfume.name}`} 
@@ -807,9 +847,7 @@ export default function NFTDetailPage() {
                 size={320} 
               />
               
-              {/* CREST INFO */}
               <div className="mt-10 text-center space-y-3">
-                {/* ✅ REPLACEMENT 2: Use FitTitle in the modal window as well */}
                 <FitTitle 
                   text={perfume.name} 
                   className="font-bold text-white"
