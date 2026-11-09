@@ -59,12 +59,10 @@ export default function MFW2026Page() {
           </p>
         </header>
 
-        <GenesisSupply
+                <GenesisSupply
           minted={m.minted}
           total={MAX_SUPPLY}
           loaded={m.supplyLoaded}
-          barClass="bg-gradient-to-r from-purple-500 via-pink-400 to-amber-300"
-          numberClass="text-purple-300"
         />
 
         {m.claimable > 0n && (
