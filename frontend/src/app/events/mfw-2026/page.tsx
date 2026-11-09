@@ -7,7 +7,8 @@ import PerfumeCard from "@/components/PerfumeCard";
 import MintProgress from "@/components/wallet-scent/MintProgress";
 import Confetti from "@/components/wallet-scent/Confetti";
 import GenesisSupply from "@/components/genesis/GenesisSupply";
-import { MFW_ADDRESS, MAX_SUPPLY, useMfwMint } from "@/components/mfw/useMfwMint";
+import { useMfwMint } from "@/components/mfw/useMfwMint";
+import { MFW_ADDRESS, MAX_SUPPLY } from "@/components/mfw/mfwChain"; // 
 
 const ARC_CHAIN_ID = 5042;
 const MFW_COLORS = ["#a855f7", "#d946ef", "#fbbf24", "#f472b6", "#ffffff"];
