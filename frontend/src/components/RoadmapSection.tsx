@@ -42,7 +42,7 @@ const phases = [
     status: "in-progress",
     items: [
       { text: "Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance", done: true },
-      { text: "Procedural Audio: Unique soundscapes for NFTs and AI Advisor mood/weather previews", done: true },
+      { text: "Sonic Integration: Procedural audio soundtracks for every NFT & AI Advisor preview", done: true },
       { text: "Natural language → fragrance pipeline", done: false },
       { text: "Evolving Scents: Dynamic metadata upgrades based on holding duration", done: false },
       { text: "Subscription 'Scent of the Month' & micro-governance", done: false },
