@@ -91,11 +91,10 @@ export default function MFW2026Page() {
             </>
           ) : m.pending ? (
             <div className="space-y-6">
-              <MintProgress
+                            <MintProgress
                 stage={waiting ? 2 : 3}
                 blocksDone={Math.min(m.secondsSinceRequest, MIN_WAIT)}
                 blocksTotal={MIN_WAIT}
-                unit="second"
                 accent={ACCENT}
               />
               {waiting && <p className="text-center text-sm text-white/60">Your scent is maturing. The reveal opens in {Math.max(0, MIN_WAIT - m.secondsSinceRequest + 1)} seconds.</p>}
@@ -141,7 +140,7 @@ export default function MFW2026Page() {
                 </div>
               </div>
 
-              {m.busy === "mint" && <MintProgress stage={1} blocksDone={0} blocksTotal={MIN_WAIT} unit="second" accent={ACCENT} />}
+                            {m.busy === "mint" && <MintProgress stage={1} blocksDone={0} blocksTotal={MIN_WAIT} accent={ACCENT} />}
               {!isConnected && <p className="text-center text-sm text-white/50">Connect your wallet in the header to mint.</p>}
               {isConnected && !onArc && <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-center text-sm text-amber-200">Switch to Arc Network to mint.</p>}
               {soldOut && <p className="text-center font-semibold text-amber-300">Sold out. Find them on the Marketplace.</p>}
