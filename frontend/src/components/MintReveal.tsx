@@ -22,6 +22,10 @@ interface MintRevealProps {
   onMintAnother?: () => void;
   /** Real chain data only. Rendered when provided, hidden otherwise. */
   proof?: { requestBlock?: number; revealBlock?: number; txUrl?: string };
+  /** Where the card links. Use `/nft/<id>?contract=<address>` for non-V3 collections (needs the updated PerfumeCard). */
+  cardHref?: string;
+  /** Which collection frame the card uses. */
+  collection?: "genesis" | "mfw" | "hybrid";
 }
 
 // hold = suspense before the rarity word appears. Rarer pulls get a longer drumroll.
@@ -45,9 +49,7 @@ const NOTE_COLORS: Array<[string[], string]> = [
 
 function noteColor(note: string): string {
   const n = note.toLowerCase();
-  for (const [keys, color] of NOTE_COLORS) {
-    if (keys.some((k) => n.includes(k))) return color;
-  }
+  for (const [keys, color] of NOTE_COLORS) if (keys.some((k) => n.includes(k))) return color;
   return "#94a3b8";
 }
 
@@ -76,14 +78,7 @@ function usePrefersReducedMotion() {
 }
 
 export default function MintReveal({
-  tokenId,
-  perfume,
-  description,
-  onComplete,
-  onShare,
-  onBlend,
-  onMintAnother,
-  proof,
+  tokenId, perfume, description, onComplete, onShare, onBlend, onMintAnother, proof, cardHref, collection,
 }: MintRevealProps) {
   const reduced = usePrefersReducedMotion();
   const [phase, setPhase] = useState<Phase>(perfume ? "sealed" : "pending");
@@ -116,9 +111,7 @@ export default function MintReveal({
 
   const breakSeal = () => {
     if (phase !== "sealed") return;
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate([30, 40, 70]);
-    }
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([30, 40, 70]);
     setPhase("breaking");
   };
 
@@ -134,10 +127,7 @@ export default function MintReveal({
   const particles = useMemo(() => {
     if (!perfume) return [];
     const rand = rng(tokenId * 7919 + perfume.rarity);
-    const palette = [
-      cfg.hex,
-      ...[...perfume.topNotes, ...perfume.heartNotes, ...perfume.baseNotes].map(noteColor),
-    ];
+    const palette = [cfg.hex, ...[...perfume.topNotes, ...perfume.heartNotes, ...perfume.baseNotes].map(noteColor)];
     return Array.from({ length: cfg.particles }, (_, i) => {
       const angle = rand() * Math.PI * 2;
       const dist = 140 + rand() * 280;
@@ -163,7 +153,6 @@ export default function MintReveal({
     el.style.setProperty("--mx", `${px * 100}%`);
     el.style.setProperty("--my", `${py * 100}%`);
   };
-
   const resetTilt = () => {
     const el = tiltRef.current;
     if (!el) return;
@@ -306,11 +295,7 @@ export default function MintReveal({
           {cfg.foil && (
             <div
               className="absolute -z-10 w-[560px] h-[560px] rounded-full mr-spin opacity-30 pointer-events-none"
-              style={{ 
-                background: `repeating-conic-gradient(from 0deg, ${cfg.hex}55 0deg 8deg, transparent 8deg 24deg)`, 
-                maskImage: "radial-gradient(circle, black 20%, transparent 70%)", 
-                WebkitMaskImage: "radial-gradient(circle, black 20%, transparent 70%)" 
-              }}
+              style={{ background: `repeating-conic-gradient(from 0deg, ${cfg.hex}55 0deg 8deg, transparent 8deg 24deg)`, maskImage: "radial-gradient(circle, black 20%, transparent 70%)", WebkitMaskImage: "radial-gradient(circle, black 20%, transparent 70%)" }}
             />
           )}
           <p className="text-xs tracking-[0.3em] uppercase mb-1" style={{ color: cfg.hex }}>{cfg.label}</p>
@@ -323,7 +308,16 @@ export default function MintReveal({
             className="relative"
             style={{ transform: "perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))", transition: "transform 120ms ease-out" }}
           >
-            <PerfumeCard tokenId={tokenId} perfume={perfume} aiDescription={description} highlight />
+            <PerfumeCard
+              tokenId={tokenId}
+              perfume={perfume}
+              aiDescription={description}
+              highlight
+              href={cardHref}
+              isGenesis={collection === "genesis"}
+              isMFW={collection === "mfw"}
+              isHybrid={collection === "hybrid"}
+            />
             {cfg.foil && (
               <div
                 className="absolute inset-0 rounded-2xl pointer-events-none mix-blend-screen opacity-40"
@@ -348,10 +342,10 @@ export default function MintReveal({
           )}
 
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <button type="button" onClick={onComplete} className="px-6 py-3 rounded-xl bg-cyan-600 text-white font-bold hover:bg-cyan-500 transition-colors min-h-[44px]">Continue</button>
-            {onShare && <button type="button" onClick={onShare} className="px-6 py-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors min-h-[44px]">Share</button>}
-            {onBlend && <button type="button" onClick={onBlend} className="px-6 py-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors min-h-[44px]">Blend it</button>}
-            {onMintAnother && <button type="button" onClick={onMintAnother} className="px-6 py-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors min-h-[44px]">Mint another</button>}
+            <button type="button" onClick={onComplete} className="btn-primary min-h-[44px]">Continue</button>
+            {onShare && <button type="button" onClick={onShare} className="btn-secondary min-h-[44px]">Share</button>}
+            {onBlend && <button type="button" onClick={onBlend} className="btn-secondary min-h-[44px]">Blend it</button>}
+            {onMintAnother && <button type="button" onClick={onMintAnother} className="btn-secondary min-h-[44px]">Mint another</button>}
           </div>
         </div>
       )}
