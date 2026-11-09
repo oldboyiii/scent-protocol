@@ -8,7 +8,7 @@ import MintProgress from "@/components/wallet-scent/MintProgress";
 import Confetti from "@/components/wallet-scent/Confetti";
 import GenesisSupply from "@/components/genesis/GenesisSupply";
 import { useMfwMint } from "@/components/mfw/useMfwMint";
-import { MFW_ADDRESS, MAX_SUPPLY } from "@/components/mfw/mfwChain"; // 
+import { MFW_ADDRESS, MAX_SUPPLY } from "@/components/mfw/mfwChain";
 
 const ARC_CHAIN_ID = 5042;
 const MFW_COLORS = ["#a855f7", "#d946ef", "#fbbf24", "#f472b6", "#ffffff"];
@@ -18,8 +18,8 @@ export default function MfwEventPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   
-  // ПРИМЕЧАНИЕ: Замените `false` на реальную проверку владения Genesis NFT, 
-  // если вы хотите автоматически применять скидку.
+  // NOTE: Replace `false` with an actual check for Genesis NFT ownership 
+  // if you want to automatically apply the discount.
   const g = useMfwMint(address, false);
 
   const onArc = chainId === ARC_CHAIN_ID;
