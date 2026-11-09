@@ -1,4 +1,4 @@
-// Chain constants and helpers for the MFW 2026 mint.
+// frontend/src/components/mfw/mfwChain.ts
 import { ethers } from "ethers";
 
 export const MFW_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
@@ -11,7 +11,7 @@ export const DEADLINE = 600;
 export const RPC_URL = "https://rpc.mainnet.arc.io";
 
 export const MFW_ABI = [
-  "function requestMint(bytes32 seedCommitment) external returns (uint256)",
+  "function requestMint(bytes32 seedCommitment) external payable returns (uint256)",
   "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
   "function cancelMint(uint256 tokenId) external",
   "function claimRefund() external",
