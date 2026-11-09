@@ -73,6 +73,12 @@ export default function AboutPage() {
           Navigating digital perfumery is highly personal. The <span className="text-fuchsia-400">AI Scent Advisor</span> helps you find your perfect match by analyzing ready-made scenarios (like a CEO meeting, beach sunset, or gala night), your current mood, or even real-time weather and location data. It instantly generates a tailored fragrance profile with specific top, heart, and base notes, acting as your personal digital sommelier.
         </p>
 
+        {/* ✅ NEW PARAGRAPH ABOUT SOUND */}
+        <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">Sonic Notes: A Multisensory Experience</h2>
+        <p>
+          ScentProtocol has evolved beyond the visual. Every fragrance NFT now features a unique, procedurally generated soundtrack derived directly from its on-chain top, heart, and base notes, allowing you to literally <span className="text-fuchsia-400 font-semibold">listen</span> to your scent. Through the AI Scent Advisor, you can even preview the exact sonic landscape of your current mood or real-time local weather before you mint, creating a truly immersive, multisensory digital perfumery experience.
+        </p>
+
         <h2 className="text-2xl font-semibold text-amber-400 mt-8 mb-4">ScentCrest: Generative Branding</h2>
         <p>
           Every NFT features a <span className="text-fuchsia-400">ScentCrest</span> — a unique, 
