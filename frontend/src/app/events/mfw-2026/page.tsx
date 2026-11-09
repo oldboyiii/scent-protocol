@@ -1,541 +1,191 @@
 "use client";
 
-import { useState, useEffect } from "react";
+// MFW 2026 event page: a paid, time-gated commit-reveal mint made to feel like an occasion.
+// Needs: components/genesis/{GenesisSupply,useMfwMint,mfwChain}, components/wallet-scent/{MintProgress,Confetti}, MintReveal.
+
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
+import { useAccount, useChainId } from "wagmi";
+import MintReveal from "@/components/MintReveal";
+import MintProgress from "@/components/wallet-scent/MintProgress";
+import Confetti from "@/components/wallet-scent/Confetti";
+import GenesisSupply from "@/components/genesis/GenesisSupply";
+import { DEADLINE, MAX_PER_WALLET, MAX_SUPPLY, MFW_ADDRESS, MIN_WAIT, useMfwMint } from "@/components/genesis/useMfwMint";
 
-const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
-const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
-const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const ARC_CHAIN_ID = 5042;
+const ACCENT = "#c084fc";
+const RARITY = ["Common", "Rare", "Epic", "Legendary"];
+const CONFETTI = [60, 100, 150, 210];
 
-const MFW_ABI = [
-  "function requestMint(bytes32 seedCommitment) external returns (uint256)",
-  "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
-  "function cancelMint(uint256 tokenId) external",
-  "function getMintPrice(address minter) external view returns (uint256)",
-  "function isGenesisHolder(address account) external view returns (bool)",
-  "function getRemainingSupply() external view returns (uint256)",
-  "function getWalletMintedCount(address wallet) external view returns (uint256)",
-  "function getNextTokenId() external view returns (uint256)",
-  "function hasExclusiveBadge(address) external view returns (bool)",
-  "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool hasExclusiveBadge))",
-  "function pendingMints(uint256) external view returns (address minter, uint256 blockNumber, uint256 paidAmount, bytes32 seedCommitment)",
-  "event PerfumeMinted(uint256 indexed tokenId, address indexed creator, uint256 price)",
-  "event BadgeAwarded(address indexed recipient)",
-  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
-];
+const fmtUsdc = (v: bigint) => ethers.formatUnits(v, 6);
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, s % 60)).padStart(2, "0")}`;
 
-const USDC_ABI = [
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function allowance(address owner, address spender) external view returns (uint256)",
-];
+export default function MFW2026Page() {
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const onArc = chainId === ARC_CHAIN_ID;
+  const m = useMfwMint(address, onArc);
+  const [badgeNote, setBadgeNote] = useState(false);
 
-export default function MFW2026EventPage() {
-  const [address, setAddress] = useState<string | null>(null);
-  const router = useRouter();
-  
-  const [minting, setMinting] = useState(false);
-  const [totalMinted, setTotalMinted] = useState(0);
-  const [userMinted, setUserMinted] = useState(0);
-  const [isGenesisHolder, setIsGenesisHolder] = useState(false);
-  const [hasBadge, setHasBadge] = useState(false);
-  const [mintPrice, setMintPrice] = useState<bigint>(0n);
-  const [needsApproval, setNeedsApproval] = useState(false);
-  const [tokenId, setTokenId] = useState<number | null>(null);
-  const [countdown, setCountdown] = useState(0);
-  const [step, setStep] = useState<"idle" | "requested" | "revealing" | "success">("idle");
-  const [seedPreimage, setSeedPreimage] = useState<string>("");
-  const [revealExpired, setRevealExpired] = useState(false);
+  const soldOut = m.supplyLoaded && m.minted >= MAX_SUPPLY;
+  const maxed = m.walletMinted >= MAX_PER_WALLET && !m.pending;
+  const waiting = m.pending && !m.canReveal && !m.expired;
+  const left = m.pending ? Math.max(0, DEADLINE - m.secondsSinceRequest) : 0;
+  const urgent = m.canReveal && left < 120;
 
-  const maxSupply = 500;
-  const maxPerWallet = 3;
-  const REVEAL_MIN_WAIT = 30; // 30 seconds (like old working code)
-  const REVEAL_MAX_WAIT = 3600; // 1 hour max window
-
-  useEffect(() => {
-    const checkWallet = async () => {
-      const w = window as any;
-      if (w.ethereum) {
-        try {
-          const accounts = await w.ethereum.request({ method: "eth_accounts" });
-          if (accounts && accounts.length > 0) setAddress(accounts[0]);
-        } catch (err) {
-          console.error("Failed to check wallet:", err);
-        }
-      }
-    };
-    checkWallet();
-
-    const w = window as any;
-    if (w.ethereum) {
-      w.ethereum.on("accountsChanged", (accounts: string[]) => setAddress(accounts[0] || null));
-    }
-    return () => {
-      if (w.ethereum) w.ethereum.removeListener("accountsChanged", () => {});
-    };
-  }, []);
-
-  const fetchContractData = async () => {
-    if (!address) return;
-    try {
-      const w = window as any;
-      if (!w.ethereum) return;
-      
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const mfwContract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, provider);
-      const genesisContract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, ["function balanceOf(address) view returns (uint256)"], provider);
-
-      try {
-        const genesisBalance = await genesisContract.balanceOf(address);
-        setIsGenesisHolder(Number(genesisBalance) > 0);
-        const userHasBadge = await mfwContract.hasExclusiveBadge(address);
-        setHasBadge(userHasBadge);
-      } catch {}
-
-      try {
-        const price = await mfwContract.getMintPrice(address);
-        setMintPrice(price);
-      } catch {}
-
-      const remaining = await mfwContract.getRemainingSupply();
-      setTotalMinted(maxSupply - Number(remaining));
-
-      const mintedCount = await mfwContract.getWalletMintedCount(address);
-      setUserMinted(Number(mintedCount));
-
-      // Check for pending mints using TIMESTAMP (like old working code)
-      try {
-        const nextId = Number(await mfwContract.getNextTokenId());
-        const currentTimestamp = Math.floor(Date.now() / 1000);
-        
-        for (let i = Math.max(1, nextId - 20); i < nextId; i++) {
-          try {
-            const pending = await mfwContract.pendingMints(i);
-            if (pending.minter.toLowerCase() === address.toLowerCase()) {
-              setTokenId(i);
-              const pendingTimestamp = Number(pending.blockNumber); // Field is called blockNumber but stores timestamp!
-              const secondsPassed = currentTimestamp - pendingTimestamp;
-              
-              if (secondsPassed >= REVEAL_MIN_WAIT && secondsPassed <= REVEAL_MAX_WAIT) {
-                setCountdown(0);
-                setStep("requested");
-                setRevealExpired(false);
-              } else if (secondsPassed > REVEAL_MAX_WAIT) {
-                setStep("requested");
-                setRevealExpired(true);
-                setCountdown(0);
-              } else {
-                const secondsLeft = REVEAL_MIN_WAIT - secondsPassed;
-                setCountdown(secondsLeft);
-                setStep("requested");
-                setRevealExpired(false);
-              }
-              break;
-            }
-          } catch (e) {}
-        }
-      } catch (e) {}
-      
-    } catch (error) {
-      console.error("Failed to fetch contract data:", error);
-    }
+  const share = () => {
+    if (!m.result) return;
+    const text = `I just minted a ${RARITY[m.result.perfume.rarity] ?? "Common"} fragrance in the ScentProtocol MFW 2026 collection on Arc.`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, "_blank");
   };
-
-  const checkApproval = async () => {
-    if (!address || mintPrice === 0n) return;
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
-      const allowance = await usdcContract.allowance(address, MFW_CONTRACT_ADDRESS);
-      setNeedsApproval(allowance < mintPrice);
-    } catch (error) {
-      console.error("Approval check failed:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchContractData();
-  }, [address]);
-
-  useEffect(() => {
-    if (mintPrice > 0n) checkApproval();
-  }, [mintPrice, address]);
-
-  // Live countdown using setInterval (like old working code)
-  useEffect(() => {
-    if (step !== "requested" || countdown <= 0) return;
-
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [step, countdown]);
-
-  const handleApprove = async () => {
-    if (!address) return;
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
-      
-      const tx = await usdcContract.approve(MFW_CONTRACT_ADDRESS, mintPrice * BigInt(100));
-      await tx.wait();
-      setNeedsApproval(false);
-    } catch (error: any) {
-      console.error("Approval failed:", error);
-      alert("Approval failed: " + (error.reason || error.message));
-    }
-  };
-
-  const handleRequestMint = async () => {
-    if (!address) {
-      alert("Please connect your wallet first");
-      return;
-    }
-    if (needsApproval) {
-      alert("Please approve USDC first");
-      return;
-    }
-
-    setMinting(true);
-    setStep("requested");
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
-
-      const randomBytes = ethers.randomBytes(32);
-      const preimageHex = ethers.hexlify(randomBytes);
-      setSeedPreimage(preimageHex);
-      
-      const seedCommitment = ethers.keccak256(randomBytes);
-      const tx = await contract.requestMint(seedCommitment);
-      const receipt = await tx.wait();
-
-      const mintEvent = receipt.logs
-        .map((log: any) => {
-          try { return contract.interface.parseLog(log); } catch { return null; }
-        })
-        .find((e: any) => e?.name === "MintRequested");
-
-      const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
-      setTokenId(newTokenId);
-      setCountdown(REVEAL_MIN_WAIT); // 30 seconds countdown
-      setRevealExpired(false);
-
-      // Save to localStorage
-      localStorage.setItem("mfw_pending_token_id", newTokenId.toString());
-      localStorage.setItem(`mfw_preimage_${newTokenId}`, preimageHex);
-
-    } catch (error: any) {
-      console.error("Request mint failed:", error);
-      alert(error.reason || error.message || "Mint request failed");
-      setStep("idle");
-    } finally {
-      setMinting(false);
-    }
-  };
-
-  const handleReveal = async () => {
-    if (!address || tokenId === null) return;
-
-    const storedPreimage = seedPreimage || localStorage.getItem(`mfw_preimage_${tokenId}`);
-    if (!storedPreimage) {
-      alert("Seed preimage not found. Please try minting again.");
-      setStep("idle");
-      return;
-    }
-
-    setMinting(true);
-    setStep("revealing");
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
-
-      const tx = await contract.revealAndMint(tokenId, storedPreimage);
-      await tx.wait();
-
-      localStorage.removeItem("mfw_pending_token_id");
-      localStorage.removeItem(`mfw_preimage_${tokenId}`);
-
-      alert("🎉 Mint successful! You received the exclusive MFW 2026 Badge!");
-      setStep("success");
-      await fetchContractData();
-      await checkApproval();
-
-    } catch (error: any) {
-      console.error("Reveal failed:", error);
-      alert(error.reason || error.shortMessage || error.message || "Reveal failed");
-      setStep("requested"); // Don't reset to idle - keep user on screen
-    } finally {
-      setMinting(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!tokenId) return;
-    if (!confirm("Cancel this pending mint? You will receive a 50% refund.")) return;
-
-    setMinting(true);
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(MFW_CONTRACT_ADDRESS, MFW_ABI, signer);
-
-      const tx = await contract.cancelMint(tokenId);
-      await tx.wait();
-
-      alert("Cancelled! 50% refund processed to your wallet.");
-      
-      localStorage.removeItem("mfw_pending_token_id");
-      localStorage.removeItem(`mfw_preimage_${tokenId}`);
-      
-      setTokenId(null);
-      setSeedPreimage("");
-      setStep("idle");
-      setRevealExpired(false);
-      
-      await fetchContractData();
-      await checkApproval();
-    } catch (error: any) {
-      console.error("Cancel failed:", error);
-      alert(error.reason || error.shortMessage || error.message || "Cancel failed");
-    } finally {
-      setMinting(false);
-    }
-  };
-
-  const progress = (totalMinted / maxSupply) * 100;
-  const priceInUSDC = Number(mintPrice) / 1e6;
 
   return (
-    <div className="min-h-screen py-20 px-4">
-      <div className="max-w-4xl mx-auto">
-        <Link href="/events" className="inline-flex items-center gap-2 text-white/50 hover:text-amber-400 mb-12 transition-colors text-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+    <div className="min-h-screen px-4 py-20">
+      <div className="mx-auto max-w-4xl">
+        <Link href="/events" className="mb-12 inline-flex items-center gap-2 text-sm text-white/50 transition-colors hover:text-purple-300">
           Back to Events
         </Link>
 
-        <div className="text-center mb-12">
-          <span className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 text-xs font-semibold uppercase tracking-wider border border-purple-500/30 mb-6">
-            Live Now • Sep 22-28, 2026
-          </span>
-          <h1 className="text-5xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 mb-4">
+        <header className="mb-14 text-center">
+          <span className="mb-6 inline-block rounded-full border border-purple-400/30 bg-purple-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-purple-300">
             Milan Fashion Week 2026
+          </span>
+          <h1 className="mb-4 bg-gradient-to-r from-purple-300 via-pink-300 to-amber-300 bg-clip-text pb-2 text-4xl font-bold leading-[1.15] text-transparent md:text-6xl">
+            Runway Edition
           </h1>
-          <p className="text-xl text-white/60 max-w-2xl mx-auto">
-            A vision for the future of fashion and digital perfumery
+          <p className="mx-auto max-w-xl text-base leading-relaxed text-white/60">
+            {MAX_SUPPLY} fragrances inspired by the runway. Up to {MAX_PER_WALLET} per wallet. Pay 5 USDC, or just 1 USDC if you hold a Genesis NFT. Everyone who mints earns the exclusive MFW badge.
           </p>
-        </div>
+        </header>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-purple-400">{totalMinted}</p>
-            <p className="text-xs text-white/40 uppercase">Minted</p>
-          </div>
-          <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-amber-400">{maxSupply}</p>
-            <p className="text-xs text-white/40 uppercase">Total Supply</p>
-          </div>
-          <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-pink-400">{maxPerWallet}</p>
-            <p className="text-xs text-white/40 uppercase">Per Wallet</p>
-          </div>
-          <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{priceInUSDC} USDC</p>
-            <p className="text-xs text-white/40 uppercase">Price</p>
-          </div>
-        </div>
+        <GenesisSupply
+          minted={m.minted}
+          total={MAX_SUPPLY}
+          loaded={m.supplyLoaded}
+          barClass="bg-gradient-to-r from-purple-500 via-pink-400 to-amber-300"
+          numberClass="text-purple-300"
+        />
 
-        <div className="mb-12">
-          <div className="h-2 bg-white/5 rounded-full overflow-hidden mb-2">
-            <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+        {m.claimable > 0n && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-5">
+            <p className="text-sm text-emerald-200">You have <b>{fmtUsdc(m.claimable)} USDC</b> waiting from a cancelled mint.</p>
+            <button onClick={m.claim} disabled={m.busy === "claim"} className="rounded-xl bg-emerald-500 px-5 py-2 text-sm font-semibold text-black disabled:opacity-60">
+              {m.busy === "claim" ? "Claiming..." : "Claim to my wallet"}
+            </button>
           </div>
-          <p className="text-center text-xs text-white/40">{progress.toFixed(1)}% minted</p>
-        </div>
+        )}
 
-        <div className="glass-card p-8 rounded-2xl border border-white/10 mb-12">
-          {isGenesisHolder && (
-            <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
-              <div className="flex items-center gap-3 mb-2">
-                <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg>
-                <p className="text-amber-400 font-semibold">Genesis Holder Benefit</p>
+        <section className="mb-12 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl md:p-8">
+          {m.result ? (
+            <>
+              <Confetti count={CONFETTI[m.result.perfume.rarity] ?? 60} colors={["#c084fc", "#f472b6", "#fbbf24", "#a78bfa", "#ffffff"]} />
+              <MintReveal
+                tokenId={m.result.tokenId}
+                perfume={{ ...m.result.perfume }}
+                description="From the Milan Fashion Week 2026 collection on Arc."
+                collection="mfw"
+                cardHref={`/nft/${m.result.tokenId}?contract=${MFW_ADDRESS}`}
+                onShare={share}
+                onMintAnother={m.walletMinted < MAX_PER_WALLET ? () => { setBadgeNote(m.result?.firstBadge ?? false); m.clearResult(); } : undefined}
+                onComplete={() => { setBadgeNote(m.result?.firstBadge ?? false); m.clearResult(); }}
+              />
+            </>
+          ) : m.pending ? (
+            <div className="space-y-6">
+              <MintProgress
+                stage={waiting ? 2 : 3}
+                blocksDone={Math.min(m.secondsSinceRequest, MIN_WAIT)}
+                blocksTotal={MIN_WAIT}
+                unit="second"
+                accent={ACCENT}
+              />
+              {waiting && <p className="text-center text-sm text-white/60">Your scent is maturing. The reveal opens in {Math.max(0, MIN_WAIT - m.secondsSinceRequest + 1)} seconds.</p>}
+              {m.canReveal && (
+                <>
+                  <p className={`text-center text-sm ${urgent ? "text-amber-300" : "text-white/60"}`}>
+                    Open the bottle within <b>{clock(left)}</b>. If the window closes, only 50% of your payment can be recovered.
+                  </p>
+                  <button onClick={m.reveal} disabled={m.busy === "reveal"} className="w-full rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 py-4 font-bold text-white shadow-lg shadow-purple-500/20 transition hover:scale-[1.02] disabled:opacity-60">
+                    {m.busy === "reveal" ? "Opening..." : "Open the bottle"}
+                  </button>
+                </>
+              )}
+              {m.expired && (
+                <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+                  The 10 minute reveal window closed. You can recover 50% of your payment (the other 50% is kept by the contract).
+                </div>
+              )}
+              {(m.canReveal || m.expired) && (
+                <button onClick={m.recover} disabled={m.busy === "recover"} className="w-full text-center text-xs text-white/40 underline hover:text-white/70 disabled:opacity-50">
+                  {m.busy === "recover" ? "Recovering..." : "Cancel this mint and recover 50%"}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-6">
+                <div>
+                  <p className="mb-1 text-xs uppercase tracking-wider text-white/40">Your price</p>
+                  <p className="text-4xl font-bold text-white">{m.price > 0n ? `${fmtUsdc(m.price)} USDC` : "..."}</p>
+                  <p className="mt-1 text-sm text-purple-200/80">
+                    {m.isGenesis ? "Genesis holder price applied" : "Hold a Genesis NFT to pay 1 USDC"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="mb-2 text-xs uppercase tracking-wider text-white/40">Minted by you</p>
+                  <div className="flex justify-end gap-2">
+                    {Array.from({ length: MAX_PER_WALLET }).map((_, i) => (
+                      <span key={i} className="h-3 w-3 rounded-full border border-purple-300/60" style={{ background: i < m.walletMinted ? ACCENT : "transparent" }} />
+                    ))}
+                  </div>
+                  {(m.hasBadge || badgeNote) && <p className="mt-2 text-xs text-amber-300">MFW badge earned</p>}
+                </div>
               </div>
-              <p className="text-white/80 text-sm">
-                You qualify for the discounted price of <span className="font-bold text-emerald-400">1 USDC</span>.
+
+              {m.busy === "mint" && <MintProgress stage={1} blocksDone={0} blocksTotal={MIN_WAIT} unit="second" accent={ACCENT} />}
+              {!isConnected && <p className="text-center text-sm text-white/50">Connect your wallet in the header to mint.</p>}
+              {isConnected && !onArc && <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-center text-sm text-amber-200">Switch to Arc Network to mint.</p>}
+              {soldOut && <p className="text-center font-semibold text-amber-300">Sold out. Find them on the Marketplace.</p>}
+              {maxed && <p className="text-center font-semibold text-emerald-300">You minted the maximum of {MAX_PER_WALLET}. Find them in your Collection.</p>}
+
+              {isConnected && onArc && !soldOut && !maxed && (
+                m.needsApproval ? (
+                  <button onClick={m.approve} disabled={m.busy === "approve"} className="w-full rounded-xl border border-purple-300/40 bg-purple-500/20 py-4 font-semibold text-white disabled:opacity-60">
+                    {m.busy === "approve" ? "Approving..." : "Step 1: allow USDC for this mint"}
+                  </button>
+                ) : (
+                  <button onClick={m.mint} disabled={m.busy === "mint" || m.price === 0n} className="w-full rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 py-4 font-bold text-white shadow-lg shadow-purple-500/20 transition hover:scale-[1.02] disabled:opacity-60">
+                    {m.busy === "mint" ? "Sealing your scent..." : `Mint for ${m.price > 0n ? fmtUsdc(m.price) : "..."} USDC`}
+                  </button>
+                )
+              )}
+              <p className="text-center text-xs text-white/40">
+                Three steps: seal (pay), a 30 second wait, then open the bottle. A free signature creates your private reveal key.
               </p>
             </div>
           )}
 
-          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30">
-            <div className="flex items-center gap-3 mb-2">
-              <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
-              <p className="text-purple-400 font-semibold">Limited-Edition Digital Badge</p>
-            </div>
-            <p className="text-white/80 text-sm">
-              {hasBadge ? "You already own the MFW 2026 digital badge!" : "Every minter receives a limited-edition MFW 2026 digital badge on their profile!"}
+          {m.error && (
+            <p role="alert" className="mt-5 flex items-start justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
+              <span>{m.error}</span>
+              <button onClick={m.dismissError} className="text-xs underline">Dismiss</button>
+            </p>
+          )}
+        </section>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+            <h3 className="mb-3 text-lg font-semibold text-white">What you get</h3>
+            <p className="text-base leading-relaxed text-white/60">A runway-inspired AI fragrance with on-chain notes, the exclusive MFW badge, and a card that plays its own sound.</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+            <h3 className="mb-3 text-lg font-semibold text-white">Where to view</h3>
+            <p className="text-base leading-relaxed text-white/60">
+              Your scents appear in your <Link href="/collection" className="text-purple-300 hover:underline">Collection</Link> and can be traded on the{" "}
+              <Link href="/marketplace" className="text-purple-300 hover:underline">Marketplace</Link>.
             </p>
           </div>
-
-          {userMinted < maxPerWallet ? (
-            <>
-              {step === "idle" && (
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Mint Price</p>
-                    <p className="text-4xl font-bold text-emerald-400">{priceInUSDC} USDC</p>
-                    {isGenesisHolder && <p className="text-sm text-white/50 mt-1">Genesis discount applied (regular: 5 USDC)</p>}
-                    <p className="text-sm text-white/50 mt-2">You minted: {userMinted}/{maxPerWallet}</p>
-                  </div>
-
-                  {needsApproval ? (
-                    <button onClick={handleApprove} disabled={minting || !address} className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold shadow-lg hover:shadow-blue-500/40 hover:scale-105 transition-all disabled:opacity-50">
-                      {minting ? "Processing..." : "Approve USDC"}
-                    </button>
-                  ) : (
-                    <button onClick={handleRequestMint} disabled={minting || !address} className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
-                      {minting ? "Requesting..." : "Request Mint"}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {step === "requested" && tokenId !== null && (
-                <div className="space-y-6">
-                  <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-6">
-                    <p className="text-emerald-400 font-semibold mb-2">✅ Step 1 Complete!</p>
-                    <p className="text-white/80">Your tokenId: <span className="font-mono text-amber-400">#{tokenId}</span></p>
-                    {revealExpired ? (
-                      <p className="text-red-400 text-sm mt-2">Reveal window has passed. Please cancel to get a 50% refund.</p>
-                    ) : (
-                      <p className="text-white/50 text-sm mt-2">
-                        {countdown > 0 ? `⏳ Wait ${countdown} seconds before reveal...` : "✅ Ready for reveal!"}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleReveal}
-                      disabled={countdown > 0 || minting || revealExpired}
-                      className="flex-1 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    >
-                      {minting ? "Revealing..." : "Reveal & Mint NFT"}
-                    </button>
-                    <button
-                      onClick={handleCancel}
-                      disabled={minting}
-                      className="px-6 py-4 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 font-semibold hover:bg-red-500/30 transition-all disabled:opacity-50"
-                    >
-                      Cancel (50% Refund)
-                    </button>
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      localStorage.removeItem("mfw_pending_token_id");
-                      localStorage.removeItem(`mfw_preimage_${tokenId}`);
-                      setTokenId(null);
-                      setStep("idle");
-                      setCountdown(0);
-                    }}
-                    className="w-full px-4 py-2 text-xs text-white/40 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition-all"
-                  >
-                    🔄 Reset Stuck Mint State
-                  </button>
-                </div>
-              )}
-
-              {step === "revealing" && (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mx-auto mb-4"></div>
-                  <p className="text-white/80 font-medium">Revealing your unique formula...</p>
-                  <p className="text-white/40 text-xs mt-1">Please confirm in your wallet</p>
-                </div>
-              )}
-
-              {step === "success" && (
-                <div className="text-center space-y-4 py-4">
-                  <div className="flex justify-center mb-2">
-                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
-                      <svg className="w-9 h-9 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <h3 className="text-xl font-bold text-emerald-400">Successfully Minted!</h3>
-                  <p className="text-white/60 text-sm">Your NFT is secured on-chain and you received the limited-edition badge!</p>
-                  <button onClick={() => { setStep("idle"); setTokenId(null); }} className="mt-4 px-6 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors">
-                    Mint Another
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center p-6 rounded-xl bg-white/5 border border-white/10">
-              <p className="text-white font-semibold mb-2">Max Limit Reached</p>
-              <p className="text-white/60 text-sm">You've already minted {userMinted}/{maxPerWallet} NFTs</p>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <div className="glass-card p-6 rounded-xl">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              Event Details
-            </h3>
-            <ul className="space-y-3 text-sm text-white/60">
-              <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">📅</span><span><strong>Dates:</strong> September 22-28, 2026</span></li>
-              <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5"></span><span><strong>Supply:</strong> 500 NFTs</span></li>
-              <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">💎</span><span><strong>Price:</strong> 5 USDC (1 USDC for Genesis holders)</span></li>
-              <li className="flex items-start gap-2"><span className="text-purple-400 mt-0.5">🏷️</span><span><strong>Bonus:</strong> Limited-Edition Digital Badge for all minters</span></li>
-            </ul>
-          </div>
-
-          <div className="glass-card p-6 rounded-xl">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-              What You Get
-            </h3>
-            <ul className="space-y-3 text-sm text-white/60">
-              <li className="flex items-start gap-2"><span className="text-pink-400 mt-0.5">✨</span><span>Unique AI-generated fragrance inspired by haute couture</span></li>
-              <li className="flex items-start gap-2"><span className="text-pink-400 mt-0.5">🎖️</span><span>Limited-edition digital badge for all minters</span></li>
-              <li className="flex items-start gap-2"><span className="text-pink-400 mt-0.5">🎫</span><span>Priority access to upcoming drops and partnerships</span></li>
-              <li className="flex items-start gap-2"><span className="text-pink-400 mt-0.5">🌟</span><span>Founding member status for future fashion initiatives</span></li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="glass-card p-8 rounded-2xl border border-white/10">
-          <h2 className="text-2xl font-bold text-white mb-4">About This Vision</h2>
-          <p className="text-white/60 leading-relaxed mb-4">
-            ScentProtocol envisions a future where <strong>haute couture and digital perfumery intersect</strong>. Milan Fashion Week 2026 represents our first step toward this vision — a planned collaboration that will bring AI-generated fragrances to the world's most prestigious runway.
-          </p>
-          <p className="text-white/60 leading-relaxed">
-            Each NFT holder becomes a founding member of this initiative, receiving a limited-edition digital badge displayed on their profile, and priority access to upcoming partnerships and drops as they're announced.
-          </p>
         </div>
       </div>
     </div>
