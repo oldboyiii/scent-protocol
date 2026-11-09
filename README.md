@@ -119,12 +119,18 @@ All contracts below are deployed and verified on Arc Testnet:
 - [x] Limited Event Editions (Special Occasion Drops)
 - [x] Auto-minting based on mood & context (Viral Wallet Scent)
 
-### 🔄 Phase 3: Advanced On-Chain Mechanics (In Progress)
-- [x] Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance
-- [ ] Natural language → fragrance pipeline
-- [ ] Evolving Scents: Dynamic metadata upgrades based on holding duration
-- [ ] Subscription 'Scent of the Month' & micro-governance
-
+  {
+    phase: "Phase 3",
+    title: "Advanced On-Chain Mechanics & Multisensory Features",
+    status: "in-progress",
+    items: [
+      { text: "Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance", done: true },
+      { text: "Sonic Integration: Procedural audio soundtracks for every NFT & AI Advisor preview", done: true },
+      { text: "Natural language → fragrance pipeline", done: false },
+      { text: "Evolving Scents: Dynamic metadata upgrades based on holding duration", done: false },
+      { text: "Subscription 'Scent of the Month' & micro-governance", done: false },
+    ],
+  },
 ### 🔮 Phase 4: Cross-Chain Expansion & Virtual Worlds
 - [ ] CCTP (Cross-Chain Transfer Protocol) integration for seamless multi-chain onboarding
 - [ ] Web2.5 creator onboarding from Ethereum, Base, and Arbitrum
