@@ -41,12 +41,12 @@ export function useMfwMint(address: string | undefined, isGenesisHolder: boolean
       const c = new ethers.Contract(MFW_ADDRESS, MFW_ABI, readProvider());
       const remaining = Number(await c.getRemainingSupply());
       const regPrice = await c.getMintPrice(address || ethers.ZeroAddress);
-      // Для упрощения, если getMintPrice требует адрес, иначе используйте константы из контракта
+      // For simplicity, if getMintPrice requires an address, otherwise use constants from the contract
       if (alive.current) {
         setMinted(MAX_SUPPLY - remaining);
         setSupplyLoaded(true);
-        // Здесь можно добавить логику получения реальных цен из контракта
-        setPrices({ regular: "0.05", genesis: "0.025" }); // Замените на реальные значения из контракта
+        // Add logic here to fetch real prices from the contract
+        setPrices({ regular: "0.05", genesis: "0.025" }); // Replace with actual values from the contract
       }
     } catch (e) {
       console.warn("Supply read failed:", e);
@@ -156,7 +156,7 @@ export function useMfwMint(address: string | undefined, isGenesisHolder: boolean
       const preimage = ethers.keccak256(await signer.signMessage(seedMessage(address)));
       const commitment = ethers.keccak256(preimage);
       
-      // Замените на реальную логику получения цены из контракта
+      // Replace with actual logic to get price from the contract
       const price = isGenesisHolder ? prices.genesis : prices.regular;
       const value = ethers.parseEther(price);
 
