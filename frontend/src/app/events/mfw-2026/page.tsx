@@ -11,7 +11,7 @@ import MintReveal from "@/components/MintReveal";
 import MintProgress from "@/components/wallet-scent/MintProgress";
 import Confetti from "@/components/wallet-scent/Confetti";
 import GenesisSupply from "@/components/genesis/GenesisSupply";
-import { DEADLINE, MAX_PER_WALLET, MAX_SUPPLY, MFW_ADDRESS, MIN_WAIT, useMfwMint } from "@/components/genesis/useMfwMint";
+import { DEADLINE, MAX_PER_WALLET, MAX_SUPPLY, MFW_ADDRESS, MIN_WAIT, useMfwMint } from "@/components/mfw/useMfwMint";
 
 const ARC_CHAIN_ID = 5042;
 const ACCENT = "#c084fc";
