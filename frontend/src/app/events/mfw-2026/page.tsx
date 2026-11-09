@@ -78,20 +78,24 @@ export default function MfwEventPage() {
             </div>
           )}
 
-          {!busy && g.pendingId !== null && (
-            <div className="space-y-4 text-center">
-              <p className="text-lg font-semibold text-purple-300">Your MFW 2026 #{g.pendingId} is sealed and waiting</p>
-              <p className="text-sm text-white/60">One more confirmation opens it. You have a 10-minute window.</p>
-              <div className="flex flex-col gap-3 sm:flex-row justify-center">
-                <button onClick={() => void g.resume()} disabled={!isConnected || !onArc} className="rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-600 px-8 py-4 font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:scale-[1.02] disabled:opacity-50">
-                  Finish reveal
-                </button>
-                <button onClick={() => void g.claimRefund()} disabled={!isConnected || !onArc} className="rounded-xl border border-white/10 bg-white/5 px-8 py-4 font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">
-                  Claim Refund
-                </button>
-              </div>
-            </div>
-          )}
+          {!busy && g.pendingId === null && !hasMinted && (
+  <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
+    <div className="text-center md:text-left">
+      <p className="mb-2 text-xs uppercase tracking-wider text-white/40">Mint price</p>
+      <p className="text-3xl font-bold text-emerald-400">
+        {g.prices.genesis} {parseFloat(g.prices.regular) > 1 ? 'USDC' : 'ETH'}
+      </p>
+      {parseFloat(g.prices.regular) !== parseFloat(g.prices.genesis) && (
+        <p className="mt-2 text-sm text-white/50">
+          Genesis holders: <span className="text-white/40 line-through">{g.prices.regular}</span>{' '}
+          <span className="text-emerald-400 font-bold">{g.prices.genesis}</span>
+        </p>
+      )}
+      <p className="mt-1 text-xs text-white/40">Max 3 per wallet. Two confirmations and one free signature.</p>
+    </div>
+{/* ... the rest of the code ... */}
+  </div>
+)}
 
           {!busy && g.pendingId === null && !hasMinted && (
             <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
