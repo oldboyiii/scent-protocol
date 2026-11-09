@@ -37,21 +37,40 @@ export function useMfwMint(address: string | undefined, isGenesisHolder: boolean
   }, []);
 
   const loadSupply = useCallback(async () => {
-    try {
-      const c = new ethers.Contract(MFW_ADDRESS, MFW_ABI, readProvider());
-      const remaining = Number(await c.getRemainingSupply());
-      const regPrice = await c.getMintPrice(address || ethers.ZeroAddress);
-      // For simplicity, if getMintPrice requires an address, otherwise use constants from the contract
-      if (alive.current) {
-        setMinted(MAX_SUPPLY - remaining);
-        setSupplyLoaded(true);
-        // Add logic here to fetch real prices from the contract
-        setPrices({ regular: "0.05", genesis: "0.025" }); // Replace with actual values from the contract
+  try {
+    const c = new ethers.Contract(MFW_ADDRESS, MFW_ABI, readProvider());
+    const remaining = Number(await c.getRemainingSupply());
+    
+    if (alive.current) {
+      setMinted(MAX_SUPPLY - remaining);
+      setSupplyLoaded(true);
+      
+      // Read actual prices from contract
+      try {
+        // Get regular price (for non-Genesis holders)
+        const regularPrice = await c.getMintPrice(ethers.ZeroAddress);
+        // Get discounted price (for current wallet if Genesis holder)
+        const genesisPrice = address ? await c.getMintPrice(address) : regularPrice;
+        
+        // Determine if contract uses USDC (6 decimals) or ETH (18 decimals)
+        // Check by trying to parse as USDC first
+        const isUSDC = regularPrice > ethers.parseEther("1");
+        const decimals = isUSDC ? 6 : 18;
+        
+        setPrices({
+          regular: ethers.formatUnits(regularPrice, decimals),
+          genesis: ethers.formatUnits(genesisPrice, decimals),
+        });
+      } catch (e) {
+        console.warn("Could not read prices from contract:", e);
+        // Fallback: try to determine from contract balance or use defaults
+        setPrices({ regular: "0", genesis: "0" });
       }
-    } catch (e) {
-      console.warn("Supply read failed:", e);
     }
-  }, [address]);
+  } catch (e) {
+    console.warn("Supply read failed:", e);
+  }
+}, [address]);
 
   useEffect(() => {
     void loadSupply();
