@@ -1,473 +1,176 @@
 "use client";
 
-import { useState, useEffect } from "react";
+// Genesis mint event page. Needs these files next to it in src/components:
+//   genesis/GenesisSupply.tsx, genesis/useGenesisMint.ts, wallet-scent/MintProgress.tsx, wallet-scent/Confetti.tsx,
+//   MintReveal.tsx and PerfumeCard.tsx (the updated versions).
+
 import Link from "next/link";
-import { ethers } from "ethers";
+import { useAccount, useChainId } from "wagmi";
+import MintReveal from "@/components/MintReveal";
+import PerfumeCard from "@/components/PerfumeCard";
+import MintProgress from "@/components/wallet-scent/MintProgress";
+import Confetti from "@/components/wallet-scent/Confetti";
+import GenesisSupply from "@/components/genesis/GenesisSupply";
+import { GENESIS_CONTRACT_ADDRESS, MAX_SUPPLY, useGenesisMint } from "@/components/genesis/useGenesisMint";
 
-// Updated to the newly deployed Genesis contract address
-const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
-
-// Updated ABI for Commit-Reveal mechanism
-const GENESIS_ABI = [
-  "function requestMint(bytes32 seedCommitment) external returns (uint256)",
-  "function revealAndMint(uint256 tokenId, bytes32 seedPreimage) external",
-  "function getRemainingSupply() external view returns (uint256)",
-  "function getWalletMintedCount(address wallet) external view returns (uint256)",
-  "function getNextTokenId() external view returns (uint256)",
-  "function getPendingMint(uint256 tokenId) external view returns (tuple(address minter, uint256 blockNumber, bytes32 seedCommitment))",
-  "function getPerfume(uint256 tokenId) external view returns (tuple(uint256 tokenId, string name, uint8 gender, uint8 pType, string[3] topNotes, string[3] heartNotes, string[3] baseNotes, uint8 concentration, uint8 rarity, uint256 createdAt, address creator, bool isGenesis))",
-  "error ScentProtocol__TooEarly()",
-  "error ScentProtocol__NoPendingMint()",
-  "error ScentProtocol__NotAuthorized()",
-  "error ScentProtocol__MaxSupplyReached()",
-  "error ScentProtocol__MaxPerWalletReached()",
-  "event MintRequested(uint256 indexed tokenId, address indexed minter, uint256 blockNumber)",
-];
+const ARC_CHAIN_ID = 5042;
+const GOLD = ["#fbbf24", "#f59e0b", "#fde68a", "#fb923c", "#ffffff"];
+const RARITY = ["Common", "Rare", "Epic", "Legendary"];
 
 export default function GenesisEventPage() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [minting, setMinting] = useState(false);
-  const [totalMinted, setTotalMinted] = useState(0);
-  const [userMinted, setUserMinted] = useState(0);
-  const [step, setStep] = useState<"idle" | "requested" | "revealed">("idle");
-  const [tokenId, setTokenId] = useState<number | null>(null);
-  const [countdown, setCountdown] = useState(0);
-  
-  // Store preimage locally to survive page refreshes between request and reveal
-  const [seedPreimage, setSeedPreimage] = useState<string | null>(null);
-  
-  const maxSupply = 100;
-  const maxPerWallet = 1;
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const g = useGenesisMint(address);
 
-  // Check wallet connection on mount
-  useEffect(() => {
-    const checkWallet = async () => {
-      const w = window as any;
-      if (w.ethereum) {
-        try {
-          const accounts = await w.ethereum.request({ method: "eth_accounts" });
-          if (accounts && accounts.length > 0) {
-            setAddress(accounts[0]);
-          }
-        } catch (err) {
-          console.error("Failed to check wallet:", err);
-        }
-      }
-    };
-    checkWallet();
+  const onArc = chainId === ARC_CHAIN_ID;
+  const busy = g.stage >= 1 && g.stage <= 3;
+  const soldOut = g.supplyLoaded && g.minted >= MAX_SUPPLY;
+  const hasMinted = g.userMinted > 0 || !!g.myToken;
+  const detailHref = (id: number) => `/nft/${id}?contract=${GENESIS_CONTRACT_ADDRESS}`;
 
-    // Listen for account changes
-    const w = window as any;
-    if (w.ethereum) {
-      w.ethereum.on("accountsChanged", (accounts: string[]) => {
-        setAddress(accounts[0] || null);
-      });
-    }
-
-    return () => {
-      if (w.ethereum) {
-        w.ethereum.removeListener("accountsChanged", () => {});
-      }
-    };
-  }, []);
-
-  const fetchContractData = async () => {
-    if (!address) return;
-    try {
-      const w = window as any;
-      if (!w.ethereum) return;
-      
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, provider);
-
-      const remaining = await contract.getRemainingSupply();
-      const actualMinted = maxSupply - Number(remaining);
-      setTotalMinted(actualMinted);
-
-      const nextTokenId = Number(await contract.getNextTokenId());
-      let foundPending: number | null = null;
-      
-      for (let i = 1; i < nextTokenId; i++) {
-        try {
-          const p = await contract.getPendingMint(i);
-          if (p.minter && p.minter.toLowerCase() === address.toLowerCase()) {
-            foundPending = i;
-            break;
-          }
-        } catch (err) {}
-      }
-
-      if (foundPending !== null) {
-        setTokenId(foundPending);
-        setStep("requested");
-        const currentBlock = await provider.getBlockNumber();
-        const p = await contract.getPendingMint(foundPending);
-        const blocksPassed = currentBlock - Number(p.blockNumber);
-        const blocksRemaining = Math.max(0, 5 - blocksPassed);
-        setCountdown(blocksRemaining * 2);
-        
-        // Try to restore preimage from localStorage
-        const storedPreimage = localStorage.getItem(`genesis_preimage_${foundPending}`);
-        if (storedPreimage) {
-          setSeedPreimage(storedPreimage);
-        }
-        return;
-      }
-
-      const minted = await contract.getWalletMintedCount(address);
-      setUserMinted(Number(minted));
-      setStep(Number(minted) > 0 ? "revealed" : "idle");
-      
-    } catch (error) {
-      console.error("Failed to fetch contract data:", error);
-    }
+  const share = () => {
+    if (!g.result) return;
+    const text = `I just minted ScentProtocol Genesis #${g.result.id}, a ${RARITY[g.result.perfume.rarity]} fragrance, on Arc.`;
+    const url = `${window.location.origin}/events/genesis`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank");
   };
-
-  useEffect(() => {
-    fetchContractData();
-  }, [address]);
-
-  const handleMint = async () => {
-    if (!address) {
-      alert("Please connect your wallet first");
-      return;
-    }
-
-    setMinting(true);
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
-
-      // 1. Generate cryptographically secure 32-byte random preimage
-      const randomArray = new Uint8Array(32);
-      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-        window.crypto.getRandomValues(randomArray);
-      } else {
-        for (let i = 0; i < 32; i++) {
-          randomArray[i] = Math.floor(Math.random() * 256);
-        }
-      }
-      const preimageHex = "0x" + Array.from(randomArray, b => b.toString(16).padStart(2, "0")).join("");
-      
-      // 2. Hash it to get the commitment
-      const commitment = ethers.keccak256(preimageHex);
-
-      console.log("Calling requestMint with commitment...");
-      const tx = await contract.requestMint(commitment);
-      console.log("Transaction sent:", tx.hash);
-      
-      const receipt = await tx.wait();
-      console.log("Transaction confirmed:", receipt);
-
-      const mintEvent = receipt.logs
-        .map((log: any) => {
-          try {
-            return contract.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e: any) => e?.name === "MintRequested");
-
-      const newTokenId = mintEvent ? Number(mintEvent.args.tokenId) : 1;
-      
-      // 3. Save preimage to localStorage so it survives page refreshes
-      localStorage.setItem(`genesis_preimage_${newTokenId}`, preimageHex);
-      setSeedPreimage(preimageHex);
-      
-      setTokenId(newTokenId);
-      setStep("requested");
-      setCountdown(10);
-
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-    } catch (error: any) {
-      console.error("Mint failed:", error);
-      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
-        alert("Transaction rejected by user.");
-      } else {
-        alert(error.reason || error.message || "Mint failed");
-      }
-    } finally {
-      setMinting(false);
-    }
-  };
-
-  const handleReveal = async () => {
-    if (!address || tokenId === null) {
-      console.error("Reveal aborted: missing address or tokenId", { address, tokenId });
-      return;
-    }
-
-    setMinting(true);
-    try {
-      const w = window as any;
-      const provider = new ethers.BrowserProvider(w.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, signer);
-
-      // Retrieve preimage from state or localStorage
-      const storedPreimage = seedPreimage || localStorage.getItem(`genesis_preimage_${tokenId}`);
-      if (!storedPreimage) {
-        throw new Error("Seed preimage not found. Please try minting again.");
-      }
-
-      console.log("=== PREPARING REVEAL ===");
-      console.log("tokenId:", tokenId, "type:", typeof tokenId);
-      console.log("seedPreimage:", storedPreimage);
-      
-      console.log("Calling revealAndMint...");
-      const tx = await contract.revealAndMint(tokenId, storedPreimage);
-      console.log("Reveal transaction sent:", tx.hash);
-      
-      await tx.wait();
-      console.log("Reveal confirmed");
-
-      // Cleanup localStorage after successful reveal
-      localStorage.removeItem(`genesis_preimage_${tokenId}`);
-
-      const perfumeData = await contract.getPerfume(tokenId);
-      
-      console.log("Pinning metadata to IPFS...");
-      const pinResponse = await fetch("/api/pin-metadata", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tokenId,
-          contractAddress: GENESIS_CONTRACT_ADDRESS,
-          perfumeData: {
-            name: perfumeData.name,
-            rarity: Number(perfumeData.rarity),
-            gender: Number(perfumeData.gender),
-            pType: Number(perfumeData.pType),
-            concentration: Number(perfumeData.concentration),
-            topNotes: Array.from(perfumeData.topNotes || []).map((n: any) => String(n)),
-            heartNotes: Array.from(perfumeData.heartNotes || []).map((n: any) => String(n)),
-            baseNotes: Array.from(perfumeData.baseNotes || []).map((n: any) => String(n)),
-          }
-        })
-      });
-
-      const pinResult = await pinResponse.json();
-      
-      if (pinResult.success) {
-        console.log("✅ Metadata pinned to IPFS:", pinResult.ipfsUri);
-      } else {
-        console.warn("⚠️ IPFS pinning failed, but NFT is minted:", pinResult.error);
-      }
-
-      setStep("revealed");
-      await fetchContractData(); 
-      
-      alert("NFT successfully minted and secured on IPFS! Check your Collection.");
-
-    } catch (error: any) {
-      console.error("=== REVEAL FAILED ===");
-      console.error("Full error object:", error);
-      console.error("Decoded reason:", error.reason);
-      console.error("Short message:", error.shortMessage);
-      
-      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
-        alert("Transaction rejected by user.");
-      } else if (error.reason) {
-        alert(`Reveal failed: ${error.reason}`);
-      } else {
-        alert(error.message || "Reveal failed");
-      }
-    } finally {
-      setMinting(false);
-    }
-  };
-
-  const progress = (totalMinted / maxSupply) * 100;
 
   return (
-    <div className="min-h-screen py-20 px-4">
-      <div className="max-w-3xl mx-auto">
-        <Link href="/events" className="inline-flex items-center gap-2 text-white/50 hover:text-amber-400 mb-12 transition-colors text-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="relative min-h-screen px-4 py-20">
+      <div className="mx-auto max-w-3xl">
+        <Link href="/events" className="mb-12 inline-flex items-center gap-2 text-sm text-white/50 transition-colors hover:text-amber-400">
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Back to Events
         </Link>
 
-        <div className="text-center mb-16">
-          <span className="inline-block px-4 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold uppercase tracking-wider border border-amber-500/20 mb-6">
-            Live Now
+        <header className="mb-14 text-center">
+          <span className="mb-6 inline-block rounded-full border border-amber-500/20 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-amber-400">
+            {soldOut ? "Sold out" : "Live now"}
           </span>
-          <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-orange-500 mb-4">
+          <svg viewBox="0 0 120 60" className="gn-arch mx-auto mb-4 h-16 w-32" aria-hidden="true">
+            <path d="M10 54 Q60 -22 110 54" stroke="#fbbf24" strokeWidth="5" strokeLinecap="round" fill="none" />
+          </svg>
+          <h1 className="mb-4 bg-gradient-to-r from-amber-300 via-amber-400 to-orange-500 bg-clip-text pb-2 text-4xl font-bold leading-[1.2] text-transparent md:text-5xl">
             Genesis Collection
           </h1>
-          <p className="text-white/60 text-base max-w-xl mx-auto leading-relaxed">
-            The first 100 AI-generated fragrances on Arc Mainnet. 
-            <span className="text-amber-400 font-medium"> Free mint </span> 
-            with an enhanced 15% Legendary drop rate.
+          <p className="mx-auto max-w-xl text-base leading-relaxed text-white/60">
+            The first 100 AI-generated fragrances on Arc Mainnet. <span className="font-medium text-amber-400">Free mint</span> with an enhanced 15% Legendary drop rate.
           </p>
-        </div>
+        </header>
 
-        <div className="mb-16">
-          <div className="flex items-center justify-center mb-8">
-            <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-500/30" />
-            <svg viewBox="0 0 24 16" className="w-12 h-8 mx-4 text-amber-500/40">
-              <path d="M2 14 Q12 2 22 14" stroke="currentColor" strokeWidth="1.5" fill="none" />
-            </svg>
-            <div className="h-px w-16 bg-gradient-to-l from-transparent to-amber-500/30" />
-          </div>
+        <GenesisSupply minted={g.minted} total={MAX_SUPPLY} loaded={g.supplyLoaded} />
 
-          <div className="grid grid-cols-3 gap-8 mb-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-white mb-1">{totalMinted}</p>
-              <p className="text-xs text-white/40 uppercase tracking-wider">Minted</p>
+        <section className="mb-12 rounded-2xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur-xl">
+          {g.error && (
+            <p role="alert" className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {g.error}
+            </p>
+          )}
+
+          {busy && (
+            <div className="space-y-5">
+              <MintProgress stage={g.stage as 1 | 2 | 3} blocksDone={g.blocksDone} blocksTotal={g.blocksTotal} accent="#fbbf24" />
+              <p className="text-center text-xs text-white/40">
+                Keep this tab open. If you close it, come back here and press Finish reveal.
+              </p>
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-amber-400 mb-1">{maxSupply}</p>
-              <p className="text-xs text-white/40 uppercase tracking-wider">Total</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-white mb-1">{maxSupply - totalMinted}</p>
-              <p className="text-xs text-white/40 uppercase tracking-wider">Remaining</p>
-            </div>
-          </div>
+          )}
 
-          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-center text-xs text-white/40 mt-3">
-            {progress.toFixed(1)}% claimed
-          </p>
-        </div>
+          {!busy && g.pendingId !== null && (
+            <div className="space-y-4 text-center">
+              <p className="text-lg font-semibold text-amber-300">Your Genesis #{g.pendingId} is sealed and waiting</p>
+              <p className="text-sm text-white/60">One more confirmation opens it. You may be asked to sign a free message first.</p>
+              <button onClick={() => void g.resume()} disabled={!isConnected || !onArc} className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-8 py-4 font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:scale-[1.02] disabled:opacity-50">
+                Finish reveal
+              </button>
+            </div>
+          )}
 
-        <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl p-8 border border-white/10 mb-12">
-          {step === "idle" && userMinted < maxPerWallet && (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Mint Price</p>
+          {!busy && g.pendingId === null && !hasMinted && (
+            <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
+              <div className="text-center md:text-left">
+                <p className="mb-2 text-xs uppercase tracking-wider text-white/40">Mint price</p>
                 <p className="text-3xl font-bold text-emerald-400">Free</p>
-                <p className="text-sm text-white/50 mt-2">
-                  Max {maxPerWallet} per wallet
-                </p>
+                <p className="mt-2 text-sm text-white/50">1 per wallet. Two confirmations and one free signature.</p>
               </div>
-
-              <button
-                onClick={handleMint}
-                disabled={minting || userMinted >= maxPerWallet || !address}
-                className="px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {minting ? "Minting..." : userMinted >= maxPerWallet ? "Max Reached" : "Mint Now"}
-              </button>
+              {!isConnected ? (
+                <p className="rounded-xl bg-white/10 px-6 py-3 text-sm font-semibold text-white/60">Connect your wallet in the header</p>
+              ) : !onArc ? (
+                <p className="rounded-xl border border-amber-500/30 bg-amber-500/15 px-6 py-3 text-sm font-semibold text-amber-300">Switch to Arc Network</p>
+              ) : (
+                <button onClick={() => void g.mint()} disabled={soldOut} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-10 py-4 font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:scale-105 hover:shadow-amber-500/40 disabled:opacity-50 disabled:hover:scale-100">
+                  {soldOut ? "Sold out" : "Mint my Genesis"}
+                </button>
+              )}
             </div>
           )}
 
-          {step === "requested" && tokenId !== null && (
-            <div className="space-y-6">
-              <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-6">
-                <p className="text-emerald-400 font-semibold mb-2">✅ Step 1 Complete!</p>
-                <p className="text-white/80">
-                  Your tokenId: <span className="font-mono text-amber-400">{tokenId}</span>
-                </p>
-                <p className="text-white/50 text-sm mt-2">
-                  {countdown > 0 
-                    ? ` Wait ${countdown} seconds before reveal...`
-                    : "✅ Ready for reveal!"}
-                </p>
+          {!busy && g.pendingId === null && hasMinted && (
+            <div className="space-y-5">
+              <div className="text-center">
+                <p className="text-xl font-bold text-emerald-400">You hold a Genesis</p>
+                <p className="mt-1 text-sm text-white/50">The limit is 1 per wallet.</p>
               </div>
-
-              <button
-                onClick={handleReveal}
-                disabled={countdown > 0 || minting}
-                className="w-full px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {minting ? "Revealing..." : "Reveal & Mint NFT"}
-              </button>
-            </div>
-          )}
-
-          {step === "revealed" && (
-            <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-8 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
-                  <svg className="w-9 h-9 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
+              {g.myToken && (
+                <div className="mx-auto max-w-sm">
+                  <PerfumeCard tokenId={g.myToken.id} perfume={g.myToken.perfume} isGenesis href={detailHref(g.myToken.id)} />
                 </div>
-              </div>
-              <p className="text-emerald-400 text-2xl font-bold mb-2">NFT Minted!</p>
-              <p className="text-white/80 mb-1">
-                Token ID: <span className="font-mono text-amber-400">{tokenId || "Check your wallet"}</span>
-              </p>
-              <p className="text-white/50 text-sm">
-                You've reached the maximum of {maxPerWallet} NFT
-              </p>
+              )}
+              <Link href="/collection" className="block text-center text-sm text-amber-400 hover:underline">View in your Collection</Link>
             </div>
           )}
 
-          {userMinted >= maxPerWallet && step !== "revealed" && (
-            <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-6 text-center">
-              <p className="text-amber-400 font-semibold mb-2">⚠️ Max Limit Reached</p>
-              <p className="text-white/80">
-                You've already minted {userMinted}/{maxPerWallet} NFT(s)
-              </p>
-              <p className="text-white/50 text-sm mt-2">
-                Check your Collection to view your NFT
-              </p>
-            </div>
-          )}
-
-          <div className="pt-6 border-t border-white/5 mt-6">
-            <p className="text-base text-white/50 mb-4">
-              You minted: <span className="text-amber-400 font-medium">{userMinted}</span>/{maxPerWallet}
-            </p>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
-                <p className="text-base font-bold text-amber-400 mb-1">15% Legendary</p>
-                <p className="text-base text-white/60">Enhanced rate</p>
+          <div className="mt-8 grid grid-cols-1 gap-4 border-t border-white/5 pt-6 sm:grid-cols-3">
+            {[["15% Legendary", "Enhanced rate"], ["Genesis Badge", "Exclusive marker"], ["Priority Access", "Future drops"]].map(([t, d]) => (
+              <div key={t} className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                <p className="mb-1 font-bold text-amber-400">{t}</p>
+                <p className="text-sm text-white/60">{d}</p>
               </div>
-              <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
-                <p className="text-base font-bold text-amber-400 mb-1">Genesis Badge</p>
-                <p className="text-base text-white/60">Exclusive marker</p>
-              </div>
-              <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
-                <p className="text-base font-bold text-amber-400 mb-1">Priority Access</p>
-                <p className="text-base text-white/60">Future drops</p>
-              </div>
-            </div>
+            ))}
           </div>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 rounded-xl bg-white/[0.02] border border-white/5">
-            <h3 className="text-lg font-semibold text-white mb-3">What is Genesis?</h3>
-            <p className="text-base text-white/60 leading-relaxed">
-              The official launch collection of ScentProtocol on Arc Mainnet. 
-              Holders receive lifetime priority access to future events.
-            </p>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+            <h3 className="mb-3 text-lg font-semibold text-white">What is Genesis?</h3>
+            <p className="leading-relaxed text-white/60">The official launch collection of ScentProtocol on Arc Mainnet. Holders receive lifetime priority access to future events.</p>
           </div>
-
-          <div className="p-6 rounded-xl bg-white/[0.02] border border-white/5">
-            <h3 className="text-lg font-semibold text-white mb-3">Where to view?</h3>
-            <p className="text-base text-white/60 leading-relaxed">
-              All NFTs appear in your{" "}
-              <Link href="/collection" className="text-amber-400 hover:underline">Collection</Link>{" "}
-              and can be traded on the{" "}
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+            <h3 className="mb-3 text-lg font-semibold text-white">Where to view?</h3>
+            <p className="leading-relaxed text-white/60">
+              All NFTs appear in your <Link href="/collection" className="text-amber-400 hover:underline">Collection</Link> and can be traded on the{" "}
               <Link href="/marketplace" className="text-amber-400 hover:underline">Marketplace</Link>.
             </p>
           </div>
         </div>
       </div>
+
+      {g.result && (
+        <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/90 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Your Genesis scent">
+          <Confetti count={[60, 90, 130, 190][g.result.perfume.rarity] ?? 60} colors={GOLD} />
+          <div className="mx-auto flex min-h-full max-w-2xl items-center justify-center px-4 py-10">
+            <div className="w-full">
+              <MintReveal
+                tokenId={g.result.id}
+                perfume={g.result.perfume}
+                description="One of the first 100 fragrances ever minted on Arc. Welcome to Genesis."
+                collection="genesis"
+                cardHref={detailHref(g.result.id)}
+                onShare={share}
+                onComplete={g.clearResult}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .gn-arch path { stroke-dasharray: 220; stroke-dashoffset: 220; animation: gnDraw 2.2s ease-out forwards; filter: drop-shadow(0 0 8px rgba(251,191,36,.7)); }
+        @keyframes gnDraw { to { stroke-dashoffset: 0; } }
+        @media (prefers-reduced-motion: reduce) { .gn-arch path { animation: none; stroke-dashoffset: 0; } }
+      `}</style>
     </div>
   );
 }
