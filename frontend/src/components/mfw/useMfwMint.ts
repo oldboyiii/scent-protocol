@@ -60,51 +60,90 @@ export function useMfwMint(address: string | undefined, isGenesisHolder: boolean
   }, [loadSupply]);
 
   const loadWallet = useCallback(async () => {
-    if (!address) {
-      setUserMinted(0);
-      setPendingId(null);
-      setMyToken(null);
-      return;
-    }
+  if (!address) {
+    setUserMinted(0);
+    setPendingId(null);
+    setMyToken(null);
+    return;
+  }
+  try {
+    const c = new ethers.Contract(MFW_ADDRESS, MFW_ABI, readProvider());
+    
+    // Get actual minted count from contract
+    let walletCount = 0;
     try {
-      const c = new ethers.Contract(MFW_ADDRESS, MFW_ABI, readProvider());
-      setUserMinted(Number(await c.getWalletMintedCount(address)));
-
-      let ids: number[] = [];
-      try {
-        const latest = await readProvider().getBlockNumber();
-        const logs = await c.queryFilter(c.filters.MintRequested(null, address), Math.max(0, latest - 200000), latest);
-        ids = logs.map((l) => Number((l as ethers.EventLog).args.tokenId));
-      } catch {
-        const next = Number(await c.getNextTokenId());
-        ids = Array.from({ length: Math.max(0, next - 1) }, (_, i) => i + 1);
-      }
-      
-      let pending: number | null = null;
-      const owned: number[] = [];
-      await Promise.all(ids.map(async (id) => {
-        try {
-          const p = await c.pendingMints(id);
-          if (String(p.minter).toLowerCase() === address.toLowerCase()) pending = id;
-        } catch { /* no pending mint */ }
-      }));
-      
-      for (const id of ids) {
-        if (id !== pending) owned.push(id);
-      }
-      if (!alive.current) return;
-      setPendingId(pending);
-      const last = owned[owned.length - 1];
-      if (last !== undefined) {
-        try {
-          const perfume = toPerfume(await c.getPerfume(last));
-          if (alive.current) setMyToken({ id: last, perfume });
-        } catch { /* token not minted yet */ }
-      }
+      walletCount = Number(await c.getWalletMintedCount(address));
     } catch (e) {
-      console.warn("Wallet state read failed:", e);
+      console.warn("getWalletMintedCount failed:", e);
     }
-  }, [address]);
+    setUserMinted(walletCount);
+
+    // Find this wallet's mint events - use a tighter range
+    let ids: number[] = [];
+    try {
+      const latest = await readProvider().getBlockNumber();
+      // Only check last 100000 blocks (much tighter)
+      const logs = await c.queryFilter(
+        c.filters.MintRequested(null, address), 
+        Math.max(0, latest - 100000), 
+        latest
+      );
+      ids = logs.map((l) => {
+        const event = l as ethers.EventLog;
+        return Number(event.args.tokenId);
+      });
+      console.log("Found MFW mint events for this wallet:", ids);
+    } catch (e) {
+      console.warn("Event query failed:", e);
+      // Fallback: check only recent token IDs (last 50)
+      const next = Number(await c.getNextTokenId());
+      ids = Array.from({ length: Math.min(50, Math.max(0, next - 1)) }, (_, i) => next - 1 - i);
+    }
+    
+    // Check for pending mints ONLY among this wallet's own events
+    let pending: number | null = null;
+    const owned: number[] = [];
+    
+    for (const id of ids) {
+      try {
+        const p = await c.pendingMints(id);
+        // Strict check: minter must match AND blockNumber must be recent
+        const minter = String(p.minter).toLowerCase();
+        if (minter === address.toLowerCase() && Number(p.blockNumber) > 0) {
+          pending = id;
+          console.log("Found pending mint:", id);
+        }
+      } catch {
+        // No pending mint for this id - that's fine
+      }
+    }
+    
+    // Owned tokens are those in our event list that aren't pending
+    for (const id of ids) {
+      if (id !== pending) owned.push(id);
+    }
+    
+    if (!alive.current) return;
+    setPendingId(pending);
+    
+    // Only set myToken if we actually found owned tokens
+    const last = owned[owned.length - 1];
+    if (last !== undefined && walletCount > 0) {
+      try {
+        const perfume = toPerfume(await c.getPerfume(last));
+        if (alive.current) setMyToken({ id: last, perfume });
+        console.log("Set myToken:", last, perfume.name);
+      } catch (e) {
+        console.warn("Could not read perfume for token", last, e);
+      }
+    } else {
+      // No owned tokens - clear everything
+      if (alive.current) setMyToken(null);
+    }
+  } catch (e) {
+    console.warn("Wallet state read failed:", e);
+  }
+}, [address]);
 
   useEffect(() => { void loadWallet(); }, [loadWallet]);
 
