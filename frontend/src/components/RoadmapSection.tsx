@@ -28,7 +28,7 @@ const phases = [
   {
     phase: "Phase 2",
     title: "AI Agent & Mainnet",
-    status: "completed", // Полностью завершена
+    status: "completed",
     items: [
       { text: "Personal AI advisor for scent recommendations", done: true },
       { text: "Successful Mainnet deployment", done: true },
@@ -38,11 +38,12 @@ const phases = [
   },
   {
     phase: "Phase 3",
-    title: "Advanced On-Chain Mechanics",
+    title: "Advanced On-Chain Mechanics & Multisensory Features",
     status: "in-progress",
     items: [
       { text: "Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance", done: true },
-      { text: "Natural language → fragrance pipeline", done: false }, // Перенесено сюда
+      { text: "Procedural Audio: Unique soundscapes for NFTs and AI Advisor mood/weather previews", done: true },
+      { text: "Natural language → fragrance pipeline", done: false },
       { text: "Evolving Scents: Dynamic metadata upgrades based on holding duration", done: false },
       { text: "Subscription 'Scent of the Month' & micro-governance", done: false },
     ],
