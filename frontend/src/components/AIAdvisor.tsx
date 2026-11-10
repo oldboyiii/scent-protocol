@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { getCurrentVibe } from "@/utils/weather";
-import ScentPlayer from "@/components/sound/ScentPlayer"; // 
+import ScentPlayer from "@/components/sound/ScentPlayer";
+import Link from "next/link";
+import { NOTE_COLORS, CREATIVE_DESCRIPTIONS, TYPE_NAMES, GENDER_NAMES } from "@/utils/advisorData";
+import { analyzeMood, rankListings, seedFor } from "@/utils/advisorMatch";
+import type { RankedListing } from "@/utils/advisorMatch";
+import { loadMarketListings } from "@/utils/marketListings";
+
 // --- INTERFACES ---
 
 export interface MintContext {
@@ -13,63 +20,11 @@ export interface MintContext {
   heartNotes?: string[];
   baseNotes?: string[];
   seedString: string;
-  // UI fields for the Result Card
   vibe?: string;
   archetype?: string;
   dnaColors?: string[];
   reason?: string;
 }
-
-interface KnowledgeEntry {
-  gender?: number;
-  pType?: number;
-  intensity?: number;
-  tags: string[];
-  notes: { top?: string[]; heart?: string[]; base?: string[] };
-  archetype?: string;
-}
-
-// --- CONSTANTS ---
-
-const NOTE_COLORS: Record<string, string> = {
-  "Bergamot": "#fbbf24", "Lemon": "#fbbf24", "Citrus": "#fbbf24", "Orange": "#fbbf24",
-  "Rose": "#ec4899", "Jasmine": "#ec4899", "Floral": "#ec4899", "Peony": "#ec4899",
-  "Oud": "#92400e", "Wood": "#92400e", "Cedar": "#92400e", "Sandalwood": "#92400e", "Woody": "#92400e",
-  "Vanilla": "#f59e0b", "Amber": "#f59e0b", "Spicy": "#f59e0b", "Cinnamon": "#f59e0b",
-  "Musk": "#6b7280", "Leather": "#6b7280", "Tobacco": "#6b7280",
-  "Fresh": "#10b981", "Mint": "#10b981", "Aquatic": "#10b981", "Sea": "#10b981",
-  "Lavender": "#a855f7", "Violet": "#a855f7", "Iris": "#a855f7",
-  "Apple": "#84cc16", "Pear": "#84cc16", "Green": "#84cc16",
-};
-
-const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
-  summer: { pType: 2, intensity: 1, tags: ["fresh", "light", "citrus"], notes: { top: ["Bergamot", "Lemon"], heart: ["Jasmine"], base: ["White Musk"] }, archetype: "The Free Spirit" },
-  winter: { pType: 0, intensity: 3, tags: ["warm", "woody", "spicy"], notes: { top: ["Cinnamon"], heart: ["Rose", "Oud"], base: ["Vanilla", "Amber"] }, archetype: "The Mystic" },
-  spring: { pType: 2, intensity: 1, tags: ["floral", "fresh", "green"], notes: { top: ["Peony"], heart: ["Lily", "Violet"], base: ["Moss"] }, archetype: "The Dreamer" },
-  autumn: { pType: 1, intensity: 2, tags: ["earthy", "warm", "mysterious"], notes: { top: ["Apple"], heart: ["Amber", "Patchouli"], base: ["Oakmoss"] }, archetype: "The Philosopher" },
-  date: { pType: 1, intensity: 2, tags: ["seductive", "romantic", "sweet"], notes: { top: ["Pink Pepper"], heart: ["Rose", "Jasmine"], base: ["Musk", "Vanilla"] }, archetype: "The Romantic" },
-  work: { pType: 2, intensity: 1, tags: ["clean", "professional", "subtle"], notes: { top: ["Lemon"], heart: ["Neroli"], base: ["Cedar", "White Musk"] }, archetype: "The CEO" },
-  party: { pType: 1, intensity: 3, tags: ["bold", "sparkling", "energetic"], notes: { top: ["Citrus"], heart: ["Tuberose", "Orchid"], base: ["Amber"] }, archetype: "The Life of the Party" },
-  sport: { pType: 3, intensity: 1, tags: ["energetic", "fresh", "aquatic"], notes: { top: ["Mint", "Eucalyptus"], heart: ["Sea Notes"], base: ["Driftwood"] }, archetype: "The Athlete" },
-  romantic: { pType: 1, intensity: 2, tags: ["rose", "jasmine", "soft", "tender"], notes: { top: ["Raspberry"], heart: ["Rose", "Peony"], base: ["Musk"] }, archetype: "The Romantic" },
-  masculine: { gender: 1, pType: 1, intensity: 2, tags: ["woody", "leathery", "aromatic"], notes: { top: ["Bergamot", "Lavender"], heart: ["Geranium"], base: ["Oud", "Leather"] }, archetype: "The Gentleman" },
-  feminine: { gender: 2, pType: 1, intensity: 2, tags: ["floral", "fruity", "sweet", "graceful"], notes: { top: ["Mandarin"], heart: ["Jasmine", "Freesia"], base: ["Vanilla", "Sandalwood"] }, archetype: "The Muse" },
-  elegant: { pType: 0, intensity: 2, tags: ["sophisticated", "refined", "classic", "luxury"], notes: { top: ["Aldehydes"], heart: ["Iris", "Rose"], base: ["Sandalwood", "Amber"] }, archetype: "The Aristocrat" },
-  beach: { pType: 3, intensity: 1, tags: ["salty", "sunny", "tropical", "relaxed"], notes: { top: ["Coconut", "Pineapple"], heart: ["Tiare Flower"], base: ["Sandalwood"] }, archetype: "The Free Spirit" },
-  luxury: { pType: 0, intensity: 3, tags: ["rich", "exclusive", "rare", "opulent"], notes: { top: ["Saffron", "Truffle"], heart: ["Oud", "Rose"], base: ["Ambergris", "Leather"] }, archetype: "The Connoisseur" },
-  cozy: { pType: 1, intensity: 2, tags: ["warm", "comforting", "homey", "soft"], notes: { top: ["Apple", "Cinnamon"], heart: ["Vanilla Orchid"], base: ["Tonka"] }, archetype: "The Homebody" },
-  rebel: { gender: 1, pType: 1, intensity: 3, tags: ["bold", "edgy", "unconventional", "dark"], notes: { top: ["Black Pepper"], heart: ["Leather", "Tobacco"], base: ["Oud", "Vetiver"] }, archetype: "The Rebel" },
-  artist: { pType: 0, intensity: 2, tags: ["creative", "unusual", "inspiring", "unique"], notes: { top: ["Absinthe"], heart: ["Violet", "Iris"], base: ["Incense", "Amber"] }, archetype: "The Artist" },
-};
-
-const CREATIVE_DESCRIPTIONS: Record<number, Record<number, string>> = {
-  0: { 0: "A unisex elixir of pure sophistication.", 1: "Unisex elegance captured in liquid form.", 2: "A versatile masterpiece transcending boundaries.", 3: "Bold and boundary-breaking." },
-  1: { 0: "Masculine power distilled — commanding yet refined.", 1: "The modern gentleman's signature.", 2: "A symphony of strength and subtlety.", 3: "Unapologetically masculine." },
-  2: { 0: "Feminine grace in every note.", 1: "The essence of elegance and worth.", 2: "A bouquet of confidence and charm.", 3: "Radiant femininity." }
-};
-
-const TYPE_NAMES = ["Parfum", "Eau de Parfum", "Eau de Toilette", "Eau de Cologne"];
-const GENDER_NAMES = ["Unisex", "Male", "Female"];
 
 const SCENARIO_ICONS: Record<string, JSX.Element> = {
   beach: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
@@ -91,16 +46,60 @@ interface AIAdvisorProps {
 }
 
 export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [mode, setMode] = useState<'quick' | 'deep'>('quick');
   const [input, setInput] = useState("");
   const [selectedGender, setSelectedGender] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [isVariating, setIsVariating] = useState(false);
   
   const [error, setError] = useState<string | null>(null);
   const [deepSuggestion, setDeepSuggestion] = useState<MintContext | null>(null);
+  const [variation, setVariation] = useState(0);
+  const [noMatch, setNoMatch] = useState(false);
+  const [matches, setMatches] = useState<RankedListing[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [matchesError, setMatchesError] = useState(false);
+  
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const runRef = useRef(0);
 
-  const generateSeedString = (baseMood: string): string => {
-    return `${baseMood.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  // Load recent searches from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("scent-advisor-recent");
+      if (saved) setRecentSearches(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // Auto-load from URL if shared
+  useEffect(() => {
+    const moodParam = searchParams.get("mood");
+    const variationParam = searchParams.get("variation");
+    if (moodParam && mode === 'deep') {
+      setInput(moodParam);
+      analyzeDeepMood(moodParam, variationParam ? Number(variationParam) : 0);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync successful deep searches to URL for sharing
+  useEffect(() => {
+    if (deepSuggestion && deepSuggestion.mood) {
+      const params = new URLSearchParams(window.location.search);
+      params.set("mood", deepSuggestion.mood);
+      params.set("variation", String(variation));
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+  }, [deepSuggestion, variation, router]);
+
+  const saveRecentSearch = (text: string) => {
+    const updated = [text, ...recentSearches.filter(s => s !== text)].slice(0, 3);
+    setRecentSearches(updated);
+    try {
+      localStorage.setItem("scent-advisor-recent", JSON.stringify(updated));
+    } catch {}
   };
 
   const getCreativeDescription = (gender: number, pType: number): string => {
@@ -127,98 +126,75 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   };
 
   const handleQuickPick = (scenarioTags: string) => {
-    setLoading(true);
-    setTimeout(() => {
-      const lower = scenarioTags.toLowerCase();
-      let gender = selectedGender;
-      let pType = 2;
-      let notes: { top?: string[]; heart?: string[]; base?: string[] } = {};
-
-      for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
-        if (lower.includes(keyword)) {
-          if (data.gender !== undefined) gender = data.gender;
-          pType = data.pType !== undefined ? data.pType : pType;
-          notes = data.notes;
-          break;
-        }
-      }
-
-      const context: MintContext = {
-        gender,
-        pType,
-        mood: scenarioTags,
-        topNotes: notes.top || ["Bergamot"],
-        heartNotes: notes.heart || ["Floral"],
-        baseNotes: notes.base || ["Musk"],
-        seedString: generateSeedString(scenarioTags)
-      };
-
-      onSelect(context);
-      setLoading(false);
-    }, 400);
+    const mood = analyzeMood(scenarioTags, selectedGender);
+    onSelect({
+      gender: mood.gender ?? selectedGender,
+      pType: mood.pType,
+      mood: scenarioTags,
+      topNotes: mood.notes.top.length ? mood.notes.top : ["Bergamot"],
+      heartNotes: mood.notes.heart.length ? mood.notes.heart : ["Floral"],
+      baseNotes: mood.notes.base.length ? mood.notes.base : ["Musk"],
+      seedString: seedFor(scenarioTags, 0),
+    });
   };
 
-  const analyzeDeepMood = (overrideText?: string) => {
-    const textToAnalyze = overrideText || input;
-    if (!textToAnalyze.trim()) return;
-    
-    setLoading(true);
+  const analyzeDeepMood = (overrideText?: string, nextVariation = 0) => {
+    const text = (overrideText ?? input).trim();
+    if (!text) return;
+
     setError(null);
+    setNoMatch(false);
     setDeepSuggestion(null);
+    setMatches([]);
+    setMatchesError(false);
+    setVariation(nextVariation);
 
-    setTimeout(() => {
-      const lower = textToAnalyze.toLowerCase();
-      let gender: number | undefined;
-      let pType: number | undefined;
-      const matchedTags: string[] = [];
-      const matchedNotes: { top?: string[]; heart?: string[]; base?: string[] } = {};
-      let archetype = "The Explorer";
+    const mood = analyzeMood(text, selectedGender, nextVariation);
+    if (!mood.recognized) {
+      setNoMatch(true);
+      return;
+    }
 
-      for (const [keyword, data] of Object.entries(KNOWLEDGE_BASE)) {
-        if (lower.includes(keyword)) {
-          if (data.gender !== undefined && gender === undefined) gender = data.gender;
-          if (data.pType !== undefined) pType = pType !== undefined ? Math.min(pType, data.pType) : data.pType;
-          matchedTags.push(...data.tags);
-          if (data.notes.top) matchedNotes.top = [...(matchedNotes.top || []), ...data.notes.top];
-          if (data.notes.heart) matchedNotes.heart = [...(matchedNotes.heart || []), ...data.notes.heart];
-          if (data.notes.base) matchedNotes.base = [...(matchedNotes.base || []), ...data.notes.base];
-          if (data.archetype) archetype = data.archetype;
+    saveRecentSearch(text);
+
+    const gender = mood.gender ?? selectedGender;
+    const vibe = mood.tags.length ? mood.tags.slice(0, 4).join(", ") : "unique and mysterious";
+    let reason = `A fascinating blend of ${mood.tags.slice(0, 2).join(" & ")}.`;
+    const creativeDesc = getCreativeDescription(gender, mood.pType);
+    if (creativeDesc) reason += ` ${creativeDesc}`;
+
+    setDeepSuggestion({
+      gender,
+      pType: mood.pType,
+      mood: text,
+      topNotes: mood.notes.top,
+      heartNotes: mood.notes.heart,
+      baseNotes: mood.notes.base,
+      seedString: seedFor(text, nextVariation),
+      vibe,
+      archetype: mood.archetype,
+      dnaColors: generateDNAColors(mood.notes),
+      reason,
+    });
+
+    const run = ++runRef.current;
+    setMatchesLoading(true);
+    loadMarketListings()
+      .then((list) => { 
+        if (run === runRef.current) {
+          setMatches(rankListings(mood, list, gender, 3));
+          setMatchesError(false);
         }
-      }
-
-      if (gender === undefined) gender = selectedGender;
-      if (pType === undefined) pType = 2;
-
-      const uniqueTags = [...new Set(matchedTags)].slice(0, 4);
-      const topNotes = matchedNotes.top ? [...new Set(matchedNotes.top)].slice(0, 3) : ["Bergamot", "Citrus"];
-      const heartNotes = matchedNotes.heart ? [...new Set(matchedNotes.heart)].slice(0, 3) : ["Floral"];
-      const baseNotes = matchedNotes.base ? [...new Set(matchedNotes.base)].slice(0, 3) : ["Musk", "Woods"];
-      
-      const vibe = uniqueTags.length > 0 ? uniqueTags.join(", ") : "unique and mysterious";
-      const dnaColors = generateDNAColors({ top: topNotes, heart: heartNotes, base: baseNotes });
-
-      let reason = matchedTags.length === 0 
-        ? `Your vibe is intriguing! Sensing something ${vibe}.`
-        : `A fascinating blend of ${uniqueTags.slice(0, 2).join(" & ")}.`;
-      
-      const creativeDesc = getCreativeDescription(gender, pType);
-      if (creativeDesc) reason += ` ${creativeDesc}`;
-
-      setDeepSuggestion({
-        gender,
-        pType,
-        mood: textToAnalyze,
-        topNotes,
-        heartNotes,
-        baseNotes,
-        seedString: generateSeedString(textToAnalyze),
-        vibe,
-        archetype,
-        dnaColors,
-        reason
+      })
+      .catch(() => { 
+        if (run === runRef.current) {
+          setMatches([]);
+          setMatchesError(true);
+        }
+      })
+      .finally(() => { 
+        if (run === runRef.current) setMatchesLoading(false); 
       });
-      setLoading(false);
-    }, 800);
   };
 
   const quickScenarios = [
@@ -318,7 +294,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                   try {
                     const vibe = await getCurrentVibe();
                     setInput(vibe);
-                    setTimeout(() => analyzeDeepMood(vibe), 300);
+                    analyzeDeepMood(vibe);
                   } catch (err: any) {
                     setError(err.message || "Failed to detect location. Please enter manually.");
                   } finally {
@@ -338,6 +314,24 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center">
                   {error}
                   <button onClick={() => setError(null)} className="block mx-auto mt-1 underline hover:text-red-300">Dismiss</button>
+                </div>
+              )}
+
+              {/* Recent Searches */}
+              {recentSearches.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-white/40 mb-2">Recent searches:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentSearches.map((term) => (
+                      <button
+                        key={term}
+                        onClick={() => { setInput(term); analyzeDeepMood(term); }}
+                        className="px-2 py-1 rounded bg-white/5 border border-white/10 text-xs text-white/60 hover:text-white hover:border-amber-500/30 transition-colors"
+                      >
+                        {term}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -363,6 +357,20 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                   ) : "Analyze"}
                 </button>
               </div>
+
+              {noMatch && (
+                <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200" role="status">
+                  <p className="mb-2">I could not read a mood from that. Try a few words about the place, the weather or the feeling:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["romantic evening", "rainy forest", "office meeting", "beach holiday", "cozy winter", "night club"].map((ex) => (
+                      <button key={ex} onClick={() => { setInput(ex); analyzeDeepMood(ex); }} className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:border-amber-500/30 transition-colors">
+                        {ex}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="text-xs text-white/40 mb-4">
                 Tip: Mention weather, time of day, or specific emotions for better results.
               </div>
@@ -384,7 +392,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 </div>
               </div>
 
-              {/* ✅ ADDED: ScentPlayer for mood sound preview */}
               <div className="mb-5">
                 <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Preview of this mood:</p>
                 <ScentPlayer
@@ -398,6 +405,31 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                     baseNotes: deepSuggestion.baseNotes ?? [],
                   }}
                 />
+              </div>
+
+              <div className="mb-5" aria-live="polite">
+                <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Already on the marketplace for this mood</p>
+                {matchesLoading && <p className="text-xs text-white/40 animate-pulse">Scanning marketplace listings...</p>}
+                {!matchesLoading && matchesError && (
+                  <p className="text-xs text-amber-300/80">Marketplace data temporarily unavailable, but you can still mint a new fragrance based on this profile below.</p>
+                )}
+                {!matchesLoading && !matchesError && matches.length === 0 && (
+                  <p className="text-xs text-white/40">No listed fragrance fits this mood right now. Mint a new one below.</p>
+                )}
+                <div className="space-y-2">
+                  {matches.map((m) => (
+                    <Link key={`${m.collection}-${m.tokenId}`} href={m.href} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:border-amber-500/30 transition-all group">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate group-hover:text-amber-300 transition-colors">{m.name}</p>
+                        <p className="text-xs text-white/50 truncate">Fits with {m.matchedNotes.slice(0, 3).join(", ") || "its overall character"}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-amber-300">{m.priceUsdc} USDC</p>
+                        <p className="text-[11px] text-white/40">{Math.round(m.score * 100)}% match</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               </div>
 
               <div className="mb-4">
@@ -448,6 +480,25 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
               </div>
 
               <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setIsVariating(true);
+                    setTimeout(() => {
+                      analyzeDeepMood(deepSuggestion.mood, variation + 1);
+                      setIsVariating(false);
+                    }, 150);
+                  }}
+                  disabled={isVariating}
+                  aria-label="Generate another variation of this scent profile"
+                  className="flex-1 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-semibold border border-white/10 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isVariating ? (
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                  ) : "Another take"}
+                </button>
                 <button
                   onClick={() => { setDeepSuggestion(null); setInput(""); }}
                   className="flex-1 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-semibold border border-white/10 transition-all"
