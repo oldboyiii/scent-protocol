@@ -18,6 +18,7 @@ const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 const MFW_CONTRACT_ADDRESS = "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20";
 const VIRAL_CONTRACT_ADDRESS = "0x55A3527C87190fa8456De46247b52214287e8688";
 const ALCHEMY_CONTRACT_ADDRESS = "0xe922c92423728b2092D61b6a9eD5ecA7d0e0B58D";
+const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL || "https://explorer.arc.io";
 
 // ============================================================
 // CONTRACT ABIs
@@ -101,6 +102,7 @@ interface StoredScent {
   rarity?: number;
   timestamp: number;
   isListed?: boolean;
+  hasIncomingOffer?: boolean; // ✅ ADDED: Flag for notification
   perfume?: {
     name: string;
     gender: number;
@@ -159,6 +161,27 @@ const HYBRID_STYLE = {
   glow: "shadow-[0_0_40px_rgba(34,211,238,0.4)] hover:shadow-[0_0_60px_rgba(34,211,238,0.6)]",
   hex: "#22d3ee",
 };
+
+// ============================================================
+// HELPER: Check if a specific token has any offer events
+// ============================================================
+async function checkHasAnyOffer(nft: string, tokenId: number): Promise<boolean> {
+  try {
+    const params = new URLSearchParams({
+      module: "logs", action: "getLogs", fromBlock: "0", toBlock: "latest", address: MARKETPLACE_ADDRESS,
+      topic0: ethers.id("OfferMade(address,uint256,address,uint256,uint256)"),
+      topic0_1_opr: "and", topic0_2_opr: "and",
+      topic1: ethers.zeroPadValue(ethers.getAddress(nft), 32),
+      topic1_2_opr: "and",
+      topic2: ethers.zeroPadValue(ethers.toBeHex(BigInt(tokenId)), 32),
+    });
+    const res = await fetch(`${EXPLORER_URL}/api?${params}`);
+    const json = await res.json();
+    return Array.isArray(json.result) && json.result.length > 0;
+  } catch {
+    return false; // Fail silently to avoid breaking the UI
+  }
+}
 
 // ============================================================
 // MAIN COMPONENT
@@ -453,6 +476,24 @@ export default function CollectionPage() {
         } catch (e) { console.error("Hybrid fetch error:", e); }
 
         setScents(results);
+
+        // ✅ BACKGROUND CHECK: Staggered check for incoming offers to avoid API rate limits
+        const checkOffers = async () => {
+          const updatedScents = [...results];
+          const promises = updatedScents.map(async (scent, index) => {
+            // 150ms delay between requests to be gentle on the RPC/Explorer API
+            await new Promise(r => setTimeout(r, index * 150)); 
+            const hasOffer = await checkHasAnyOffer(scent.contractAddress, scent.tokenId);
+            return { ...scent, hasIncomingOffer: hasOffer };
+          });
+          const resolvedScents = await Promise.all(promises);
+          setScents(resolvedScents);
+        };
+        
+        if (results.length > 0) {
+          checkOffers();
+        }
+
       } catch (e) {
         console.error("Collection fetch error:", e);
       } finally {
@@ -866,6 +907,13 @@ export default function CollectionPage() {
                         View Details →
                       </Link>
                       <div className="flex gap-2">
+                        {/* ✅ NEW: Visual Notification for Incoming Offers */}
+                        {s.hasIncomingOffer && (
+                          <span className="flex items-center gap-1 text-xs text-amber-400 font-semibold animate-pulse" title="You have an incoming offer on this item!">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                            Offers
+                          </span>
+                        )}
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} contractAddress={s.contractAddress} />
                         {s.isListed ? (
                           <button onClick={() => handleCancelListing(s.tokenId, s.contractAddress)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
