@@ -140,7 +140,6 @@ const MARKETPLACE_ABI = [
   "event OfferMade(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price, uint256 expiry)",
   "event OfferCancelled(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price)",
   "event OfferAccepted(address indexed nft, uint256 indexed tokenId, address seller, address indexed offerer, uint256 price, uint256 fee, uint256 royalty)",
-  // Added custom errors for readable error messages
   "error InvalidExpiry(uint256 expiry, uint256 maxDuration)",
   "error InvalidPrice(uint256 price)",
   "error CollectionNotAllowed(address collection)",
@@ -851,8 +850,9 @@ export default function NFTDetailPage() {
           </div>
         )}
 
+        {/* ✅ Added id="offers" here for smooth scrolling from collection cards */}
         {activeTab === "offers" && (
-          <div className="space-y-4">
+          <div id="offers" className="space-y-4 scroll-mt-24">
             {!isOwner ? (
               <div className="space-y-3">
                 <h3 className="text-base font-bold text-white">Make an Offer</h3>
