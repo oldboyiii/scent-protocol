@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
 import FitTitle from "@/components/FitTitle";
+import { loadActiveOffers } from "@/utils/offers";
 
 // ============================================================
 // CONTRACT ADDRESSES
@@ -102,7 +103,7 @@ interface StoredScent {
   rarity?: number;
   timestamp: number;
   isListed?: boolean;
-  hasIncomingOffer?: boolean; // ✅ ADDED: Flag for notification
+  offers?: { count: number; bestUsdc: number }; // open purchase offers (checked on-chain)
   perfume?: {
     name: string;
     gender: number;
@@ -163,27 +164,6 @@ const HYBRID_STYLE = {
 };
 
 // ============================================================
-// HELPER: Check if a specific token has any offer events
-// ============================================================
-async function checkHasAnyOffer(nft: string, tokenId: number): Promise<boolean> {
-  try {
-    const params = new URLSearchParams({
-      module: "logs", action: "getLogs", fromBlock: "0", toBlock: "latest", address: MARKETPLACE_ADDRESS,
-      topic0: ethers.id("OfferMade(address,uint256,address,uint256,uint256)"),
-      topic0_1_opr: "and", topic0_2_opr: "and",
-      topic1: ethers.zeroPadValue(ethers.getAddress(nft), 32),
-      topic1_2_opr: "and",
-      topic2: ethers.zeroPadValue(ethers.toBeHex(BigInt(tokenId)), 32),
-    });
-    const res = await fetch(`${EXPLORER_URL}/api?${params}`);
-    const json = await res.json();
-    return Array.isArray(json.result) && json.result.length > 0;
-  } catch {
-    return false; // Fail silently to avoid breaking the UI
-  }
-}
-
-// ============================================================
 // MAIN COMPONENT
 // ============================================================
 export default function CollectionPage() {
@@ -210,6 +190,32 @@ export default function CollectionPage() {
   const [hasHybridBadge, setHasHybridBadge] = useState(false);
 
   const { address, isConnected } = useAccount();
+
+  // Open purchase offers on the cards. The contract is asked directly, so cancelled,
+  // accepted or expired offers never show up. Re-checked every minute.
+  const [loadedAt, setLoadedAt] = useState(0);
+  const scentsRef = useRef<StoredScent[]>([]);
+  scentsRef.current = scents;
+  const refreshOffers = useCallback(async () => {
+    const list = scentsRef.current;
+    if (list.length === 0) return;
+    try {
+      const provider = new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+      const map = await loadActiveOffers(list.map((s) => ({ nft: s.contractAddress, tokenId: s.tokenId })), provider);
+      setScents((prev) => prev.map((s) => {
+        const open = map.get(`${s.contractAddress.toLowerCase()}-${s.tokenId}`) ?? [];
+        return { ...s, offers: open.length ? { count: open.length, bestUsdc: Math.max(...open.map((o) => Number(o.price) / 1e6)) } : undefined };
+      }));
+    } catch (e) {
+      console.warn("Offer check failed:", e);
+    }
+  }, []);
+  useEffect(() => {
+    if (!loadedAt) return;
+    refreshOffers();
+    const t = setInterval(refreshOffers, 60_000);
+    return () => clearInterval(t);
+  }, [loadedAt, refreshOffers]);
 
   // Check wallet readiness
   useEffect(() => {
@@ -477,22 +483,7 @@ export default function CollectionPage() {
 
         setScents(results);
 
-        // ✅ BACKGROUND CHECK: Staggered check for incoming offers to avoid API rate limits
-        const checkOffers = async () => {
-          const updatedScents = [...results];
-          const promises = updatedScents.map(async (scent, index) => {
-            // 150ms delay between requests to be gentle on the RPC/Explorer API
-            await new Promise(r => setTimeout(r, index * 150)); 
-            const hasOffer = await checkHasAnyOffer(scent.contractAddress, scent.tokenId);
-            return { ...scent, hasIncomingOffer: hasOffer };
-          });
-          const resolvedScents = await Promise.all(promises);
-          setScents(resolvedScents);
-        };
-        
-        if (results.length > 0) {
-          checkOffers();
-        }
+        setLoadedAt(Date.now()); // starts the offer check
 
       } catch (e) {
         console.error("Collection fetch error:", e);
@@ -767,6 +758,15 @@ export default function CollectionPage() {
           <Link href="/" className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">Mint Your First Scent →</Link>
         </div>
       ) : (
+        <>
+          {scents.some((s) => s.offers) && (
+            <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-100" role="status">
+              <p className="text-sm">
+                <b>{scents.filter((s) => s.offers).length}</b> of your fragrances {scents.filter((s) => s.offers).length === 1 ? "has" : "have"} open purchase offers.
+                Open a card marked with the amber strip to review and accept.
+              </p>
+            </div>
+          )}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {sortedScents.map((s) => {
             const hasFullData = !!s.perfume && s.perfume.topNotes;
@@ -902,18 +902,28 @@ export default function CollectionPage() {
                       <p>Minted: {new Date(perfume!.createdAt * 1000).toLocaleString()}</p>
                     </div>
 
+                    {s.offers && (
+                      <Link
+                        href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}#offers`}
+                        className="relative flex items-center justify-between gap-2 rounded-xl border border-amber-400/50 bg-amber-500/15 px-3 py-2 text-amber-200 hover:bg-amber-500/25 transition-colors"
+                        title="Open the item to review and accept the offer"
+                      >
+                        <span className="flex items-center gap-2 text-sm font-semibold">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
+                          </span>
+                          {s.offers.count === 1 ? "1 purchase offer" : `${s.offers.count} purchase offers`}
+                        </span>
+                        <span className="text-xs">up to <b>{s.offers.bestUsdc} USDC</b> &rarr;</span>
+                      </Link>
+                    )}
+
                     <div className="relative flex items-center justify-between pt-2 gap-2">
                       <Link href={`/nft/${s.tokenId}?from=collection&contract=${s.contractAddress}`} className="text-sm text-white/50 hover:text-white transition-colors whitespace-nowrap">
                         View Details →
                       </Link>
                       <div className="flex gap-2">
-                        {/* ✅ NEW: Visual Notification for Incoming Offers */}
-                        {s.hasIncomingOffer && (
-                          <span className="flex items-center gap-1 text-xs text-amber-400 font-semibold animate-pulse" title="You have an incoming offer on this item!">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                            Offers
-                          </span>
-                        )}
                         <ShareCard tokenId={s.tokenId} perfume={perfume!} contractAddress={s.contractAddress} />
                         {s.isListed ? (
                           <button onClick={() => handleCancelListing(s.tokenId, s.contractAddress)} disabled={listingStatus === "listing"} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
@@ -942,6 +952,7 @@ export default function CollectionPage() {
             );
           })}
         </div>
+        </>
       )}
 
       {/* Listing Modal */}
