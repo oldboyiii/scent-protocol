@@ -139,7 +139,13 @@ const MARKETPLACE_ABI = [
   "function listings(address, uint256) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)",
   "event OfferMade(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price, uint256 expiry)",
   "event OfferCancelled(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price)",
-  "event OfferAccepted(address indexed nft, uint256 indexed tokenId, address seller, address indexed offerer, uint256 price, uint256 fee, uint256 royalty)"
+  "event OfferAccepted(address indexed nft, uint256 indexed tokenId, address seller, address indexed offerer, uint256 price, uint256 fee, uint256 royalty)",
+  // Added custom errors for readable error messages
+  "error InvalidExpiry(uint256 expiry, uint256 maxDuration)",
+  "error InvalidPrice(uint256 price)",
+  "error CollectionNotAllowed(address collection)",
+  "error NotApproved(address collection, uint256 tokenId, address account)",
+  "error NotTokenOwner(address collection, uint256 tokenId, address account)"
 ];
 
 const USDC_ABI = [
@@ -317,7 +323,7 @@ export default function NFTDetailPage() {
   const [offers, setOffers] = useState<{ offerer: string; price: bigint; expiry: number }[]>([]);
   const [myOffer, setMyOffer] = useState<{ price: bigint; expiry: number; expired: boolean } | null>(null);
   const [offerPrice, setOfferPrice] = useState("");
-  const [offerDays, setOfferDays] = useState(30); // ✅ Changed default to 30 days
+  const [offerDays, setOfferDays] = useState(7); // Changed default to 7 days for safety
   const [offerLoading, setOfferLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "offers">("details");
   const [showCrestModal, setShowCrestModal] = useState(false);
@@ -522,7 +528,9 @@ export default function NFTDetailPage() {
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
       const priceWei = ethers.parseUnits(offerPrice, 6);
-      const expiryTimestamp = Math.floor(Date.now() / 1000) + (offerDays * 86400);
+      
+      // Calculate expiry capped at 30 days with a 300s buffer to avoid clock sync issues
+      const expiryTimestamp = Math.floor(Date.now() / 1000) + Math.min(offerDays, 30) * 86400 - 300;
       
       if (await usdc.balanceOf(userAddress) < priceWei) throw new Error("Insufficient USDC balance");
       if (await usdc.allowance(userAddress, MARKETPLACE_ADDRESS) < priceWei) {
@@ -535,7 +543,20 @@ export default function NFTDetailPage() {
       setOfferPrice("");
       window.location.reload(); 
     } catch (error: any) {
-      alert(`Failed to make offer: ${error.message || error.reason}`);
+      console.error("Offer failed:", error);
+      
+      // Readable custom error decoding
+      let errorMsg = "Offer failed.";
+      const name = error.revert?.name;
+      if (name === "InvalidExpiry") errorMsg = "Offers can last at most 30 days.";
+      else if (name === "InvalidPrice") errorMsg = "Invalid price. Price must be greater than 0.";
+      else if (name === "CollectionNotAllowed") errorMsg = "This collection is not allowed on the marketplace.";
+      else if (name === "NotApproved") errorMsg = "Marketplace is not approved.";
+      else if (error.code === 4001 || error.code === "ACTION_REJECTED") errorMsg = "Transaction rejected by user.";
+      else if (error.code === "CALL_EXCEPTION") errorMsg = "Transaction failed. Check console for details.";
+      else errorMsg = error.reason || error.shortMessage || error.message || "Unknown error.";
+      
+      alert(`Failed to make offer: ${errorMsg}`);
     } finally {
       setOfferLoading(false);
     }
@@ -660,7 +681,7 @@ export default function NFTDetailPage() {
             </div>
             
             <div>
-              {/* ✅ Ultra-compact badges for special collections to match V3 height */}
+              {/* Ultra-compact badges for special collections to match V3 height */}
               <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                 <p className="text-[10px] text-white/40 uppercase tracking-wider">
                   {isHybrid ? "HYBRID" : isViral ? "VIRAL" : isGenesis ? "GENESIS" : isMFW ? "MFW 2026" : "SCENT"} #{id}
@@ -739,7 +760,7 @@ export default function NFTDetailPage() {
           {description}
         </div>
 
-        {/* ✅ Compact full player with volume control, without duplicate notes grid */}
+        {/* Compact full player with volume control, without duplicate notes grid */}
         <div className="mb-2">
           <ScentPlayer
             variant="full"
@@ -756,7 +777,7 @@ export default function NFTDetailPage() {
           />
         </div>
 
-        {/* ✅ Ultra-compact footer metadata for special collections */}
+        {/* Ultra-compact footer metadata for special collections */}
         <div className="relative text-xs text-white/40 space-y-0.5">
           <p>Creator: {perfume.creator}</p>
           <p>Minted: {new Date(Number(perfume.createdAt) * 1000).toLocaleString()}</p>
@@ -854,16 +875,15 @@ export default function NFTDetailPage() {
                   </div>
                   <div>
                     <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">Valid (Days)</label>
-                    {/* ✅ Updated to include 30, 60, 90 days */}
+                    {/* Updated options: removed 60 and 90 days, added 14 days */}
                     <select 
                       value={offerDays}
                       onChange={(e) => setOfferDays(Number(e.target.value))}
                       className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors"
                     >
                       <option value={7}>7 Days</option>
-                      <option value={30}>30 Days</option>
-                      <option value={60}>60 Days</option>
-                      <option value={90}>90 Days</option>
+                      <option value={14}>14 Days</option>
+                      <option value={30}>30 Days (maximum)</option>
                     </select>
                   </div>
                 </div>
@@ -905,7 +925,7 @@ export default function NFTDetailPage() {
               </div>
             )}
             
-            {/* ✅ Show cancel button for the user's own offer (even if expired) */}
+            {/* Show cancel button for the user's own offer (even if expired) */}
             {userAddress && myOffer && (
               <div className="pt-3 border-t border-white/10">
                 <button 
