@@ -136,7 +136,10 @@ const MARKETPLACE_ABI = [
   "function cancelOffer(address nft, uint256 tokenId)",
   "function acceptOffer(address nft, uint256 tokenId, address offerer, uint256 minPrice)",
   "function getOffer(address nft, uint256 tokenId, address offerer) view returns (uint256 price, uint256 expiry, uint16 feeBps)",
-  "function listings(address, uint256) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)"
+  "function listings(address, uint256) view returns (address seller, uint256 price, uint256 expiry, uint16 feeBps)",
+  "event OfferMade(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price, uint256 expiry)",
+  "event OfferCancelled(address indexed nft, uint256 indexed tokenId, address indexed offerer, uint256 price)",
+  "event OfferAccepted(address indexed nft, uint256 indexed tokenId, address seller, address indexed offerer, uint256 price, uint256 fee, uint256 royalty)"
 ];
 
 const USDC_ABI = [
@@ -211,6 +214,87 @@ function generateDescription(perfume: any): string {
 }
 
 // ============================================================
+// OFFER FETCHING HELPERS (Robust RPC fallback)
+// ============================================================
+const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL || "https://explorer.arc.io";
+const OFFER_TOPIC = ethers.id("OfferMade(address,uint256,address,uint256,uint256)");
+const offerersKey = (nft: string, id: string | number) => `scent-offerers:${nft.toLowerCase()}:${id}`;
+
+function readCachedOfferers(nft: string, id: string | number): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(offerersKey(nft, id)) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function rememberOfferer(nft: string, id: string | number, offerer: string) {
+  const list = new Set(readCachedOfferers(nft, id).map((a) => a.toLowerCase()));
+  list.add(offerer.toLowerCase());
+  localStorage.setItem(offerersKey(nft, id), JSON.stringify(Array.from(list)));
+}
+
+async function fetchOfferers(nft: string, id: string | number, provider: ethers.Provider): Promise<string[]> {
+  const found = new Set<string>(readCachedOfferers(nft, id).map((a) => a.toLowerCase()));
+
+  try {
+    const params = new URLSearchParams({
+      module: "logs", action: "getLogs", fromBlock: "0", toBlock: "latest", address: MARKETPLACE_ADDRESS,
+      topic0: OFFER_TOPIC, topic0_1_opr: "and", topic0_2_opr: "and",
+      topic1: ethers.zeroPadValue(ethers.getAddress(nft), 32), topic1_2_opr: "and",
+      topic2: ethers.zeroPadValue(ethers.toBeHex(BigInt(id)), 32),
+    });
+    const res = await fetch(`${EXPLORER_URL}/api?${params}`);
+    const json = await res.json();
+    if (Array.isArray(json.result)) {
+      for (const log of json.result) found.add(("0x" + String(log.topics[3]).slice(26)).toLowerCase());
+    }
+  } catch {
+    /* blocked or offline: fall through to the RPC */
+  }
+
+  try {
+    const latest = await provider.getBlockNumber();
+    const CHUNK = 2000;
+    const WINDOW = 100_000;
+    const topics = [OFFER_TOPIC, ethers.zeroPadValue(ethers.getAddress(nft), 32), ethers.zeroPadValue(ethers.toBeHex(BigInt(id)), 32)];
+    const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    for (let end = latest; end > latest - WINDOW; end -= CHUNK) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const logs = await provider.getLogs({ address: MARKETPLACE_ADDRESS, fromBlock: Math.max(0, end - CHUNK + 1), toBlock: end, topics });
+          for (const log of logs) found.add(("0x" + log.topics[3].slice(26)).toLowerCase());
+          break;
+        } catch {
+          await pause(300);
+        }
+      }
+      await pause(120);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  localStorage.setItem(offerersKey(nft, id), JSON.stringify(Array.from(found)));
+  return Array.from(found).map((a) => ethers.getAddress(a));
+}
+
+function normalizePerfume(data: any) {
+  return {
+    name: data.name,
+    gender: Number(data.gender),
+    pType: Number(data.pType),
+    topNotes: Array.from(data.topNotes || []) as string[],
+    heartNotes: Array.from(data.heartNotes || []) as string[],
+    baseNotes: Array.from(data.baseNotes || []) as string[],
+    concentration: Number(data.concentration),
+    rarity: Number(data.rarity),
+    createdAt: Number(data.createdAt),
+    creator: data.creator,
+  };
+}
+
+// ============================================================
 // MAIN COMPONENT
 // ============================================================
 export default function NFTDetailPage() {
@@ -231,8 +315,9 @@ export default function NFTDetailPage() {
 
   const [isOwner, setIsOwner] = useState(false);
   const [offers, setOffers] = useState<{ offerer: string; price: bigint; expiry: number }[]>([]);
+  const [myOffer, setMyOffer] = useState<{ price: bigint; expiry: number; expired: boolean } | null>(null);
   const [offerPrice, setOfferPrice] = useState("");
-  const [offerDays, setOfferDays] = useState(7);
+  const [offerDays, setOfferDays] = useState(30); // ✅ Changed default to 30 days
   const [offerLoading, setOfferLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "offers">("details");
   const [showCrestModal, setShowCrestModal] = useState(false);
@@ -349,18 +434,7 @@ export default function NFTDetailPage() {
           try {
             const data = await getContract(provider).getPerfume(id);
             if (data && data.name) {
-              setPerfume({
-                name: data.name,
-                gender: Number(data.gender), 
-                pType: Number(data.pType), 
-                topNotes: Array.from(data.topNotes || []) as string[],
-                heartNotes: Array.from(data.heartNotes || []) as string[],
-                baseNotes: Array.from(data.baseNotes || []) as string[],
-                concentration: Number(data.concentration), 
-                rarity: Number(data.rarity), 
-                createdAt: Number(data.createdAt),
-                creator: data.creator
-              });
+              setPerfume(normalizePerfume(data));
               setIsGenesis(false); 
               setIsMFW(false); 
               setIsViral(false); 
@@ -402,37 +476,41 @@ export default function NFTDetailPage() {
     checkOwnership();
   }, [userAddress, contractParam, id]);
 
-  // Fetch active offers
+  // Fetch active offers (Robust version)
   useEffect(() => {
     async function fetchOffersData() {
       if (!contractParam || !id) return;
       try {
-        const provider = (typeof window !== "undefined" && (window as any).ethereum)
+        const provider: ethers.Provider = (typeof window !== "undefined" && (window as any).ethereum)
           ? new ethers.BrowserProvider((window as any).ethereum)
           : new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
         const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-        const filter = marketplace.filters.OfferMade(contractParam, id);
-        const events = await marketplace.queryFilter(filter);
-        const validOffers = [];
+        const offerers = await fetchOfferers(contractParam, id, provider);
         const now = Math.floor(Date.now() / 1000);
-        
-        for (const event of events) {
-          if ('args' in event && event.args) {
-            try {
-              const offer = await marketplace.getOffer(contractParam, id, event.args.offerer);
-              if (offer.price > 0n && Number(offer.expiry) > now) {
-                validOffers.push({ offerer: event.args.offerer, price: offer.price, expiry: Number(offer.expiry) });
-              }
-            } catch (e) { }
-          }
-        }
-        setOffers(validOffers);
+        const active: { offerer: string; price: bigint; expiry: number }[] = [];
+        let mine: { price: bigint; expiry: number; expired: boolean } | null = null;
+
+        await Promise.all(offerers.map(async (offerer) => {
+          try {
+            const offer = await marketplace.getOffer(contractParam, id, offerer);
+            if (offer.price <= 0n) return;
+            const expiry = Number(offer.expiry);
+            if (expiry > now) active.push({ offerer, price: offer.price, expiry });
+            if (userAddress && offerer.toLowerCase() === userAddress.toLowerCase()) {
+              mine = { price: offer.price, expiry, expired: expiry <= now };
+            }
+          } catch { /* skip */ }
+        }));
+
+        active.sort((x, y) => (x.price < y.price ? 1 : -1));
+        setOffers(active);
+        setMyOffer(mine);
       } catch (e) {
         console.error("Failed to fetch offers:", e);
       }
     }
     fetchOffersData();
-  }, [contractParam, id]);
+  }, [contractParam, id, userAddress]);
 
   // Offer Handlers
   const handleMakeOffer = async () => {
@@ -448,11 +526,12 @@ export default function NFTDetailPage() {
       
       if (await usdc.balanceOf(userAddress) < priceWei) throw new Error("Insufficient USDC balance");
       if (await usdc.allowance(userAddress, MARKETPLACE_ADDRESS) < priceWei) {
-        await (await usdc.approve(MARKETPLACE_ADDRESS, ethers.MaxUint256)).wait();
+        await (await usdc.approve(MARKETPLACE_ADDRESS, priceWei)).wait();
       }
       
       await (await marketplace.makeOffer(contractParam, id, priceWei, expiryTimestamp)).wait();
-      alert("Offer made successfully!");
+      rememberOfferer(contractParam, id, userAddress);
+      alert(`Offer sent. ${offerPrice} USDC is held in escrow by the marketplace until the owner accepts it. You can cancel any time for a full refund.`);
       setOfferPrice("");
       window.location.reload(); 
     } catch (error: any) {
@@ -756,6 +835,10 @@ export default function NFTDetailPage() {
             {!isOwner ? (
               <div className="space-y-3">
                 <h3 className="text-base font-bold text-white">Make an Offer</h3>
+                <p className="text-xs text-white/50 leading-relaxed">
+                  Your USDC is held in escrow by the marketplace contract, not sent to the owner. The owner is paid only if they accept
+                  your offer, and you can cancel at any time for a full refund.
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">Price (USDC)</label>
@@ -771,15 +854,16 @@ export default function NFTDetailPage() {
                   </div>
                   <div>
                     <label className="text-xs text-white/50 uppercase tracking-wider mb-1.5 block">Valid (Days)</label>
+                    {/* ✅ Updated to include 30, 60, 90 days */}
                     <select 
                       value={offerDays}
                       onChange={(e) => setOfferDays(Number(e.target.value))}
                       className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors"
                     >
-                      <option value={3}>3 Days</option>
                       <option value={7}>7 Days</option>
-                      <option value={14}>14 Days</option>
                       <option value={30}>30 Days</option>
+                      <option value={60}>60 Days</option>
+                      <option value={90}>90 Days</option>
                     </select>
                   </div>
                 </div>
@@ -794,6 +878,7 @@ export default function NFTDetailPage() {
             ) : (
               <div className="space-y-3">
                 <h3 className="text-base font-bold text-white">Incoming Offers</h3>
+                <p className="text-xs text-white/50">The bidder's USDC is already held in escrow. Accepting pays you the price minus the marketplace fee and any creator royalty.</p>
                 {offers.length === 0 ? (
                   <p className="text-white/50 text-sm py-3 text-center bg-white/5 rounded-lg border border-white/10">No active offers for this NFT yet.</p>
                 ) : (
@@ -820,15 +905,19 @@ export default function NFTDetailPage() {
               </div>
             )}
             
-            {userAddress && offers.some(o => o.offerer.toLowerCase() === userAddress.toLowerCase()) && (
+            {/* ✅ Show cancel button for the user's own offer (even if expired) */}
+            {userAddress && myOffer && (
               <div className="pt-3 border-t border-white/10">
                 <button 
                   onClick={handleCancelOffer}
                   disabled={offerLoading}
                   className="w-full py-2.5 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 font-bold text-sm hover:bg-red-500/30 transition-colors disabled:opacity-50"
                 >
-                  Cancel My Active Offer
+                  {myOffer.expired ? "Offer expired: cancel and get" : "Cancel my offer and get"} {ethers.formatUnits(myOffer.price, 6)} USDC back
                 </button>
+                {myOffer.expired && (
+                  <p className="mt-2 text-xs text-white/50">An expired offer still holds your USDC in escrow until you cancel it.</p>
+                )}
               </div>
             )}
           </div>
