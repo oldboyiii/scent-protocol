@@ -56,4 +56,4 @@ export const CREATIVE_DESCRIPTIONS: Record<number, Record<number, string>> = {
 };
 
 export const TYPE_NAMES = ["Parfum", "EDP", "EDT", "EDC"];
-export const GENDER_NAMES = ["Masculine", "Feminine", "Unisex"];
+export const GENDER_NAMES = ["Male", "Female", "Unisex"];
