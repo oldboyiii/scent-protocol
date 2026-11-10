@@ -37,7 +37,13 @@ const MARKETPLACE_ABI = [
   "function getActiveListings(address nft) view returns (uint256[])",
   "function isListingActive(address nft, uint256 tokenId) view returns (bool)",
   "function setCollectionAllowed(address nft, bool allowed)",
-  "function usdc() view returns (address)"
+  "function usdc() view returns (address)",
+  // ✅ Added custom errors for readable error messages
+  "error InvalidExpiry(uint256 expiry, uint256 maxDuration)",
+  "error InvalidPrice(uint256 price)",
+  "error CollectionNotAllowed(address collection)",
+  "error NotApproved(address collection, uint256 tokenId, address account)",
+  "error NotTokenOwner(address collection, uint256 tokenId, address account)"
 ];
 
 // Universal ERC721 ABI for ownership and approval checks
@@ -172,7 +178,7 @@ export default function CollectionPage() {
     price: ""
   });
   const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
-  const [listingDays, setListingDays] = useState(30); // ✅ Added listing duration state (default 30 days)
+  const [listingDays, setListingDays] = useState(7); // ✅ Changed default to 7 days for safety
 
   // Badge states - track which special NFTs the user holds
   const [hasGenesisBadge, setHasGenesisBadge] = useState(false);
@@ -481,6 +487,7 @@ export default function CollectionPage() {
   // Open listing modal
   const handleListClick = (tokenId: number, contractAddress: string) => {
     setListingModal({ open: true, tokenId, contractAddress, price: "" });
+    setListingDays(7); // ✅ Reset to default 7 days
     setListingStatus("idle");
   };
 
@@ -514,8 +521,8 @@ export default function CollectionPage() {
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
       
-      // ✅ Calculate expiry using the selected listingDays
-      const expiryTimestamp = Math.floor(Date.now() / 1000) + (listingDays * 24 * 60 * 60);
+      // ✅ Calculate expiry capped at 30 days with a 300s buffer to avoid clock sync issues
+      const expiryTimestamp = Math.floor(Date.now() / 1000) + Math.min(listingDays, 30) * 86400 - 300;
       
       console.log("Creating listing:", {
         nft: listingModal.contractAddress,
@@ -538,25 +545,16 @@ export default function CollectionPage() {
       console.error("Listing failed:", error);
       let errorMsg = "Listing failed.";
       
-      if (error.code === 4001 || error.code === "ACTION_REJECTED") {
-        errorMsg = "Transaction rejected by user.";
-      } else if (error.message?.includes("You do not own")) {
-        errorMsg = error.message;
-      } else if (error.code === "UNSUPPORTED_OPERATION") {
-        errorMsg = "Contract function mismatch. Please refresh the page.";
-      } else if (error.reason?.includes("InvalidExpiry") || error.message?.includes("InvalidExpiry")) {
-        errorMsg = "Invalid expiry date.";
-      } else if (error.reason?.includes("InvalidPrice") || error.message?.includes("InvalidPrice")) {
-        errorMsg = "Invalid price. Price must be greater than 0.";
-      } else if (error.reason?.includes("CollectionNotAllowed") || error.message?.includes("CollectionNotAllowed")) {
-        errorMsg = "This collection is not allowed on the marketplace.";
-      } else if (error.reason?.includes("NotApproved") || error.message?.includes("NotApproved")) {
-        errorMsg = "Marketplace is not approved to transfer this NFT.";
-      } else if (error.code === "CALL_EXCEPTION") {
-        errorMsg = "Transaction failed. Check console for details.";
-      } else {
-        errorMsg = error.reason || error.shortMessage || error.message || "Unknown error.";
-      }
+      // ✅ Readable custom error decoding
+      const name = error.revert?.name;
+      if (name === "InvalidExpiry") errorMsg = "Listings can last at most 30 days.";
+      else if (name === "InvalidPrice") errorMsg = "Invalid price. Price must be greater than 0.";
+      else if (name === "CollectionNotAllowed") errorMsg = "This collection is not allowed on the marketplace.";
+      else if (name === "NotApproved") errorMsg = "Marketplace is not approved to transfer this NFT.";
+      else if (name === "NotTokenOwner") errorMsg = "You do not own this NFT.";
+      else if (error.code === 4001 || error.code === "ACTION_REJECTED") errorMsg = "Transaction rejected by user.";
+      else if (error.code === "CALL_EXCEPTION") errorMsg = "Transaction failed. Check console for details.";
+      else errorMsg = error.reason || error.shortMessage || error.message || "Unknown error.";
       
       alert(`Listing failed: ${errorMsg}`);
       setListingStatus("idle");
@@ -746,7 +744,6 @@ export default function CollectionPage() {
                 : (RARITY_STYLE[rarity] || RARITY_STYLE[0]);
 
             return (
-
               <div key={`${s.contractAddress}-${s.tokenId}`} className={`group relative rounded-2xl p-6 space-y-4 backdrop-blur-xl bg-gradient-to-br ${style.bg} ${style.glow} border ${style.border} overflow-hidden transition-all duration-500 hover:scale-[1.02] flex-shrink-0`}>
                 
                 {isGenesis && (
@@ -937,7 +934,7 @@ export default function CollectionPage() {
                     <input type="number" step="0.01" min="0.01" placeholder="e.g. 10.00" value={listingModal.price} onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })} className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-white/50 transition-colors placeholder:text-white/30" />
                   </div>
                   
-                  {/* ✅ ADDED: Listing duration selector */}
+                  {/* ✅ ADDED: Listing duration selector capped at 30 days */}
                   <div>
                     <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Valid (Days)</label>
                     <select 
@@ -946,9 +943,8 @@ export default function CollectionPage() {
                       className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/50 transition-colors"
                     >
                       <option value={7}>7 Days</option>
-                      <option value={30}>30 Days</option>
-                      <option value={60}>60 Days</option>
-                      <option value={90}>90 Days</option>
+                      <option value={14}>14 Days</option>
+                      <option value={30}>30 Days (maximum)</option>
                     </select>
                   </div>
 
