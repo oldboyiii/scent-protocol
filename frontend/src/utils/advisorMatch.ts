@@ -36,19 +36,6 @@ export function seasonWord(date: Date = new Date()): string {
   return m === 11 || m <= 1 ? "winter" : m <= 4 ? "spring" : m <= 7 ? "summer" : "autumn";
 }
 
-const RU_ALIASES: Array<[string[], string]> = [
-  [["лет", "жар", "солнеч"], "summer"], [["зим", "мороз", "снег", "холод"], "winter"], [["весн", "цвет"], "spring"],
-  [["осен", "листопад"], "autumn"], [["свидан", "роман", "любов", "нежн", "поцел"], "date"], [["работ", "офис", "делов", "переговор", "встреч"], "work"],
-  [["вечерин", "праздник", "клуб", "тусов", "вечеринк"], "party"], [["спорт", "трениров", "йог", "бег", "зал"], "sport"],
-  [["мужск", "мужчин", "джентльмен"], "masculine"], [["женск", "женщин", "девушк"], "feminine"],
-  [["элегант", "стильн", "изыскан", "классик", "строг"], "elegant"], [["пляж", "море", "океан", "тропик", "отпуск"], "beach"],
-  [["роскош", "люкс", "богат", "премиум"], "luxury"], [["уют", "тепл", "плед", "камин", "дом"], "cozy"],
-  [["бунт", "дерзк", "смел", "мятежн", "панк"], "rebel"], [["художник", "творч", "искусств", "муз"], "artist"],
-  [["лес", "хвой", "природ"], "forest"], [["дожд", "ливень", "гроз"], "rain"], [["ноч", "темн", "тайн"], "night"], [["утр", "рассвет", "завтрак"], "morning"],
-  [["вечер"], "evening"], [["днём", "днем", "полдень", "обед"], "afternoon"], [["облач", "пасмурн"], "cloudy"], [["туман"], "fog"],
-  [["ветер", "ветрен"], "wind"], [["жарк", "зной"], "hot"], [["снеж", "метел"], "snow"],
-];
-
 const ALL: Record<string, KnowledgeEntry> = { ...KNOWLEDGE_BASE, ...EXTRA_ENTRIES };
 
 const FAMILY_WORDS: Record<Family, string[]> = {
@@ -96,7 +83,6 @@ function keywordsFor(text: string): string[] {
   const hits = new Map<string, number>();
   for (const t of tokens(text)) {
     for (const key of Object.keys(ALL)) if (t === key || (t.length > 4 && t.startsWith(key))) hits.set(key, (hits.get(key) ?? 0) + 1);
-    for (const [stems, key] of RU_ALIASES) if (stems.some((s) => t.startsWith(s))) hits.set(key, (hits.get(key) ?? 0) + 1);
     for (const [stems, key] of EN_ALIASES) if (stems.some((s) => t.startsWith(s))) hits.set(key, (hits.get(key) ?? 0) + 1);
   }
   const found = Array.from(hits.entries()).sort((a, b) => b[1] - a[1]).map(([k]) => k);
@@ -120,7 +106,21 @@ function rank(lists: string[][], size: number, shift: number): string[] {
 
 export function analyzeMood(text: string, selectedGender = 0, variation = 0): MoodAnalysis {
   const keywords = keywordsFor(text);
-  const entries = keywords.map((k) => ALL[k]);
+  const entries = keywords.map((k) => ALL[k]).filter((e): e is KnowledgeEntry => e !== undefined);
+  
+  if (entries.length === 0) {
+    return {
+      recognized: false,
+      keywords: [],
+      tags: [],
+      notes: { top: [], heart: [], base: [] },
+      archetype: "The Explorer",
+      pType: 2,
+      gender: selectedGender,
+      families: {},
+    };
+  }
+  
   const families: Partial<Record<Family, number>> = {};
   const bump = (f: Family, w: number) => { families[f] = (families[f] ?? 0) + w; };
   
