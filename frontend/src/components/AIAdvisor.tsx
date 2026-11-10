@@ -66,7 +66,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const runRef = useRef(0);
 
-  // Load recent searches from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem("scent-advisor-recent");
@@ -74,7 +73,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     } catch {}
   }, []);
 
-  // Auto-load from URL if shared
   useEffect(() => {
     const moodParam = searchParams.get("mood");
     const variationParam = searchParams.get("variation");
@@ -84,7 +82,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync successful deep searches to URL for sharing
   useEffect(() => {
     if (deepSuggestion && deepSuggestion.mood) {
       const params = new URLSearchParams(window.location.search);
@@ -158,7 +155,11 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     saveRecentSearch(text);
 
     const gender = mood.gender ?? selectedGender;
-    const vibe = mood.tags.length ? mood.tags.slice(0, 4).join(", ") : "unique and mysterious";
+    
+    // ✅ ADDED: Preserve full location/weather/time string if it looks like a weather context
+    const isWeatherContext = text.toLowerCase().includes("°c") || text.toLowerCase().includes("time") || text.toLowerCase().includes(" in ");
+    const vibeContext = isWeatherContext ? text : (mood.tags.length ? mood.tags.slice(0, 4).join(", ") : "unique and mysterious");
+    
     let reason = `A fascinating blend of ${mood.tags.slice(0, 2).join(" & ")}.`;
     const creativeDesc = getCreativeDescription(gender, mood.pType);
     if (creativeDesc) reason += ` ${creativeDesc}`;
@@ -171,7 +172,7 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
       heartNotes: mood.notes.heart,
       baseNotes: mood.notes.base,
       seedString: seedFor(text, nextVariation),
-      vibe,
+      vibe: vibeContext, // Now contains the full context string
       archetype: mood.archetype,
       dnaColors: generateDNAColors(mood.notes),
       reason,
@@ -317,7 +318,6 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                 </div>
               )}
 
-              {/* Recent Searches */}
               {recentSearches.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs text-white/40 mb-2">Recent searches:</p>
@@ -377,6 +377,21 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
             </>
           ) : (
             <div className="bg-gradient-to-br from-white/10 to-white/5 rounded-xl p-5 border border-white/10 animate-fade-up">
+              
+              {/* ✅ ADDED: Full location, weather, and time context display */}
+              {deepSuggestion.vibe && deepSuggestion.vibe !== "unique and mysterious" && (
+                <div className="mb-5 p-4 rounded-lg bg-white/5 border border-white/10 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Current Context</p>
+                    <p className="text-sm text-white/80">{deepSuggestion.vibe}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-xs text-amber-300 font-medium mb-1">Your Scent Archetype</p>
