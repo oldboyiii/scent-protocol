@@ -7,7 +7,7 @@ import { getContract } from "@/utils/contract";
 import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
-import FitTitle from "@/components/FitTitle"; // 
+import FitTitle from "@/components/FitTitle";
 
 // ============================================================
 // CONTRACT ADDRESSES
@@ -172,6 +172,7 @@ export default function CollectionPage() {
     price: ""
   });
   const [listingStatus, setListingStatus] = useState<"idle" | "approving" | "listing" | "success">("idle");
+  const [listingDays, setListingDays] = useState(30); // ✅ Added listing duration state (default 30 days)
 
   // Badge states - track which special NFTs the user holds
   const [hasGenesisBadge, setHasGenesisBadge] = useState(false);
@@ -513,8 +514,8 @@ export default function CollectionPage() {
       setListingStatus("listing");
       const priceInUSDC = ethers.parseUnits(listingModal.price, 6);
       
-      // Calculate expiry: 7 days from now (in Unix timestamp seconds)
-      const expiryTimestamp = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+      // ✅ Calculate expiry using the selected listingDays
+      const expiryTimestamp = Math.floor(Date.now() / 1000) + (listingDays * 24 * 60 * 60);
       
       console.log("Creating listing:", {
         nft: listingModal.contractAddress,
@@ -818,7 +819,6 @@ export default function CollectionPage() {
                         )}
                       </div>
                       
-                      {/* ✅ ЗАМЕНА: Используем FitTitle вместо жестко заданного h3 */}
                       <FitTitle 
                         text={perfume?.name || s.name || `Scent #${s.tokenId}`} 
                         className="font-bold text-white mt-1 leading-tight" 
@@ -936,6 +936,22 @@ export default function CollectionPage() {
                     <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Price (USDC)</label>
                     <input type="number" step="0.01" min="0.01" placeholder="e.g. 10.00" value={listingModal.price} onChange={(e) => setListingModal({ ...listingModal, price: e.target.value })} className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-white/50 transition-colors placeholder:text-white/30" />
                   </div>
+                  
+                  {/* ✅ ADDED: Listing duration selector */}
+                  <div>
+                    <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Valid (Days)</label>
+                    <select 
+                      value={listingDays}
+                      onChange={(e) => setListingDays(Number(e.target.value))}
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/50 transition-colors"
+                    >
+                      <option value={7}>7 Days</option>
+                      <option value={30}>30 Days</option>
+                      <option value={60}>60 Days</option>
+                      <option value={90}>90 Days</option>
+                    </select>
+                  </div>
+
                   {listingStatus === "approving" && (<div className="text-center py-4"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto mb-2"></div><p className="text-sm text-white/80 font-medium">Approving marketplace...</p></div>)}
                   {listingStatus === "listing" && (<div className="text-center py-4"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-2"></div><p className="text-sm text-white/80 font-medium">Creating listing...</p></div>)}
                   {listingStatus === "success" && (<div className="text-center py-4"><div className="text-4xl mb-2">✓</div><p className="text-emerald-400 font-bold">Successfully listed!</p></div>)}
