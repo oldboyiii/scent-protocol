@@ -122,9 +122,7 @@ export default function EventsPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
-      {/* Hero */}
-      <div className="text-center mb-12">
-        <header className="mb-12 text-center">
+      <header className="mb-12 text-center">
   <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
     Events
   </p>
