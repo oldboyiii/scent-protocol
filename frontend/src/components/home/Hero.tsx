@@ -18,13 +18,17 @@ function HeroBottle() {
             <stop offset="0.55" stopColor="#fb923c" />
             <stop offset="1" stopColor="#e11d48" />
           </linearGradient>
-          <linearGradient id="dropGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.95" />
-            <stop offset="50%" stopColor="#f97316" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#ea580c" stopOpacity="0.75" />
+          <linearGradient id="crestGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fbbf24" />
+            <stop offset="50%" stopColor="#f97316" />
+            <stop offset="100%" stopColor="#e11d48" />
           </linearGradient>
-          <filter id="dropGlow">
-            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+          <linearGradient id="crestInner" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#e11d48" stopOpacity="0.1" />
+          </linearGradient>
+          <filter id="crestGlow">
+            <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="SourceGraphic" />
@@ -43,15 +47,46 @@ function HeroBottle() {
         </g>
         <path d="M58 118 q-6 40 0 120" stroke="#fff" strokeOpacity="0.45" strokeWidth="3" strokeLinecap="round" fill="none" />
         
-        {/* КАПЛЯ ЭССЕНЦИИ */}
-        <g className="drop-breathe" filter="url(#dropGlow)">
+        {/* SCENTCREST - Generative brand emblem */}
+        <g className="crest-rotate" filter="url(#crestGlow)">
+          {/* Outer decorative ring */}
+          <circle cx="110" cy="205" r="26" fill="none" stroke="url(#crestGradient)" strokeWidth="2" opacity="0.9" />
+          <circle cx="110" cy="205" r="23" fill="url(#crestInner)" stroke="#fbbf24" strokeWidth="0.5" opacity="0.6" />
+          
+          {/* Geometric star pattern (8-pointed rose) */}
           <path 
-            d="M110 175 C110 175 95 190 95 205 C95 215 101 222 110 222 C119 222 125 215 125 205 C125 190 110 175 110 175 Z" 
-            fill="url(#dropGradient)" 
+            d="M110 185 L113 195 L123 195 L115 201 L118 211 L110 205 L102 211 L105 201 L97 195 L107 195 Z" 
+            fill="url(#crestGradient)" 
+            opacity="0.8"
           />
-          {/* Блик на капле */}
-          <ellipse cx="106" cy="198" rx="3" ry="6" fill="#ffffff" opacity="0.5" transform="rotate(-12 106 198)" />
-          <ellipse cx="104" cy="195" rx="1.5" ry="3" fill="#ffffff" opacity="0.7" transform="rotate(-12 104 195)" />
+          
+          {/* Inner circle with initials */}
+          <circle cx="110" cy="205" r="12" fill="#1a1030" stroke="#fbbf24" strokeWidth="1" opacity="0.9" />
+          
+          {/* SP initials */}
+          <text 
+            x="110" 
+            y="209" 
+            textAnchor="middle" 
+            fontSize="11" 
+            fontWeight="bold" 
+            fill="url(#crestGradient)" 
+            fontFamily="serif"
+          >
+            SP
+          </text>
+          
+          {/* Decorative dots around the crest */}
+          <circle cx="110" cy="177" r="1.5" fill="#fbbf24" opacity="0.7" />
+          <circle cx="138" cy="205" r="1.5" fill="#fbbf24" opacity="0.7" />
+          <circle cx="110" cy="233" r="1.5" fill="#fbbf24" opacity="0.7" />
+          <circle cx="82" cy="205" r="1.5" fill="#fbbf24" opacity="0.7" />
+          
+          {/* Diagonal decorative dots */}
+          <circle cx="130" cy="185" r="1" fill="#f97316" opacity="0.6" />
+          <circle cx="130" cy="225" r="1" fill="#f97316" opacity="0.6" />
+          <circle cx="90" cy="225" r="1" fill="#f97316" opacity="0.6" />
+          <circle cx="90" cy="185" r="1" fill="#f97316" opacity="0.6" />
         </g>
       </svg>
       {[
@@ -70,11 +105,11 @@ function HeroBottle() {
       <style>{`
         @keyframes hh-float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
         @keyframes hh-wave { from { transform: translateX(0) } to { transform: translateX(-55px) } }
-        @keyframes drop-breathe { 0%,100% { opacity: 1; transform: scale(1) } 50% { opacity: 0.9; transform: scale(1.08) } }
+        @keyframes crest-rotate { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         .hh-float { animation: hh-float 7s ease-in-out infinite; }
         .hh-wave { animation: hh-wave 5s linear infinite; }
-        .drop-breathe { animation: drop-breathe 3.5s ease-in-out infinite; transform-origin: 110px 200px; }
-        @media (prefers-reduced-motion: reduce) { .hh-float, .hh-wave, .drop-breathe { animation: none; } }
+        .crest-rotate { animation: crest-rotate 20s linear infinite; transform-origin: 110px 205px; }
+        @media (prefers-reduced-motion: reduce) { .hh-float, .hh-wave, .crest-rotate { animation: none; } }
       `}</style>
     </div>
   );
