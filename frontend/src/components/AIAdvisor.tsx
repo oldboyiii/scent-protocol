@@ -37,6 +37,10 @@ const SCENARIO_ICONS: Record<string, JSX.Element> = {
   club: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>,
   wedding: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   travel: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  
+  // ✅ ADDED: Icons for new scenarios
+  rain: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-2 2m6-2l-2 2" /></svg>,
+  drive: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /><circle cx="12" cy="12" r="10" strokeWidth={1.5} strokeDasharray="4 4" /></svg>,
 };
 
 // --- COMPONENT ---
@@ -210,12 +214,18 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
     { icon: "wedding", text: "Wedding day", tags: "romantic elegant" },
     { icon: "travel", text: "Adventure trip", tags: "summer fresh" },
     { icon: "artist", text: "Artist mood", tags: "artist creative" },
+    
+    // ✅ ADDED: Two new scenarios to perfectly fill the 3x4 grid
+    { icon: "rain", text: "Rainy walk", tags: "fresh earthy" },
+    { icon: "drive", text: "Midnight drive", tags: "mysterious bold" },
   ];
 
   // ---- Presentation only: nothing below changes how moods are analysed or matched ----
   const SCENARIO_HUE: Record<string, string> = {
     beach: "#38bdf8", work: "#94a3b8", date: "#f472b6", gala: "#fbbf24", rebel: "#ef4444",
     yoga: "#34d399", club: "#a855f7", wedding: "#fda4af", travel: "#22d3ee", artist: "#f59e0b",
+    // ✅ ADDED: Colors for new scenarios
+    rain: "#60a5fa", drive: "#c084fc",
   };
   const exampleMoods = ["romantic evening", "rainy forest", "office meeting", "beach holiday", "cozy winter", "night club"];
   const noteColor = (note: string) => NOTE_COLORS[note] || NOTE_COLORS[note.split(" ")[0]] || "#6366f1";
