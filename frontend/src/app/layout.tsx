@@ -4,8 +4,17 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { ToastProvider } from "@/components/ToastProvider";
 import Atmosphere from "@/components/Atmosphere";
+import { Cormorant_Garamond } from "next/font/google";
 import dynamic from "next/dynamic";
 import { ReactNode } from "react";
+
+// Refined serif for headings only. Body text stays Inter (set in globals.css).
+const display = Cormorant_Garamond({
+  subsets: ["latin", "cyrillic"],
+  weight: ["500", "600", "700"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 // Dynamic import for Providers with SSR completely disabled.
 // We map the named export 'Providers' to 'default' to satisfy Next.js dynamic import requirements.
@@ -32,7 +41,7 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en">
+    <html lang="en" className={display.variable}>
       <body className="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 min-h-screen text-white relative">
         <Providers>
           <ToastProvider>
