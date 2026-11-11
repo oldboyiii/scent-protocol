@@ -131,8 +131,8 @@ export default function EventsPage() {
   <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
     Events
   </h1>
-  <p className="mx-auto mt-4 max-w-xl text-pretty text-lg text-white/55">
-    Exclusive drops, collaborations, and limited editions
+  <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-white/55">
+    Limited-time collections, exclusive drops, and special collaborations. Each event is a unique moment in digital perfumery history.
   </p>
 </header>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
