@@ -629,13 +629,17 @@ export default function CollectionPage() {
 
   // Loading skeleton
   if (!walletReady || loading) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
-        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">My Collection</h1>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => (<div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />))}</div>
-      </div>
-    );
-  }
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
+      <header className="mb-12 text-center">
+        <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">Collection</p>
+        <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">My Collection</h1>
+        <p className="mx-auto mt-4 max-w-xl text-pretty text-lg text-white/55">Your unique digital fragrances and NFT portfolio</p>
+      </header>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => (<div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />))}</div>
+    </div>
+  );
+}
 
   // Not connected
   if (!address) {
@@ -649,8 +653,11 @@ export default function CollectionPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
-      <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">My Collection</h1>
-      <p className="text-center text-white/50">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
+  <header className="mb-8 text-center">
+    <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">Collection</p>
+    <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">My Collection</h1>
+  </header>
+  <p className="text-center text-white/50 -mt-4">{scents.length} scent{scents.length !== 1 ? "s" : ""} collected</p>
 
       {/* Scent Alchemy Lab CTA Banner */}
       <Link href="/alchemy" className="block group">
