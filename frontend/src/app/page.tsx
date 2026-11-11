@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link"; // 
+import Link from "next/link";
 import MintForm from "@/components/MintForm";
 import MintReveal from "@/components/MintReveal";
 import PerfumeCard from "@/components/PerfumeCard";
 import InfoSection from "@/components/InfoSection";
-import Logo from "@/components/Logo";
 import Confetti from "@/components/Confetti";
 import AIAdvisor, { MintContext } from "@/components/AIAdvisor";
 import RoadmapSection from "@/components/RoadmapSection";
+import Hero from "@/components/home/Hero";
+import LiveStats from "@/components/home/LiveStats";
+import FeatureTiles from "@/components/home/FeatureTiles";
+import HowItWorks from "@/components/home/HowItWorks";
+import SectionHeader from "@/components/home/SectionHeader";
+import Reveal from "@/components/home/Reveal";
 import { PerfumeData } from "@/utils/contract";
 
 interface MintedPerfume {
@@ -69,55 +74,36 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-16 pb-20 w-full">
+    <div className="flex flex-col items-center gap-20 pb-24 w-full">
       <Confetti active={showConfetti} />
 
-      {/* Header Section */}
-      <div className="w-full max-w-4xl px-4 animate-fade-up">
-        <div className="glass-card flex items-center justify-between px-6 py-4">
-          <Logo size={36} />
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-white">ScentProtocol</p>
-              <p className="text-xs text-white/50">Built on Arc</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Hero />
 
-      {/* Hero Section */}
-      <section className="text-center max-w-3xl mx-auto px-4 animate-fade-up pt-4">
-        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent mb-8 pb-4 leading-none">
-          Digital Perfume House
-        </h1>
-        
-        <p className="text-lg text-white/70 mb-8">
-          Create unique AI-generated fragrances. Built on Arc. Every formula is an NFT certificate of ownership.
-        </p>
-        
-        <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50 mt-6">
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
-            USDC = gas
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
-            Sub-second finality
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
-            AI descriptions
-          </span>
-        </div>
-      </section>
+      <LiveStats />
+
+      {/* What you can do here */}
+      <Reveal className="w-full max-w-5xl px-4">
+        <SectionHeader
+          eyebrow="One house, every step"
+          title="Create it. Hear it. Trade it."
+          subtitle="Everything ScentProtocol does, in one place."
+        />
+        <FeatureTiles />
+      </Reveal>
+
+      {/* How it works */}
+      <Reveal className="w-full max-w-5xl px-4">
+        <SectionHeader eyebrow="How it works" title="From a mood to an NFT in three steps" />
+        <HowItWorks />
+      </Reveal>
 
       {/* Info Section */}
-      <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
+      <Reveal className="w-full max-w-4xl px-4">
         <InfoSection />
-      </div>
+      </Reveal>
 
       {/* Mint Form / Reveal Section */}
-      <div id="mint-form" className="w-full max-w-xl px-4 animate-fade-up-delay">
+      <div id="mint-form" className="w-full max-w-xl px-4 scroll-mt-24 animate-fade-up-delay">
         {newlyMinted !== null && minted.length > 0 && minted[0].tokenId === newlyMinted ? (
           <MintReveal
             tokenId={minted[0].tokenId}
@@ -129,27 +115,28 @@ export default function Home() {
             }}
           />
         ) : (
-          <MintForm 
-            onMinted={handleMinted} 
+          <MintForm
+            onMinted={handleMinted}
             advisorContext={advisorContext ?? undefined}
           />
         )}
       </div>
 
       {/* AI Advisor Section */}
-      <div className="w-full max-w-4xl px-4 animate-fade-up-delay">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-white mb-2">Not sure what to create?</h2>
-          <p className="text-white/50 text-sm max-w-lg mx-auto">
-            Let our Scent AI Advisor find your perfect fragrance profile based on your mood or occasion.
-          </p>
+      <Reveal className="w-full max-w-4xl px-4 scroll-mt-24">
+        <div id="advisor" className="scroll-mt-24">
+          <SectionHeader
+            eyebrow="Scent Advisor"
+            title="Not sure what to create?"
+            subtitle="Let our Scent AI Advisor find your perfect fragrance profile based on your mood or occasion."
+          />
+          <div className="flex justify-center">
+            <AIAdvisor onSelect={handleAdvisorSelect} />
+          </div>
         </div>
-        <div className="flex justify-center">
-          <AIAdvisor onSelect={handleAdvisorSelect} />
-        </div>
-      </div>
+      </Reveal>
 
-      {/* 🚀 NEW: Viral Wallet Scent Banner 🚀 */}
+      {/* Wallet Scent banner */}
       <Link href="/wallet-scent" className="w-full max-w-4xl px-4 group animate-fade-up-delay">
         <div className="relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-900/20 via-pink-900/20 to-purple-900/20 p-1 transition-all duration-300 hover:border-purple-400/50 hover:shadow-[0_0_40px_rgba(168,85,247,0.15)]">
           
@@ -163,9 +150,9 @@ export default function Home() {
             {/* Text Content */}
             <div className="flex-1 text-center md:text-left relative z-10">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold uppercase tracking-wider mb-3">
-                <span>🔮</span> Viral Experiment
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> Viral experiment
               </div>
-              <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
+              <h3 className="font-display text-3xl md:text-4xl font-semibold leading-tight text-white mb-2">
                 What's Your Wallet's Scent?
               </h3>
               <p className="text-white/60 text-sm md:text-base max-w-lg">
@@ -186,12 +173,11 @@ export default function Home() {
           </div>
         </div>
       </Link>
-      {/* 🚀 END: Viral Wallet Scent Banner 🚀 */}
 
       {/* Recent Creations Section */}
       {minted.length > 1 && (
         <div className="w-full max-w-md px-4 space-y-4 animate-fade-up-delay">
-          <h3 className="text-xl font-bold text-white text-center mb-4">Your Recent Creations</h3>
+          <h3 className="font-display text-2xl font-semibold text-white text-center mb-4">Your Recent Creations</h3>
           {minted.slice(1).map((item) => (
             <PerfumeCard
               key={item.tokenId}
@@ -204,9 +190,9 @@ export default function Home() {
       )}
 
       {/* Roadmap Section */}
-      <div className="w-full animate-fade-up-delay">
+      <Reveal className="w-full">
         <RoadmapSection />
-      </div>
+      </Reveal>
     </div>
   );
 }
