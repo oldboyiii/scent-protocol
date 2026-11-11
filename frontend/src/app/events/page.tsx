@@ -122,22 +122,18 @@ export default function EventsPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
+      {/* ✅ ИСПРАВЛЕННЫЙ ЗАГОЛОВОК (без дублирования и лишних тегов) */}
       <header className="mb-12 text-center">
-  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
-    Events
-  </p>
-  <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
-    Events
-  </h1>
-  <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-white/55">
-    Limited-time collections, exclusive drops, and special collaborations. Each event is a unique moment in digital perfumery history.
-  </p>
-</header>
-        <p className="text-white/60 text-lg max-w-2xl mx-auto">
-          Limited-time collections, exclusive drops, and special collaborations.
-          Each event is a unique moment in digital perfumery history.
+        <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
+          Events
         </p>
-      </div>
+        <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
+          Events
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-pretty text-lg text-white/55">
+          Limited-time collections, exclusive drops, and special collaborations. Each event is a unique moment in digital perfumery history.
+        </p>
+      </header>
 
       {/* Tabs */}
       <div className="flex justify-center gap-4 mb-12">
