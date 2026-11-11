@@ -1,3 +1,8 @@
+"use client";
+
+import { useState } from "react";
+import Reveal from "@/components/home/Reveal";
+
 export const metadata = {
   title: "FAQ | ScentProtocol",
   description: "Frequently asked questions about ScentProtocol collections, minting, and digital perfumery",
@@ -55,41 +60,158 @@ const faqs = [
 ];
 
 export default function FAQPage() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredFaqs = faqs.filter(
+    (f) =>
+      f.q.toLowerCase().includes(search.toLowerCase()) ||
+      f.a.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggle = (index: number) => {
+    setOpenIndex(openIndex === index ? null : index);
+  };
+
   return (
-    <div className="max-w-3xl mx-auto py-16 px-4">
-      <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center pb-2">
-        Frequently Asked Questions
-      </h1>
-      <p className="text-center text-white/50 mb-12 text-lg">
-        Everything you need to know about ScentProtocol collections and digital perfumery
-      </p>
-      
-      <div className="space-y-4">
-        {faqs.map((f, i) => (
-          <div key={i} className="glass-card p-6 hover:border-amber-500/30 transition-colors duration-300">
-            <h3 className="font-semibold text-lg text-amber-400 mb-3 flex items-start gap-3">
-              <span className="text-amber-500/50 text-xl shrink-0">Q.</span>
-              <span className="whitespace-pre-line">{f.q}</span>
-            </h3>
-            <p className="text-white/70 text-sm leading-relaxed pl-8 whitespace-pre-line">
-              {f.a}
-            </p>
-          </div>
-        ))}
+    <div className="mx-auto max-w-3xl px-4 py-16 sm:py-20">
+      {/* Hero Header */}
+      <header className="mb-12 text-center">
+        <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
+          Support
+        </p>
+        <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
+          Frequently Asked Questions
+        </h1>
+        <p className="mx-auto mt-4 max-w-xl text-pretty text-lg text-white/55">
+          Everything you need to know about ScentProtocol collections and digital perfumery
+        </p>
+      </header>
+
+      {/* Search Bar */}
+      <div className="relative mb-10">
+        <svg
+          className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <input
+          type="text"
+          placeholder="Search questions..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 pl-12 pr-4 text-white placeholder-white/40 transition focus:border-amber-400/60 focus:outline-none focus:ring-4 focus:ring-amber-400/10"
+        />
       </div>
 
-      <div className="mt-12 text-center">
-        <p className="text-white/50 mb-4">Still have questions?</p>
-        <a 
-          href="mailto:scentprotocol.support@gmail.com" 
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium transition-all"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          Contact Support
-        </a>
+      {/* Accordion List */}
+      <div className="space-y-3">
+        {filteredFaqs.length === 0 ? (
+          <div className="py-12 text-center text-white/50">
+            <p className="text-lg font-medium">No questions found</p>
+            <p className="text-sm">Try adjusting your search term.</p>
+          </div>
+        ) : (
+          filteredFaqs.map((f, i) => {
+            // Find original index to keep animations stable
+            const originalIndex = faqs.findIndex((item) => item.q === f.q);
+            const isOpen = openIndex === originalIndex;
+
+            return (
+              <Reveal key={f.q} delay={i * 50}>
+                <div className="glass-card overflow-hidden transition-colors hover:border-amber-500/30">
+                  <button
+                    onClick={() => toggle(originalIndex)}
+                    className="flex w-full items-start gap-4 p-6 text-left"
+                    aria-expanded={isOpen}
+                  >
+                    <span className="mt-0.5 font-display text-2xl font-semibold text-amber-500/40">
+                      {String(originalIndex + 1).padStart(2, "0")}
+                    </span>
+                    <div className="flex-1">
+                      <h3 className="font-display text-lg font-semibold leading-snug text-white">
+                        {f.q}
+                      </h3>
+                      <div
+                        className={`grid transition-all duration-300 ease-in-out ${
+                          isOpen
+                            ? "mt-4 grid-rows-[1fr] opacity-100"
+                            : "grid-rows-[0fr] opacity-0"
+                        }`}
+                      >
+                        <div className="overflow-hidden">
+                          <p className="whitespace-pre-line text-sm leading-relaxed text-white/70">
+                            {f.a}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <svg
+                      className={`mt-1 h-5 w-5 shrink-0 text-white/40 transition-transform duration-300 ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </Reveal>
+            );
+          })
+        )}
       </div>
+
+      {/* Contact Block */}
+      <Reveal className="mt-14">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-8 text-center">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl"
+          />
+          <h2 className="relative font-display text-3xl font-semibold text-white">
+            Still have questions?
+          </h2>
+          <p className="relative mx-auto mt-2 max-w-md text-sm text-white/55">
+            Write to us and we will get back to you.
+          </p>
+          <a
+            href="mailto:scentprotocol.support@gmail.com"
+            className="relative mt-6 inline-flex min-h-[48px] items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-6 py-3 font-medium text-white transition hover:bg-white/15"
+          >
+            <svg
+              aria-hidden
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            Contact Support
+          </a>
+        </div>
+      </Reveal>
     </div>
   );
 }
