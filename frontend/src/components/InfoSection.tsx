@@ -2,15 +2,15 @@
 
 export default function InfoSection() {
   return (
-    <section className="max-w-6xl mx-auto px-4 py-20">
+    <section className="max-w-6xl mx-auto">
       <div className="glass-card p-8 md:p-12">
-        <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center bg-gradient-to-r from-scent-gold to-scent-rose bg-clip-text text-transparent">
+        <h2 className="font-display text-3xl md:text-4xl font-semibold leading-[1.15] pb-1 mb-8 text-center bg-gradient-to-r from-scent-gold to-scent-rose bg-clip-text text-transparent">
           What is ScentProtocol?
         </h2>
 
         <div className="grid md:grid-cols-2 gap-8 mb-12">
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-scent-gold">The Concept</h3>
+            <h3 className="font-display text-2xl font-semibold mb-4 text-scent-gold">The Concept</h3>
             <p className="text-white/70 leading-relaxed">
               ScentProtocol is the world&apos;s first digital perfume house on the blockchain. 
               Every fragrance is a unique NFT — a digital certificate of ownership for an 
@@ -18,7 +18,7 @@ export default function InfoSection() {
             </p>
           </div>
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-scent-gold">How It Works</h3>
+            <h3 className="font-display text-2xl font-semibold mb-4 text-scent-gold">How It Works</h3>
             <ol className="space-y-3 text-white/70">
               <li className="flex gap-3">
                 <span className="text-arc-500 font-bold">1.</span>
@@ -36,7 +36,7 @@ export default function InfoSection() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div className="grid grid-cols-3 gap-4 mb-12">
           <div className="bg-white/5 rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-scent-gold mb-1">100%</div>
             <div className="text-xs text-white/50">Unique Formulas</div>
@@ -46,17 +46,13 @@ export default function InfoSection() {
             <div className="text-xs text-white/50">Finality on Arc</div>
           </div>
           <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-scent-gold mb-1">5</div>
-            <div className="text-xs text-white/50">Active Collections</div>
-          </div>
-          <div className="bg-white/5 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-scent-gold mb-1">🔥</div>
+            <div className="text-2xl font-bold text-scent-gold mb-1">2 &rarr; 1</div>
             <div className="text-xs text-white/50">Deflationary Alchemy</div>
           </div>
         </div>
 
         <div className="border-t border-white/10 pt-8">
-          <h3 className="text-xl font-semibold mb-4 text-scent-gold">Fragrance Types</h3>
+          <h3 className="font-display text-2xl font-semibold mb-4 text-scent-gold">Fragrance Types</h3>
           <div className="grid md:grid-cols-4 gap-4">
             {[
               { name: "Parfum", range: "20-30%", desc: "The most concentrated. 8-12 hours of longevity. Evening & special occasions." },
@@ -74,7 +70,7 @@ export default function InfoSection() {
         </div>
 
         <div className="border-t border-white/10 pt-8 mt-8">
-          <h3 className="text-xl font-semibold mb-4 text-scent-gold">Why Arc?</h3>
+          <h3 className="font-display text-2xl font-semibold mb-4 text-scent-gold">Why Arc?</h3>
           <div className="grid md:grid-cols-3 gap-4 text-sm text-white/60">
             <div className="flex items-start gap-3">
               <span className="text-green-400 text-lg">✓</span>
