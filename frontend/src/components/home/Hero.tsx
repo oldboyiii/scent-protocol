@@ -18,6 +18,10 @@ function HeroBottle() {
             <stop offset="0.55" stopColor="#fb923c" />
             <stop offset="1" stopColor="#e11d48" />
           </linearGradient>
+          <linearGradient id="moleculeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fbbf24" />
+            <stop offset="100%" stopColor="#f97316" />
+          </linearGradient>
           <clipPath id="hh-body">
             <rect x="40" y="96" width="140" height="180" rx="30" />
           </clipPath>
@@ -30,8 +34,27 @@ function HeroBottle() {
           <path className="hh-wave" d="M0 152 Q 27 140 55 152 T 110 152 T 165 152 T 220 152 V 290 H 0 Z" fill="#fff" opacity="0.14" />
         </g>
         <path d="M58 118 q-6 40 0 120" stroke="#fff" strokeOpacity="0.45" strokeWidth="3" strokeLinecap="round" fill="none" />
-        <circle cx="110" cy="205" r="26" fill="none" stroke="#fff" strokeOpacity="0.35" />
-        <path d="M110 190 l7 15 -7 15 -7 -15 z" fill="#fff" fillOpacity="0.55" />
+        
+        {/* МОЛЕКУЛА АРОМАТА */}
+        <g className="molecule-pulse">
+          {/* Связи между атомами */}
+          <line x1="110" y1="183" x2="110" y2="165" stroke="#fbbf24" strokeWidth="2" opacity="0.7" />
+          <line x1="117" y1="200" x2="130" y2="210" stroke="#fbbf24" strokeWidth="2" opacity="0.7" />
+          <line x1="103" y1="200" x2="90" y2="210" stroke="#fbbf24" strokeWidth="2" opacity="0.7" />
+          
+          {/* Верхний атом */}
+          <circle cx="110" cy="160" r="6" fill="url(#moleculeGradient)" opacity="0.9" />
+          
+          {/* Правый атом */}
+          <circle cx="133" cy="213" r="6" fill="url(#moleculeGradient)" opacity="0.9" />
+          
+          {/* Левый атом */}
+          <circle cx="87" cy="213" r="6" fill="url(#moleculeGradient)" opacity="0.9" />
+          
+          {/* Центральный атом (ядро) */}
+          <circle cx="110" cy="195" r="10" fill="url(#moleculeGradient)" />
+          <circle cx="110" cy="195" r="14" fill="none" stroke="#fbbf24" strokeWidth="1.5" opacity="0.4" />
+        </g>
       </svg>
       {[
         { label: "Top", cls: "left-[-6px] top-[26%]", d: "0s" },
@@ -49,9 +72,11 @@ function HeroBottle() {
       <style>{`
         @keyframes hh-float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
         @keyframes hh-wave { from { transform: translateX(0) } to { transform: translateX(-55px) } }
+        @keyframes molecule-pulse { 0%,100% { opacity: 1; transform: scale(1) } 50% { opacity: 0.85; transform: scale(1.05) } }
         .hh-float { animation: hh-float 7s ease-in-out infinite; }
         .hh-wave { animation: hh-wave 5s linear infinite; }
-        @media (prefers-reduced-motion: reduce) { .hh-float, .hh-wave { animation: none; } }
+        .molecule-pulse { animation: molecule-pulse 3s ease-in-out infinite; transform-origin: 110px 195px; }
+        @media (prefers-reduced-motion: reduce) { .hh-float, .hh-wave, .molecule-pulse { animation: none; } }
       `}</style>
     </div>
   );
