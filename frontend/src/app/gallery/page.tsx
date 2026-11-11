@@ -476,9 +476,17 @@ export default function GalleryPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
       <div>
-        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">
-          Gallery
-        </h1>
+        <header className="mb-12 text-center">
+  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
+    Gallery
+  </p>
+  <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
+    Gallery
+  </h1>
+  <p className="mx-auto mt-4 max-w-xl text-pretty text-lg text-white/55">
+    Discover the most beautiful fragrances created by our community
+  </p>
+</header>
         <p className="text-center text-white/50">All fragrances minted on ScentProtocol.</p>
       </div>
 
