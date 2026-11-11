@@ -71,7 +71,7 @@ export default function Hero() {
           Digital Perfume House
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-pretty text-base leading-relaxed text-white/70 sm:text-lg lg:mx-0">
-          Create unique AI-generated fragrances. Every formula is an NFT certificate of ownership.
+          Craft unique AI-generated fragrances. Every formula is an NFT certificate of ownership.
         </p>
 
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
