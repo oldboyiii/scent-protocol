@@ -501,7 +501,14 @@ export default function MarketplacePage() {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
-        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">Marketplace</h1>
+        <header className="mb-8 text-center">
+  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
+    Marketplace
+  </p>
+  <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
+    Marketplace
+  </h1>
+</header>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => (<div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse border border-white/10" />))}</div>
       </div>
     );
@@ -509,7 +516,14 @@ export default function MarketplacePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12 space-y-8 relative z-10">
-      <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-300 to-rose-500 bg-clip-text text-transparent text-center leading-[1.3] pb-4">Marketplace</h1>
+      <header className="mb-8 text-center">
+  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
+    Marketplace
+  </p>
+  <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
+    Marketplace
+  </h1>
+</header>
       <p className="text-center text-white/50">{listings.length} NFT{listings.length !== 1 ? "s" : ""} listed for sale</p>
 
       {/* FILTERS AND SORT ROW */}
