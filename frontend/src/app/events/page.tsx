@@ -124,9 +124,17 @@ export default function EventsPage() {
     <div className="max-w-6xl mx-auto py-16 px-4 relative z-10">
       {/* Hero */}
       <div className="text-center mb-12">
-        <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text text-transparent leading-[1.2] pb-4">
-          Events
-        </h1>
+        <header className="mb-12 text-center">
+  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-300/80">
+    Events
+  </p>
+  <h1 className="font-display text-balance bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 bg-clip-text pb-3 text-5xl font-semibold leading-[1.1] tracking-tight text-transparent sm:text-6xl">
+    Events
+  </h1>
+  <p className="mx-auto mt-4 max-w-xl text-pretty text-lg text-white/55">
+    Exclusive drops, collaborations, and limited editions
+  </p>
+</header>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
           Limited-time collections, exclusive drops, and special collaborations.
           Each event is a unique moment in digital perfumery history.
