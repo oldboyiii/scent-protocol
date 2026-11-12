@@ -389,7 +389,7 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
 
       {step === "requesting" && (
         <div className="relative space-y-5 py-2">
-          <MintProgress stage={1} blocksDone={0} blocksTotal={WAIT_SECONDS} unit="second" accent="#fbbf24" />
+          <MintProgress stage={1} blocksDone={0} blocksTotal={WAIT_SECONDS} accent="#fbbf24" />
           <div className="text-center">
             <p className="font-medium text-white/85">Sealing your scent on Arc</p>
             <p className="mt-1 text-xs text-white/40">Please confirm in your wallet</p>
@@ -404,7 +404,7 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
             <span className="font-mono font-semibold text-amber-300">#{tokenId}</span>
           </div>
 
-          <MintProgress stage={countdown > 0 ? 2 : 3} blocksDone={WAIT_SECONDS - countdown} blocksTotal={WAIT_SECONDS} unit="second" accent="#fbbf24" />
+          <MintProgress stage={countdown > 0 ? 2 : 3} blocksDone={WAIT_SECONDS - countdown} blocksTotal={WAIT_SECONDS} accent="#fbbf24" />
 
           {countdown > 0 ? (
             <p className="text-center text-sm text-white/55">Securing on-chain randomness. This takes about {countdown}s.</p>
@@ -422,7 +422,7 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
 
       {step === "revealing" && (
         <div className="relative space-y-5 py-2">
-          <MintProgress stage={3} blocksDone={WAIT_SECONDS} blocksTotal={WAIT_SECONDS} unit="second" accent="#fbbf24" />
+          <MintProgress stage={3} blocksDone={WAIT_SECONDS} blocksTotal={WAIT_SECONDS} accent="#fbbf24" />
           <div className="text-center">
             <p className="font-medium text-white/85">Opening the bottle</p>
             <p className="mt-1 text-xs text-white/40">Please confirm in your wallet</p>
