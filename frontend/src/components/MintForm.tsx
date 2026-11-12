@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useToast } from "@/components/ToastProvider";
 import { MintContext } from "@/components/AIAdvisor";
+import MintProgress from "@/components/wallet-scent/MintProgress";
 import {
   getContract,
   getUSDCContract,
@@ -285,162 +286,177 @@ export default function MintForm({ onMinted, advisorContext }: MintFormProps) {
     return `${open} ${heartLine} ${baseLine} ${rarityLine} Concentration: ${perfume.concentration}%.`;
   }
 
+  const GENDER_OPTIONS = ["Unisex", "Male", "Female"];
+  const TYPE_OPTIONS = [
+    { label: "Parfum", full: "Pure perfume", desc: "20-30%", note: "Richest and longest lasting" },
+    { label: "EDP", full: "Eau de Parfum", desc: "15-20%", note: "Balanced strength, the classic" },
+    { label: "EDT", full: "Eau de Toilette", desc: "10-15%", note: "Lighter and fresher" },
+    { label: "EDC", full: "Eau de Cologne", desc: "5-10%", note: "Lightest and brightest" },
+  ];
+  const WAIT_SECONDS = 10;
+  const chosenType = TYPE_OPTIONS[pType] ?? TYPE_OPTIONS[1];
+  const choiceBase =
+    "relative rounded-2xl border text-left transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60";
+  const choiceOn = "border-amber-400/70 bg-amber-400/10 text-white shadow-[0_0_0_1px_rgba(251,191,36,0.18)]";
+  const choiceOff = "border-white/10 bg-white/[0.04] text-white/65 hover:border-white/25 hover:bg-white/[0.07]";
+
   return (
-    <div className="glass-card p-8 max-w-xl w-full">
-      <h2 className="text-2xl font-bold mb-6 text-center">Create Your Scent</h2>
+    <div className="glass-card relative w-full max-w-xl overflow-hidden p-6 sm:p-8">
+      <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 h-48 w-80 -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl" />
+
+      <header className="relative mb-7 text-center">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-300/80">Mint a fragrance</p>
+        <h2 className="pb-1 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Create Your Scent</h2>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-white/55">
+          Nine notes, a rarity tier and a poetic description, sealed in an NFT you own.
+        </p>
+      </header>
 
       {/* Display selected mood/context from AI Advisor if available */}
       {advisorContext?.mood && (
-        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-          <p className="text-xs text-amber-300 font-medium mb-1">AI Advisor Context</p>
-          <p className="text-sm text-white/80">
-            Mood: <span className="font-semibold text-white">"{advisorContext.mood}"</span>
+        <div className="relative mb-6 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4">
+          <p className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-amber-300">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+            </svg>
+            From your Advisor
           </p>
+          <p className="text-[15px] font-medium leading-snug text-white">{advisorContext.mood}</p>
           {advisorContext.topNotes && advisorContext.topNotes.length > 0 && (
-            <p className="text-xs text-white/60 mt-1">
-              Suggested notes: {advisorContext.topNotes.join(", ")} • {advisorContext.heartNotes?.join(", ")} • {advisorContext.baseNotes?.join(", ")}
-            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {[...advisorContext.topNotes, ...(advisorContext.heartNotes ?? []), ...(advisorContext.baseNotes ?? [])].map((n, i) => (
+                <span key={`${n}-${i}`} className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-0.5 text-xs text-white/75">
+                  {n}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       )}
 
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
+        <div role="alert" className="relative mb-5 rounded-2xl border border-red-400/30 bg-red-500/10 p-3.5 text-center text-sm text-red-300">
           {error}
         </div>
       )}
 
       {step === "idle" && (
-        <>
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="block text-sm text-white/60 mb-2">Gender</label>
-              <div className="grid grid-cols-3 gap-2">
-                {["Unisex", "Male", "Female"].map((g, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setGender(i)}
-                    className={`py-2 rounded-lg text-sm font-medium transition-all ${
-                      gender === i
-                        ? "bg-blue-500 text-white"
-                        : "bg-white/5 text-white/60 hover:bg-white/10"
-                    }`}
-                  >
+        <div className="relative">
+          <div className="mb-6 space-y-6">
+            <fieldset>
+              <legend className="mb-2.5 text-xs font-semibold uppercase tracking-widest text-white/45">Gender</legend>
+              <div className="grid grid-cols-3 gap-2.5">
+                {GENDER_OPTIONS.map((g, i) => (
+                  <button key={g} type="button" aria-pressed={gender === i} onClick={() => setGender(i)}
+                    className={`${choiceBase} min-h-[48px] px-3 py-3 text-center text-sm font-medium ${gender === i ? choiceOn : choiceOff}`}>
                     {g}
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
-            <div>
-              <label className="block text-sm text-white/60 mb-2">Type</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Parfum", desc: "20-30%" },
-                  { label: "EDP", desc: "15-20%" },
-                  { label: "EDT", desc: "10-15%" },
-                  { label: "EDC", desc: "5-10%" },
-                ].map((t, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setPType(i)}
-                    className={`py-2 rounded-lg text-sm font-medium transition-all ${
-                      pType === i
-                        ? "bg-blue-500 text-white"
-                        : "bg-white/5 text-white/60 hover:bg-white/10"
-                    }`}
-                  >
-                    <div>{t.label}</div>
-                    <div className="text-xs opacity-60">{t.desc}</div>
+            <fieldset>
+              <legend className="mb-2.5 text-xs font-semibold uppercase tracking-widest text-white/45">Type</legend>
+              <div className="grid grid-cols-2 gap-2.5">
+                {TYPE_OPTIONS.map((t, i) => (
+                  <button key={t.label} type="button" aria-pressed={pType === i} onClick={() => setPType(i)}
+                    className={`${choiceBase} px-3.5 py-3 ${pType === i ? choiceOn : choiceOff}`}>
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="text-[15px] font-semibold">{t.label}</span>
+                      <span className="text-[11px] tabular-nums text-amber-300/80">{t.desc}</span>
+                    </span>
+                    <span className="mt-1 block text-xs leading-snug text-white/45">{t.note}</span>
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
           </div>
 
+          <p className="mb-3 text-center text-xs text-white/45">
+            {GENDER_OPTIONS[gender]} <span className="text-white/25">/</span> {chosenType.full} <span className="text-white/25">/</span> {chosenType.desc}
+          </p>
+
           <button
+            type="button"
             onClick={handleRequestMint}
-            className="w-full py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all"
+            className="w-full rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-4 text-base font-semibold text-white shadow-lg shadow-amber-900/30 transition-all hover:brightness-110 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
           >
             Create for {mintPrice} USDC
           </button>
-        </>
+          <p className="mt-3 text-center text-xs text-white/40">Two quick confirmations: seal your scent, then open it.</p>
+        </div>
       )}
 
       {step === "requesting" && (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500 mx-auto mb-4"></div>
-          <p className="text-white/80 font-medium">Requesting mint on blockchain...</p>
-          <p className="text-white/40 text-xs mt-1">Please confirm in your wallet</p>
+        <div className="relative space-y-5 py-2">
+          <MintProgress stage={1} blocksDone={0} blocksTotal={WAIT_SECONDS} unit="second" accent="#fbbf24" />
+          <div className="text-center">
+            <p className="font-medium text-white/85">Sealing your scent on Arc</p>
+            <p className="mt-1 text-xs text-white/40">Please confirm in your wallet</p>
+          </div>
         </div>
       )}
 
       {step === "waiting" && (
-        <div className="text-center space-y-6 py-4">
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-            <p className="text-emerald-400 font-semibold mb-1">✅ Step 1 Complete!</p>
-            <p className="text-white/80 text-sm">
-              Reserved Token ID: <span className="font-mono text-amber-400">#{tokenId}</span>
-            </p>
+        <div className="relative space-y-6 py-2">
+          <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/[0.07] px-3.5 py-1.5 text-sm">
+            <span className="text-white/60">Reserved</span>
+            <span className="font-mono font-semibold text-amber-300">#{tokenId}</span>
           </div>
-          
+
+          <MintProgress stage={countdown > 0 ? 2 : 3} blocksDone={WAIT_SECONDS - countdown} blocksTotal={WAIT_SECONDS} unit="second" accent="#fbbf24" />
+
           {countdown > 0 ? (
-            <div>
-              <p className="text-white/60 text-sm mb-2">Securing on-chain randomness...</p>
-              <div className="text-4xl font-bold text-white font-mono">{countdown}s</div>
-            </div>
+            <p className="text-center text-sm text-white/55">Securing on-chain randomness. This takes about {countdown}s.</p>
           ) : (
             <button
+              type="button"
               onClick={handleReveal}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold text-lg shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all"
+              className="w-full rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-4 text-base font-semibold text-white shadow-lg shadow-amber-900/30 transition-all hover:brightness-110 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
             >
-              Reveal & Mint NFT
+              Reveal and mint
             </button>
           )}
         </div>
       )}
 
       {step === "revealing" && (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mx-auto mb-4"></div>
-          <p className="text-white/80 font-medium">Revealing your unique formula...</p>
-          <p className="text-white/40 text-xs mt-1">Please confirm in your wallet</p>
+        <div className="relative space-y-5 py-2">
+          <MintProgress stage={3} blocksDone={WAIT_SECONDS} blocksTotal={WAIT_SECONDS} unit="second" accent="#fbbf24" />
+          <div className="text-center">
+            <p className="font-medium text-white/85">Opening the bottle</p>
+            <p className="mt-1 text-xs text-white/40">Please confirm in your wallet</p>
+          </div>
         </div>
       )}
 
       {step === "success" && (
-        <div className="text-center space-y-4 py-4">
-          <div className="flex justify-center mb-2">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center">
-              <svg 
-                className="w-9 h-9 text-emerald-400" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2.5} 
-                  d="M5 13l4 4L19 7" 
-                />
-              </svg>
-            </div>
+        <div className="relative space-y-4 py-4 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-amber-300/60 bg-amber-400/15">
+            <svg className="h-8 w-8 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
           </div>
-          <h3 className="text-xl font-bold text-emerald-400">Successfully Minted!</h3>
-          <p className="text-white/60 text-sm">Your NFT is secured on-chain and metadata is pinned to IPFS.</p>
+          <h3 className="font-display text-2xl font-semibold text-white">Successfully minted</h3>
+          <p className="text-sm text-white/60">Your NFT is secured on-chain and metadata is pinned to IPFS.</p>
           <button
+            type="button"
             onClick={resetForm}
-            className="mt-4 px-6 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+            className="mt-2 rounded-xl border border-white/15 bg-white/[0.06] px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.12]"
           >
-            Mint Another
+            Mint another
           </button>
         </div>
       )}
 
-      <p className="text-xs text-white/40 text-center mt-6">
-        Gas in USDC • Finality &lt;1 sec • Built on Arc
-      </p>
+      <ul className="relative mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-white/40">
+        {["Gas in USDC", "Finality under 1 sec", "Built on Arc"].map((t) => (
+          <li key={t} className="flex items-center gap-1.5">
+            <span aria-hidden className="h-1 w-1 rounded-full bg-amber-400/60" />
+            {t}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
