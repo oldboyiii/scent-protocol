@@ -9,7 +9,7 @@ import { ethers } from "ethers";
 export const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 export const MAX_SUPPLY = 100;
 const RPC_URL = "https://rpc.mainnet.arc.io";
-const REVEAL_BLOCKS = 6; // the contract needs more than 5 blocks after the request
+const REVEAL_BLOCKS = 6; // The contract needs more than 5 blocks after the request
 
 const GENESIS_ABI = [
   "function requestMint(bytes32 seedCommitment) external returns (uint256)",
@@ -128,7 +128,7 @@ export function useGenesisMint(address: string | undefined) {
     return () => clearInterval(id);
   }, [loadSupply]);
 
-  // The wallet's own state: an unfinished mint, or the token it already holds.
+  // ✅ FIXED: The wallet's own state logic. Prevents false ownership assignment.
   const loadWallet = useCallback(async () => {
     if (!address) {
       setUserMinted(0);
@@ -138,42 +138,76 @@ export function useGenesisMint(address: string | undefined) {
     }
     try {
       const c = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, readProvider());
-      setUserMinted(Number(await c.getWalletMintedCount(address)));
+      
+      // 1. Get the exact mint count for this specific address from the contract
+      const count = Number(await c.getWalletMintedCount(address));
+      if (!alive.current) return;
+      
+      setUserMinted(count);
 
-      // Find this wallet's request ids from events; fall back to checking every id if the RPC limits log ranges.
+      // ✅ CRITICAL FIX: If the wallet has 0 mints, clear state and exit immediately.
+      // This prevents false positives when queryFilter falls back to checking all IDs.
+      if (count === 0) {
+        setPendingId(null);
+        setMyToken(null);
+        return;
+      }
+
+      // 2. If count > 0, find the specific token ID belonging to this wallet
       let ids: number[] = [];
       try {
         const latest = await readProvider().getBlockNumber();
         const logs = await c.queryFilter(c.filters.MintRequested(null, address), Math.max(0, latest - 200000), latest);
         ids = logs.map((l) => Number((l as ethers.EventLog).args.tokenId));
       } catch {
+        // Fallback: if RPC limits log queries, check all possible IDs safely
         const next = Number(await c.getNextTokenId());
         ids = Array.from({ length: Math.max(0, next - 1) }, (_, i) => i + 1);
       }
+
       let pending: number | null = null;
-      const owned: number[] = [];
-      await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const p = await c.getPendingMint(id);
-            if (String(p.minter).toLowerCase() === address.toLowerCase()) pending = id;
-          } catch {
-            /* no pending mint for this id */
-          }
-        }),
-      );
+      let ownedId: number | null = null;
+
+      // Check candidates, strictly verifying the owner/creator address
       for (const id of ids) {
-        if (id !== pending) owned.push(id);
-      }
-      if (!alive.current) return;
-      setPendingId(pending);
-      const last = owned[owned.length - 1];
-      if (last !== undefined) {
+        // First, check if there is an unrevealed pending mint for this wallet
         try {
-          const perfume = toPerfume(await c.getPerfume(last));
-          if (alive.current) setMyToken({ id: last, perfume });
+          const p = await c.getPendingMint(id);
+          if (String(p.minter).toLowerCase() === address.toLowerCase()) {
+            pending = id;
+            break; // Found the pending mint, no need to check further
+          }
         } catch {
-          /* token not minted yet */
+          // No pending mint for this ID, continue checking
+        }
+
+        // If no pending mint, check if an already revealed token belongs to this wallet
+        if (pending === null) {
+          try {
+            const perfumeData = await c.getPerfume(id);
+            // Verify ownership by checking the creator field against the current address
+            if (String(perfumeData.creator).toLowerCase() === address.toLowerCase()) {
+              ownedId = id;
+              break; // Found the owned token, stop searching
+            }
+          } catch {
+            // Token might not be revealed yet or doesn't exist, ignore and continue
+          }
+        }
+      }
+
+      if (!alive.current) return;
+      
+      setPendingId(pending);
+
+      if (ownedId !== null) {
+        try {
+          const perfumeData = await c.getPerfume(ownedId);
+          if (alive.current) {
+            setMyToken({ id: ownedId, perfume: toPerfume(perfumeData) });
+          }
+        } catch {
+          // Ignore parsing errors
         }
       }
     } catch (e) {
@@ -319,5 +353,21 @@ export function useGenesisMint(address: string | undefined) {
     }
   };
 
-  return { minted, supplyLoaded, userMinted, pendingId, myToken, stage, blocksDone, blocksTotal: REVEAL_BLOCKS, result, error, setError, mint, resume, clearResult: () => setResult(null), setStage };
+  return { 
+    minted, 
+    supplyLoaded, 
+    userMinted, 
+    pendingId, 
+    myToken, 
+    stage, 
+    blocksDone, 
+    blocksTotal: REVEAL_BLOCKS, 
+    result, 
+    error, 
+    setError, 
+    mint, 
+    resume, 
+    clearResult: () => setResult(null), 
+    setStage 
+  };
 }
