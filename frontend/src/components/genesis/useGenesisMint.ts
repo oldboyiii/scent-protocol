@@ -9,7 +9,8 @@ import { ethers } from "ethers";
 export const GENESIS_CONTRACT_ADDRESS = "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6";
 export const MAX_SUPPLY = 100;
 const RPC_URL = "https://rpc.mainnet.arc.io";
-const REVEAL_BLOCKS = 6; // The contract needs more than 5 blocks after the request
+// UI hint only; the real wait is driven by polling revealAndMint.staticCall below.
+const REVEAL_BLOCKS = 6;
 
 const GENESIS_ABI = [
   "function requestMint(bytes32 seedCommitment) external returns (uint256)",
@@ -77,15 +78,25 @@ function toPerfume(p: any): GenesisPerfume {
   };
 }
 
+// Pull the custom-error name out of an ethers error, even when the RPC returns raw revert data.
+function revertName(e: any): string {
+  return `${e?.revert?.name ?? ""} ${e?.reason ?? ""} ${e?.shortMessage ?? ""} ${e?.message ?? ""}`;
+}
+
 export function explain(err: unknown): string {
-  const e = err as { code?: string | number; shortMessage?: string; reason?: string; message?: string; revert?: { name?: string } };
+  const e = err as any;
   if (e.code === 4001 || e.code === "ACTION_REJECTED") return "You rejected the request in your wallet.";
-  const text = `${e.revert?.name ?? ""} ${e.reason ?? ""} ${e.shortMessage ?? ""} ${e.message ?? ""}`;
+  const text = revertName(e);
   if (/MaxPerWalletReached/.test(text)) return "This wallet already minted its Genesis.";
   if (/MaxSupplyReached/.test(text)) return "Genesis is sold out.";
   if (/TooEarly/.test(text)) return "Not ready yet. The network needs a few more seconds.";
   if (/TooLate/.test(text)) return "The reveal window passed for this mint.";
   if (/CommitmentMismatch/.test(text)) return "The reveal key does not match this mint.";
+  if (/NoPendingMint/.test(text)) return "No pending mint found for this wallet.";
+  // Friendly fallback instead of the raw "execution reverted (unknown custom error)".
+  if (/unknown custom error|execution reverted/i.test(text)) {
+    return "The contract rejected this action. Your mint may already be pending — use Finish reveal.";
+  }
   return (e.reason || e.shortMessage || e.message || "Something went wrong.").slice(0, 200);
 }
 
@@ -128,7 +139,8 @@ export function useGenesisMint(address: string | undefined) {
     return () => clearInterval(id);
   }, [loadSupply]);
 
-  // ✅ FIXED: The wallet's own state logic. Prevents false ownership assignment.
+  // ✅ FIXED: Wallet state. No early exit on count === 0 (that wiped pending mints).
+  // False ownership is impossible because we strictly verify creator/minter against the address.
   const loadWallet = useCallback(async () => {
     if (!address) {
       setUserMinted(0);
@@ -138,29 +150,19 @@ export function useGenesisMint(address: string | undefined) {
     }
     try {
       const c = new ethers.Contract(GENESIS_CONTRACT_ADDRESS, GENESIS_ABI, readProvider());
-      
-      // 1. Get the exact mint count for this specific address from the contract
+
+      // Revealed count for this wallet (pending mints are NOT counted here).
       const count = Number(await c.getWalletMintedCount(address));
       if (!alive.current) return;
-      
       setUserMinted(count);
 
-      // ✅ CRITICAL FIX: If the wallet has 0 mints, clear state and exit immediately.
-      // This prevents false positives when queryFilter falls back to checking all IDs.
-      if (count === 0) {
-        setPendingId(null);
-        setMyToken(null);
-        return;
-      }
-
-      // 2. If count > 0, find the specific token ID belonging to this wallet
+      // Candidate token ids: prefer event logs, fall back to a full scan if the RPC limits log ranges.
       let ids: number[] = [];
       try {
         const latest = await readProvider().getBlockNumber();
         const logs = await c.queryFilter(c.filters.MintRequested(null, address), Math.max(0, latest - 200000), latest);
         ids = logs.map((l) => Number((l as ethers.EventLog).args.tokenId));
       } catch {
-        // Fallback: if RPC limits log queries, check all possible IDs safely
         const next = Number(await c.getNextTokenId());
         ids = Array.from({ length: Math.max(0, next - 1) }, (_, i) => i + 1);
       }
@@ -168,47 +170,44 @@ export function useGenesisMint(address: string | undefined) {
       let pending: number | null = null;
       let ownedId: number | null = null;
 
-      // Check candidates, strictly verifying the owner/creator address
       for (const id of ids) {
-        // First, check if there is an unrevealed pending mint for this wallet
+        // Check for an unrevealed pending mint owned by this wallet.
         try {
           const p = await c.getPendingMint(id);
           if (String(p.minter).toLowerCase() === address.toLowerCase()) {
             pending = id;
-            break; // Found the pending mint, no need to check further
+            break;
           }
         } catch {
-          // No pending mint for this ID, continue checking
+          /* no pending mint for this id */
         }
 
-        // If no pending mint, check if an already revealed token belongs to this wallet
+        // Otherwise check for a revealed token whose creator is this wallet.
         if (pending === null) {
           try {
             const perfumeData = await c.getPerfume(id);
-            // Verify ownership by checking the creator field against the current address
             if (String(perfumeData.creator).toLowerCase() === address.toLowerCase()) {
               ownedId = id;
-              break; // Found the owned token, stop searching
+              break;
             }
           } catch {
-            // Token might not be revealed yet or doesn't exist, ignore and continue
+            /* token not revealed yet or does not exist */
           }
         }
       }
 
       if (!alive.current) return;
-      
       setPendingId(pending);
 
       if (ownedId !== null) {
         try {
           const perfumeData = await c.getPerfume(ownedId);
-          if (alive.current) {
-            setMyToken({ id: ownedId, perfume: toPerfume(perfumeData) });
-          }
+          if (alive.current) setMyToken({ id: ownedId, perfume: toPerfume(perfumeData) });
         } catch {
-          // Ignore parsing errors
+          /* ignore parse errors */
         }
+      } else {
+        setMyToken(null);
       }
     } catch (e) {
       console.warn("Wallet state read failed:", e);
@@ -219,13 +218,24 @@ export function useGenesisMint(address: string | undefined) {
     void loadWallet();
   }, [loadWallet]);
 
-  const waitForBlocks = async (provider: ethers.Provider, from: number) => {
+  // ✅ FIXED: Self-regulating wait. Poll revealAndMint.staticCall until the contract stops
+  // returning TooEarly, instead of guessing a fixed number of blocks.
+  const waitForRevealReady = async (c: ethers.Contract, id: number, preimage: string, from: number) => {
     for (;;) {
       if (!alive.current) throw new Error("cancelled");
-      const done = Math.max(0, (await provider.getBlockNumber()) - from);
-      setBlocksDone(Math.min(done, REVEAL_BLOCKS));
-      if (done >= REVEAL_BLOCKS) return;
-      await sleep(600);
+      try {
+        await c.revealAndMint.staticCall(id, preimage);
+        return; // ready to reveal
+      } catch (e) {
+        const name = revertName(e);
+        if (/TooEarly/.test(name)) {
+          const done = Math.max(0, (await readProvider().getBlockNumber()) - from);
+          setBlocksDone(Math.min(done, REVEAL_BLOCKS));
+          await sleep(1500);
+          continue;
+        }
+        throw e; // CommitmentMismatch / NotAuthorized / etc.
+      }
     }
   };
 
@@ -304,7 +314,7 @@ export function useGenesisMint(address: string | undefined) {
       setPendingId(id);
 
       setStage(2);
-      await waitForBlocks(provider, receipt.blockNumber);
+      await waitForRevealReady(c, id, preimage, receipt.blockNumber);
       setStage(3);
       finish(id, await revealAndLoad(c, id, preimage));
     } catch (e) {
@@ -338,8 +348,9 @@ export function useGenesisMint(address: string | undefined) {
             chosen = pre;
             break;
           } catch (e) {
-            const name = (e as { revert?: { name?: string } }).revert?.name ?? "";
-            if (name.includes("CommitmentMismatch") && candidates.length === 1 && stored) candidates.push(await derived());
+            const name = revertName(e);
+            // If the stored preimage is wrong, derive the signature-based one and retry.
+            if (/CommitmentMismatch/.test(name) && candidates.length === 1 && stored) candidates.push(await derived());
           }
         }
         if (!chosen) await sleep(1500);
@@ -353,21 +364,21 @@ export function useGenesisMint(address: string | undefined) {
     }
   };
 
-  return { 
-    minted, 
-    supplyLoaded, 
-    userMinted, 
-    pendingId, 
-    myToken, 
-    stage, 
-    blocksDone, 
-    blocksTotal: REVEAL_BLOCKS, 
-    result, 
-    error, 
-    setError, 
-    mint, 
-    resume, 
-    clearResult: () => setResult(null), 
-    setStage 
+  return {
+    minted,
+    supplyLoaded,
+    userMinted,
+    pendingId,
+    myToken,
+    stage,
+    blocksDone,
+    blocksTotal: REVEAL_BLOCKS,
+    result,
+    error,
+    setError,
+    mint,
+    resume,
+    clearResult: () => setResult(null),
+    setStage,
   };
 }
