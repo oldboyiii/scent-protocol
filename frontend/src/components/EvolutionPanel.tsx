@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ethers } from "ethers";
 import EvolutionBadge from "@/components/EvolutionBadge";
+import SlideOver from "@/components/SlideOver";
 import { EVOLUTION_ADDRESS, evolve, getEvolution, startHoldingStreak } from "@/utils/evolution";
 import type { Evolution } from "@/utils/evolution";
 
@@ -42,11 +43,11 @@ interface Props {
 }
 
 /**
- * Evolution summary for the detail page. The stage, note and projected rarity are worked out locally
+ * Full evolution details (shown inside the slide-out panel). The stage, note and projected rarity are worked out locally
  * from the creation time. The ScentEvolution contract is then asked the same question: when it agrees
  * the panel says so, and it supplies the holding streak, which only the chain knows.
  */
-export default function EvolutionPanel({ nft, tokenId, baseRarity, createdAt, isOwner }: Props) {
+function EvolutionDetails({ nft, tokenId, baseRarity, createdAt, isOwner }: Props) {
   const local = useMemo(() => evolve(nft, tokenId, baseRarity, createdAt), [nft, tokenId, baseRarity, createdAt]);
   const [onchain, setOnchain] = useState<Evolution | null>(null);
   const [busy, setBusy] = useState(false);
@@ -235,5 +236,72 @@ export default function EvolutionPanel({ nft, tokenId, baseRarity, createdAt, is
         </div>
       )}
     </div>
+  );
+}
+
+const ROW_STYLE = [
+  { color: "rgba(255,255,255,0.6)", bg: "rgba(255,255,255,0.06)" },
+  { color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
+  { color: "#fcd34d", bg: "rgba(252,211,77,0.16)" },
+  { color: "#fde68a", bg: "rgba(253,230,138,0.2)" },
+];
+
+/**
+ * One compact row for the detail card: the stage and age at a glance. Tapping it opens the full details
+ * (evolution summary, holding streak and preview) in a slide-out panel so the card stays short.
+ * A shared preview link (?previewAge=N) opens the panel straight away.
+ */
+export default function EvolutionPanel(props: Props) {
+  const { nft, tokenId, baseRarity, createdAt } = props;
+  const local = useMemo(() => evolve(nft, tokenId, baseRarity, createdAt), [nft, tokenId, baseRarity, createdAt]);
+  const searchParams = useSearchParams();
+  const previewing = /^\d{1,4}$/.test(searchParams.get("previewAge") ?? "");
+  const [open, setOpen] = useState(previewing);
+
+  useEffect(() => {
+    if (previewing) setOpen(true);
+  }, [previewing]);
+
+  if (!local) return null;
+  const st = ROW_STYLE[Math.min(local.stage, 3)];
+  const next = local.daysToNextStage !== null ? `Next stage in ${local.daysToNextStage} ${local.daysToNextStage === 1 ? "day" : "days"}` : "Fully evolved";
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className="group flex min-h-[56px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-left transition-colors hover:border-white/25 hover:bg-white/[0.07]"
+      >
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
+            style={{ color: st.color, background: st.bg, borderColor: `${st.color}55` }}
+          >
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: st.color }} />
+            {local.stageName}
+          </span>
+          <span className="text-xs text-white/55">
+            {local.ageDays} days old{previewing ? "" : `, ${next.charAt(0).toLowerCase()}${next.slice(1)}`}
+          </span>
+          {previewing && (
+            <span className="rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+              Preview
+            </span>
+          )}
+        </span>
+        <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-amber-300 group-hover:text-amber-200">
+          Evolution
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </span>
+      </button>
+
+      <SlideOver open={open} onClose={() => setOpen(false)} title="Evolution">
+        <EvolutionDetails {...props} />
+      </SlideOver>
+    </>
   );
 }
