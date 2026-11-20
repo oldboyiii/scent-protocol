@@ -115,7 +115,13 @@ export default function GenesisEventPage() {
               </div>
               {g.myToken && (
                 <div className="mx-auto max-w-sm">
-                  <PerfumeCard tokenId={g.myToken.id} perfume={g.myToken.perfume} isGenesis href={detailHref(g.myToken.id)} />
+                  <PerfumeCard 
+  tokenId={g.myToken.id} 
+  contractAddress={GENESIS_CONTRACT_ADDRESS} 
+  perfume={g.myToken.perfume} 
+  isGenesis 
+  href={detailHref(g.myToken.id)} 
+/>
                 </div>
               )}
               <Link href="/collection" className="block text-center text-sm text-amber-400 hover:underline">View in your Collection</Link>
