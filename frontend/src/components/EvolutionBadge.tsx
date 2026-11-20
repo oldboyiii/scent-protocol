@@ -16,6 +16,8 @@ const STAGE_STYLE = [
  */
 export default function EvolutionBadge({ evolution, compact = false }: { evolution: Evolution | null; compact?: boolean }) {
   if (!evolution) return null;
+  // On a card, only show the chip once the scent has actually evolved.
+  if (compact && evolution.stage === 0) return null;
   const s = STAGE_STYLE[Math.min(evolution.stage, 3)];
   const upgraded = evolution.effectiveRarity > evolution.baseRarity;
   const next =
