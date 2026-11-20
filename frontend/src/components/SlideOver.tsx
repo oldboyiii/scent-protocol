@@ -85,7 +85,7 @@ export default function SlideOver({ open, onClose, title, children }: SlideOverP
   return (
     <div className="fixed inset-0 z-[120]" role="presentation">
       <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}
+        className={`absolute inset-0 bg-black/30 transition-opacity duration-200 motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}
         onClick={onClose}
         aria-hidden
       />
@@ -94,7 +94,7 @@ export default function SlideOver({ open, onClose, title, children }: SlideOverP
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-3xl border border-white/10 bg-[#140a2e]/95 shadow-2xl backdrop-blur-xl transition-transform duration-[260ms] ease-out motion-reduce:transition-none md:bottom-0 md:left-auto md:top-0 md:max-h-none md:w-[420px] md:rounded-l-3xl md:rounded-tr-none ${
+        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-3xl border border-white/20 bg-gradient-to-b from-[#4a3099]/95 to-[#32207a]/95 shadow-2xl backdrop-blur-xl transition-transform duration-[260ms] ease-out motion-reduce:transition-none md:bottom-0 md:left-auto md:top-0 md:max-h-none md:w-[420px] md:rounded-l-3xl md:rounded-tr-none ${
           shown ? "translate-x-0 translate-y-0" : "translate-y-full md:translate-x-full md:translate-y-0"
         }`}
       >
