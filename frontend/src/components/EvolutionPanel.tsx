@@ -172,13 +172,22 @@ function EvolutionDetails({ nft, tokenId, baseRarity, createdAt, isOwner }: Prop
   return (
     <div className="space-y-2">
       <EvolutionBadge evolution={shown} />
-      <button
-        type="button"
-        onClick={() => setPreview(200)}
-        className="min-h-[44px] text-xs text-white/45 underline-offset-2 hover:text-white/70 hover:underline"
-      >
-        Preview later stages
-      </button>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Preview later stages</p>
+        <p className="mt-1 text-xs text-white/55">See how this scent looks as it ages. This is only a preview, not its real age.</p>
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Preview a stage">
+          {PREVIEW_STEPS.map((step) => (
+            <button
+              key={step.label}
+              type="button"
+              onClick={() => setPreview(step.days)}
+              className="min-h-[44px] rounded-full border border-white/15 bg-white/5 px-4 text-xs font-semibold text-white/75 transition-colors hover:border-amber-400/50 hover:bg-amber-400/10 hover:text-amber-200"
+            >
+              {step.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {onchain && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
