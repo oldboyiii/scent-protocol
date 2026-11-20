@@ -1,8 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
-import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP } from "@/utils/contract";
-import { calculateEvolution } from "@/utils/evolution";
+import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP, CONTRACT_ADDRESS } from "@/utils/contract";
+import { evolve } from "@/utils/evolution";
 import ScentCrest from "@/components/ScentCrest";
 import FitTitle from "@/components/FitTitle";
 import ScentPlayer from "@/components/sound/ScentPlayer";
@@ -10,12 +11,15 @@ import EvolutionBadge from "@/components/EvolutionBadge";
 
 interface PerfumeCardProps {
   tokenId: number;
+  /** Collection the token belongs to. Defaults to the V3 collection. */
+  contractAddress?: string;
   perfume: PerfumeData;
   aiDescription?: string;
   highlight?: boolean;
   isGenesis?: boolean;
   isMFW?: boolean;
   isHybrid?: boolean;
+  /** Detail page link. Pass `/nft/<id>?contract=<address>` for non-V3 collections, otherwise the card opens the V3 token with the same id. */
   href?: string;
 }
 
@@ -46,6 +50,7 @@ const HYBRID_STYLE = {
 
 export default function PerfumeCard({ 
   tokenId, 
+  contractAddress = CONTRACT_ADDRESS,
   perfume, 
   aiDescription, 
   highlight = false,
@@ -54,9 +59,13 @@ export default function PerfumeCard({
   isHybrid = false,
   href,
 }: PerfumeCardProps) {
-  // ✅ INSTANT CALCULATION WITHOUT NETWORK REQUESTS
-  const evolution = calculateEvolution(perfume.createdAt, perfume.rarity, tokenId);
+  // Evolution is worked out from the token's own creation time, so it needs no network call.
+  const evolution = useMemo(
+    () => evolve(contractAddress, tokenId, perfume.rarity, perfume.createdAt),
+    [contractAddress, tokenId, perfume.rarity, perfume.createdAt],
+  );
 
+  // Determine style: Collection-specific styles take precedence over rarity
   const style = isHybrid 
     ? HYBRID_STYLE 
     : isMFW 
@@ -119,6 +128,7 @@ export default function PerfumeCard({
         {/* Header */}
         <div className="relative flex justify-between items-start mb-4">
           <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* Scent Crest Logo */}
             <div className="flex-shrink-0">
               <ScentCrest
                 seed={`${perfume.creator}-${perfume.name}`}
@@ -145,7 +155,7 @@ export default function PerfumeCard({
             <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
               {RARITY_MAP[perfume.rarity]}
             </span>
-            {/* Compact evolution badge. If the stage is 'Fresh' (stage 0), the component will return null and render nothing, so as not to clutter the UI */}
+            {/* Compact evolution chip, shown from the first stage on */}
             <EvolutionBadge evolution={evolution} compact={true} />
           </div>
         </div>
