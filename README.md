@@ -47,6 +47,7 @@ ScentProtocol is a multi-layered ecosystem of digital fragrances. No two scents 
 | **ScentProtocol MFW 2026** | [`0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20`](https://explorer.arc.io/address/0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20) | Milan Fashion Week 2026 exclusive drop (500 supply) |
 | **ScentProtocol Viral** | [`0x55A3527C87190fa8456De46247b52214287e8688`](https://explorer.arc.io/address/0x55A3527C87190fa8456De46247b52214287e8688) | Viral "Wallet Scent" campaign (10k supply, free mint) |
 | **Scent Alchemy** | [`0xe922c92423728b2092D61b6a9eD5ecA7d0e0B58D`](https://explorer.arc.io/address/0xe922c92423728b2092D61b6a9eD5ecA7d0e0B58D) | Deflationary blending: Burn 2 NFTs to forge 1 Hybrid |
+| **ScentEvolution** | [`0x7B28F67C2636c4879c24C2a83CE7374C9C2622a0`](https://explorer.arc.io/address/0x7B28F67C2636c4879c24C2a83CE7374C9C2622a0) | Dynamic metadata companion: tracks NFT age for projected rarity upgrades and holding streaks |
 | **ScentProtocol Marketplace** | [`0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120`](https://explorer.arc.io/address/0xe7Cc5d3e31AB0b2F8f1bFAc0A3FeB17b37333120) | Secondary marketplace with escrowed offers & royalties |
 | **USDC (Arc Mainnet)** | `0x3600000000000000000000000000000000000000` | Native USDC token on Arc |
 
@@ -122,8 +123,8 @@ All contracts below are deployed and verified on Arc Testnet:
 ### 🎨 Phase 3: Advanced On-Chain Mechanics & Multisensory Features (In Progress)
 - [x] Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance
 - [x] Sonic Integration: Procedural audio soundtracks for every NFT & AI Advisor preview
+- [x] Evolving Scents: Scents gain a new note and a higher projected rarity as they age
 - [ ] Natural language → fragrance pipeline
-- [ ] Evolving Scents: Dynamic metadata upgrades based on holding duration
 - [ ] Subscription 'Scent of the Month' & micro-governance
 
 ### 🔮 Phase 4: Cross-Chain Expansion & Virtual Worlds
