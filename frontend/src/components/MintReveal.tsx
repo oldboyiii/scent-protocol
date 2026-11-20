@@ -309,15 +309,15 @@ export default function MintReveal({
             style={{ transform: "perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))", transition: "transform 120ms ease-out" }}
           >
             <PerfumeCard
-              tokenId={tokenId}
-              contractAddress={
-                collection === "genesis"
-                  ? "0x37D6a1c730B8DdbB70aD765B39b1edc5Dad12EF6"
-                  : collection === "mfw"
-                  ? "0x2Eb16402a50EE92bc3012038A0059ac4e9f7dF20"
-                  : collection === "hybrid"
-                  ? "0xe922c92423728b2092D61b6a9eD5ecA7d0e0B58D"
-                  : "0x87950a56456Df786A249F484e9E56dF00fF207cb" // Default to V3
+  tokenId={tokenId}
+  perfume={perfume}
+  aiDescription={description}
+  highlight
+  href={cardHref}
+  isGenesis={collection === "genesis"}
+  isMFW={collection === "mfw"}
+  isHybrid={collection === "hybrid"}
+/>
               }
               perfume={perfume}
               aiDescription={description}
