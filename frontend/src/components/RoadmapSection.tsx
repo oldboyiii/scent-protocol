@@ -28,7 +28,7 @@ const phases: Array<{ phase: string; title: string; status: Status; items: Item[
     status: "completed",
     items: [
       "Peer-to-peer NFT trading platform",
-      "Fixed price listings & escrowed offers", // 
+      "Fixed price listings & escrowed offers",
       "Royalty enforcement on secondary sales",
       "Rarity-based filtering & search",
     ],
@@ -51,8 +51,8 @@ const phases: Array<{ phase: string; title: string; status: Status; items: Item[
     items: [
       { text: "Scent Blending: Burn 2 NFTs to forge a unique hybrid fragrance", done: true },
       { text: "Sonic Integration: Procedural audio soundtracks for every NFT & AI Advisor preview", done: true },
+      { text: "Evolving Scents: Scents gain a new note and a higher projected rarity as they age", done: true },
       { text: "Natural language → fragrance pipeline", done: false },
-      { text: "Evolving Scents: Dynamic metadata upgrades based on holding duration", done: false },
       { text: "Subscription 'Scent of the Month' & micro-governance", done: false },
     ],
   },
