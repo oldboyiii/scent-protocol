@@ -1,13 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ethers } from "ethers";
 import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP } from "@/utils/contract";
+import { getEvolution, type Evolution } from "@/utils/evolution";
 import ScentCrest from "@/components/ScentCrest";
 import FitTitle from "@/components/FitTitle";
-import ScentPlayer from "@/components/sound/ScentPlayer"; // ✅ Added audio player import
+import ScentPlayer from "@/components/sound/ScentPlayer";
+import EvolutionBadge from "@/components/EvolutionBadge";
 
 interface PerfumeCardProps {
   tokenId: number;
+  contractAddress: string; // ✅ ADDED: required for an evolution request
   perfume: PerfumeData;
   aiDescription?: string;
   highlight?: boolean;
@@ -45,6 +50,7 @@ const HYBRID_STYLE = {
 
 export default function PerfumeCard({ 
   tokenId, 
+  contractAddress, // ✅ ADDED
   perfume, 
   aiDescription, 
   highlight = false,
@@ -53,6 +59,23 @@ export default function PerfumeCard({
   isHybrid = false,
   href,
 }: PerfumeCardProps) {
+  // ✅ A STATE FOR EVOLUTION
+  const [evolution, setEvolution] = useState<Evolution | null>(null);
+
+  // ✅ EVOLUTION DATA UPLOAD
+  useEffect(() => {
+    const loadEvolution = async () => {
+      try {
+        const provider = new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
+        const data = await getEvolution(provider, contractAddress, tokenId);
+        setEvolution(data);
+      } catch (e) {
+        console.warn("Evolution load failed:", e);
+      }
+    };
+    loadEvolution();
+  }, [contractAddress, tokenId]);
+
   // Determine style: Collection-specific styles take precedence over rarity
   const style = isHybrid 
     ? HYBRID_STYLE 
@@ -76,7 +99,7 @@ export default function PerfumeCard({
           }} />
         )}
 
-        {/* Hover shimmer for regular cards (only if not a special collection with its own effects) */}
+        {/* Hover shimmer for regular cards */}
         {!highlight && !isMFW && !isGenesis && !isHybrid && (
           <div 
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -115,7 +138,6 @@ export default function PerfumeCard({
 
         {/* Header */}
         <div className="relative flex justify-between items-start mb-4">
-          {/* ✅ Added min-w-0 and flex-1 for proper text shrinking */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Scent Crest Logo */}
             <div className="flex-shrink-0">
@@ -132,7 +154,6 @@ export default function PerfumeCard({
                 {isHybrid ? "Hybrid" : isMFW ? "MFW 2026" : isGenesis ? "Genesis" : "Scent"} #{tokenId}
               </p>
               
-              {/* ✅ REPLACEMENT: Using FitTitle instead of a hardcoded h3 */}
               <FitTitle 
                 text={perfume.name} 
                 className="font-bold text-white mt-1 group-hover:text-amber-300 transition-colors" 
@@ -140,10 +161,14 @@ export default function PerfumeCard({
             </div>
           </div>
           
-          {/* ✅ Added flex-shrink-0 to prevent the badge from shrinking */}
-          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
-            {RARITY_MAP[perfume.rarity]}
-          </span>
+          {/* ✅ BADGE COLUMN: Rarity + Evolution */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+              {RARITY_MAP[perfume.rarity]}
+            </span>
+            {/* Компактный бейдж эволюции */}
+            <EvolutionBadge evolution={evolution} compact={true} />
+          </div>
         </div>
 
         {/* Collection Badge (if applicable) */}
@@ -237,7 +262,6 @@ export default function PerfumeCard({
 
         {/* Footer */}
         <div className="relative flex items-center justify-between pt-2 border-t border-white/10">
-          {/* ✅ ADDED: Compact sound player for the card */}
           <ScentPlayer
             variant="compact"
             tokenId={tokenId}
