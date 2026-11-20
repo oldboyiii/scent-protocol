@@ -308,16 +308,16 @@ export default function MintReveal({
             className="relative"
             style={{ transform: "perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))", transition: "transform 120ms ease-out" }}
           >
-            <PerfumeCard
-  tokenId={tokenId}
-  perfume={perfume}
-  aiDescription={description}
-  highlight
-  href={cardHref}
-  isGenesis={collection === "genesis"}
-  isMFW={collection === "mfw"}
-  isHybrid={collection === "hybrid"}
-/>
+                       <PerfumeCard
+              tokenId={tokenId}
+              perfume={perfume}
+              aiDescription={description}
+              highlight
+              href={cardHref}
+              isGenesis={collection === "genesis"}
+              isMFW={collection === "mfw"}
+              isHybrid={collection === "hybrid"}
+            />
               }
               perfume={perfume}
               aiDescription={description}
