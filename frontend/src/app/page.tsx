@@ -182,7 +182,7 @@ export default function Home() {
                         <PerfumeCard
               key={item.tokenId}
               tokenId={item.tokenId}
-              contractAddress="0x87950a56456Df786A249F484e9E56dF00fF207cb" // ✅ Добавлен адрес основной коллекции V3
+              contractAddress="0x87950a56456Df786A249F484e9E56dF00fF207cb" // 
               perfume={item.perfume}
               aiDescription={item.aiDescription}
             />
