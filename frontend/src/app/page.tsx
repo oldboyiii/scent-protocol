@@ -179,11 +179,12 @@ export default function Home() {
         <div className="w-full max-w-md px-4 space-y-4 animate-fade-up-delay">
           <h3 className="font-display text-2xl font-semibold text-white text-center mb-4">Your Recent Creations</h3>
           {minted.slice(1).map((item) => (
-            <PerfumeCard
+                        <PerfumeCard
               key={item.tokenId}
               tokenId={item.tokenId}
+              contractAddress="0x87950a56456Df786A249F484e9E56dF00fF207cb" // ✅ Добавлен адрес основной коллекции V3
               perfume={item.perfume}
-              aiDescription={item.description}
+              aiDescription={item.aiDescription}
             />
           ))}
         </div>
