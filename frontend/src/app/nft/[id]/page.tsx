@@ -5,8 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract, CONTRACT_ADDRESS } from "@/utils/contract";
-import { evolve } from "@/utils/evolution";
-import EvolutionBadge from "@/components/EvolutionBadge";
+import EvolutionPanel from "@/components/EvolutionPanel";
 import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
@@ -763,7 +762,13 @@ export default function NFTDetailPage() {
 
         {/* How far this scent has evolved (stage, evolved note, projected rarity) */}
         <div className="mb-3">
-          <EvolutionBadge evolution={evolve(contractParam || CONTRACT_ADDRESS, id, perfume.rarity, perfume.createdAt)} />
+          <EvolutionPanel
+            nft={contractParam || CONTRACT_ADDRESS}
+            tokenId={id}
+            baseRarity={perfume.rarity}
+            createdAt={perfume.createdAt}
+            isOwner={isOwner}
+          />
         </div>
 
         {/* Compact full player with volume control, without duplicate notes grid */}
