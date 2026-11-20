@@ -9,6 +9,8 @@ import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
 import FitTitle from "@/components/FitTitle";
 import { loadActiveOffers } from "@/utils/offers";
+import { evolve } from "@/utils/evolution";
+import EvolutionBadge from "@/components/EvolutionBadge";
 
 // ============================================================
 // CONTRACT ADDRESSES
@@ -870,9 +872,12 @@ export default function CollectionPage() {
                       />
                     </div>
                   </div>
-                  <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
-                    {RARITY[rarity]}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                      {RARITY[rarity]}
+                    </span>
+                    {perfume && <EvolutionBadge compact evolution={evolve(s.contractAddress, s.tokenId, rarity, perfume.createdAt)} />}
+                  </div>
                 </div>
 
                 {hasFullData ? (
