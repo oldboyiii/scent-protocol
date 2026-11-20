@@ -308,7 +308,8 @@ export default function MintReveal({
             className="relative"
             style={{ transform: "perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))", transition: "transform 120ms ease-out" }}
           >
-                       <PerfumeCard
+            {/* ✅ FIXED: Only one clean component invocation, with no duplicates */}
+            <PerfumeCard
               tokenId={tokenId}
               perfume={perfume}
               aiDescription={description}
@@ -318,15 +319,7 @@ export default function MintReveal({
               isMFW={collection === "mfw"}
               isHybrid={collection === "hybrid"}
             />
-              }
-              perfume={perfume}
-              aiDescription={description}
-              highlight
-              href={cardHref}
-              isGenesis={collection === "genesis"}
-              isMFW={collection === "mfw"}
-              isHybrid={collection === "hybrid"}
-            />
+            
             {cfg.foil && (
               <div
                 className="absolute inset-0 rounded-2xl pointer-events-none mix-blend-screen opacity-40"
