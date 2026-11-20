@@ -1,6 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
+import { CONTRACT_ADDRESS } from "@/utils/contract";
+import { evolve } from "@/utils/evolution";
+import EvolutionBadge from "@/components/EvolutionBadge";
 import FitTitle from "@/components/FitTitle";
 import ScentPlayer from "@/components/sound/ScentPlayer"; // ✅ Added audio player import
 
@@ -16,6 +20,8 @@ interface NFTCardProps {
   baseNotes: string[];
   creator: string;
   createdAt: number;
+  /** Collection the token belongs to. Defaults to the V3 collection. */
+  contractAddress?: string;
   isGenesis?: boolean;
   isMFW?: boolean;
   isHybrid?: boolean; // NEW: Alchemy Hybrid collection support
@@ -96,6 +102,7 @@ export default function NFTCard({
   baseNotes = [],
   creator,
   createdAt,
+  contractAddress = CONTRACT_ADDRESS,
   isGenesis = false,
   isMFW = false,
   isHybrid = false,
@@ -104,6 +111,11 @@ export default function NFTCard({
   seller,
   href,
 }: NFTCardProps) {
+  const evolution = useMemo(
+    () => evolve(contractAddress, tokenId, rarity, createdAt),
+    [contractAddress, tokenId, rarity, createdAt],
+  );
+
   // Determine style based on collection type
   const style = isHybrid 
     ? HYBRID_STYLE 
@@ -271,10 +283,13 @@ export default function NFTCard({
             </div>
           </div>
           
-          {/* Rarity Badge */}
-          <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
-            {RARITY_LABELS[rarity]}
-          </span>
+          {/* Rarity badge, with the evolution chip underneath once the scent has aged */}
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+              {RARITY_LABELS[rarity]}
+            </span>
+            <EvolutionBadge evolution={evolution} compact />
+          </div>
         </div>
 
         {/* MFW Badge */}
