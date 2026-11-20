@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ethers } from "ethers";
 import { PerfumeData, GENDER_MAP, TYPE_MAP, RARITY_MAP } from "@/utils/contract";
-import { getEvolution, type Evolution } from "@/utils/evolution";
+import { calculateEvolution } from "@/utils/evolution";
 import ScentCrest from "@/components/ScentCrest";
 import FitTitle from "@/components/FitTitle";
 import ScentPlayer from "@/components/sound/ScentPlayer";
@@ -12,14 +10,12 @@ import EvolutionBadge from "@/components/EvolutionBadge";
 
 interface PerfumeCardProps {
   tokenId: number;
-  contractAddress: string; // ✅ ADDED: required for an evolution request
   perfume: PerfumeData;
   aiDescription?: string;
   highlight?: boolean;
   isGenesis?: boolean;
   isMFW?: boolean;
   isHybrid?: boolean;
-  /** Detail page link. Pass `/nft/<id>?contract=<address>` for non-V3 collections, otherwise the card opens the V3 token with the same id. */
   href?: string;
 }
 
@@ -50,7 +46,6 @@ const HYBRID_STYLE = {
 
 export default function PerfumeCard({ 
   tokenId, 
-  contractAddress, // ✅ ADDED
   perfume, 
   aiDescription, 
   highlight = false,
@@ -59,24 +54,9 @@ export default function PerfumeCard({
   isHybrid = false,
   href,
 }: PerfumeCardProps) {
-  // ✅ A STATE FOR EVOLUTION
-  const [evolution, setEvolution] = useState<Evolution | null>(null);
+  // ✅ INSTANT CALCULATION WITHOUT NETWORK REQUESTS
+  const evolution = calculateEvolution(perfume.createdAt, perfume.rarity, tokenId);
 
-  // ✅ EVOLUTION DATA UPLOAD
-  useEffect(() => {
-    const loadEvolution = async () => {
-      try {
-        const provider = new ethers.JsonRpcProvider("https://rpc.mainnet.arc.io");
-        const data = await getEvolution(provider, contractAddress, tokenId);
-        setEvolution(data);
-      } catch (e) {
-        console.warn("Evolution load failed:", e);
-      }
-    };
-    loadEvolution();
-  }, [contractAddress, tokenId]);
-
-  // Determine style: Collection-specific styles take precedence over rarity
   const style = isHybrid 
     ? HYBRID_STYLE 
     : isMFW 
@@ -139,7 +119,6 @@ export default function PerfumeCard({
         {/* Header */}
         <div className="relative flex justify-between items-start mb-4">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* Scent Crest Logo */}
             <div className="flex-shrink-0">
               <ScentCrest
                 seed={`${perfume.creator}-${perfume.name}`}
@@ -166,7 +145,7 @@ export default function PerfumeCard({
             <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
               {RARITY_MAP[perfume.rarity]}
             </span>
-            {/* Компактный бейдж эволюции */}
+            {/* Compact evolution badge. If the stage is 'Fresh' (stage 0), the component will return null and render nothing, so as not to clutter the UI */}
             <EvolutionBadge evolution={evolution} compact={true} />
           </div>
         </div>
