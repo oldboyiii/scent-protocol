@@ -180,12 +180,12 @@ export default function Home() {
           <h3 className="font-display text-2xl font-semibold text-white text-center mb-4">Your Recent Creations</h3>
           {minted.slice(1).map((item) => (
                         <PerfumeCard
-              key={item.tokenId}
-              tokenId={item.tokenId}
-              contractAddress="0x87950a56456Df786A249F484e9E56dF00fF207cb" // 
-              perfume={item.perfume}
-              aiDescription={item.aiDescription}
-            />
+  key={item.tokenId}
+  tokenId={item.tokenId}
+  contractAddress="0x87950a56456Df786A249F484e9E56dF00fF207cb" // 
+  perfume={item.perfume}
+  aiDescription={item.description} // 
+/>
           ))}
         </div>
       )}
