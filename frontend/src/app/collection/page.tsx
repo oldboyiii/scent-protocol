@@ -828,6 +828,7 @@ export default function CollectionPage() {
                         name={perfume?.name || s.name || `Scent #${s.tokenId}`}
                         rarity={rarity}
                         size={60}
+                        stage={perfume ? (evolve(s.contractAddress, s.tokenId, rarity, perfume.createdAt)?.stage ?? 0) : 0}
                       />
                     </div>
 
