@@ -699,7 +699,7 @@ export default function MarketplacePage() {
                   <div className="relative flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="flex-shrink-0">
-                        <ScentCrest seed={`${listing.creator}-${listing.name}`} name={listing.name} rarity={rarity} size={60} />
+                        <ScentCrest seed={`${listing.creator}-${listing.name}`} name={listing.name} rarity={rarity} size={60} stage={evolve(listing.contractAddress, listing.tokenId, rarity, listing.createdAt)?.stage ?? 0} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 mb-1">
