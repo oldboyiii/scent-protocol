@@ -43,6 +43,11 @@ export default function EvolutionBadge({ evolution, compact = false }: { evoluti
       <div className="flex flex-wrap items-center gap-2">
         {chip}
         <span className="text-xs text-white/50">{evolution.ageDays} days old</span>
+        {evolution.stage === 3 && (
+          <span className="rounded-full border border-amber-300/50 bg-amber-300/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-200">
+            Master Formula
+          </span>
+        )}
         {evolution.streakBadge && (
           <span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
             Held {evolution.streakDays} days
