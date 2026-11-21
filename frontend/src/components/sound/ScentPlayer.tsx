@@ -11,6 +11,9 @@ export interface PlayerPerfume {
   topNotes: string[];
   heartNotes: string[];
   baseNotes: string[];
+  /** Evolution stage 0-3 and the evolved note. They enrich the sound. */
+  stage?: number;
+  evolvedNote?: string | null;
 }
 
 interface ScentPlayerProps {
@@ -42,6 +45,8 @@ export default function ScentPlayer({ perfume, tokenId, variant = "compact", cla
     topNotes: perfume.topNotes,
     heartNotes: perfume.heartNotes,
     baseNotes: perfume.baseNotes,
+    stage: perfume.stage,
+    evolvedNote: perfume.evolvedNote,
   });
   const playing = state === "playing";
   const ringRef = useRef<HTMLSpanElement>(null);
