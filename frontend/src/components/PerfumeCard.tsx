@@ -135,6 +135,7 @@ export default function PerfumeCard({
                 name={perfume.name}
                 rarity={perfume.rarity}
                 size={60}
+                stage={evolution?.stage ?? 0}
               />
             </div>
             
@@ -257,6 +258,8 @@ export default function PerfumeCard({
             perfume={{
               name: perfume.name,
               rarity: perfume.rarity,
+              stage: evolution?.stage ?? 0,
+              evolvedNote: evolution?.evolvedNote ?? null,
               creator: perfume.creator || "",
               topNotes: perfume.topNotes,
               heartNotes: perfume.heartNotes,
