@@ -13,6 +13,8 @@ interface ScentCrestProps {
   topNotes?: string[];
   heartNotes?: string[];
   baseNotes?: string[];
+  /** Evolution stage: 0 Fresh, 1 Aged (gold ring), 2 Matured (stronger aura), 3 Vintage (animated gold ring). */
+  stage?: number;
 }
 
 // ============================================================
@@ -60,7 +62,10 @@ export default function ScentCrest({
   topNotes = [],
   heartNotes = [],
   baseNotes = [],
+  stage = 0,
 }: ScentCrestProps) {
+  const evolved = Math.max(0, Math.min(3, Math.floor(stage || 0)));
+  const GOLD = "#fbbf24";
   const initials = useMemo(() => {
     return name
       .split(" ")
@@ -109,7 +114,7 @@ export default function ScentCrest({
 
   // ---- SPARKLES (bright twinkling dots) ----
   const sparkles = useMemo(() => {
-    const count = 8;
+    const count = evolved >= 3 ? 14 : 8;
     const result = [];
     for (let i = 0; i < count; i++) {
       const angle = seededRandom(seedHash + 1000, i * 2) * Math.PI * 2;
@@ -120,7 +125,7 @@ export default function ScentCrest({
       result.push({ angle, distance, size: sSize, delay, duration });
     }
     return result;
-  }, [seedHash]);
+  }, [seedHash, evolved]);
 
   // Scale factor for particles (bigger crest = slightly bigger particles)
   const particleScale = size / 64;
@@ -132,9 +137,17 @@ export default function ScentCrest({
     >
       {/* Outer ambient glow */}
       <div
-        className="absolute inset-0 rounded-full blur-2xl opacity-30 pointer-events-none"
-        style={{ backgroundColor: glowColor }}
+        className="absolute inset-0 rounded-full blur-2xl pointer-events-none"
+        style={{ backgroundColor: glowColor, opacity: evolved >= 2 ? 0.5 : 0.3 }}
       />
+
+      {/* Matured and Vintage: a warm gold aura behind the crest */}
+      {evolved >= 2 && (
+        <div
+          className="absolute rounded-full blur-xl pointer-events-none"
+          style={{ inset: "-8%", background: `radial-gradient(circle, ${GOLD}${evolved >= 3 ? "70" : "50"}, transparent 66%)` }}
+        />
+      )}
 
       {/* Ripple waves (pulsing rings) */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -221,6 +234,30 @@ export default function ScentCrest({
           boxShadow: `0 0 25px ${glowColor}50, inset 0 0 20px ${glowColor}25`,
         }}
       >
+        {/* Aged: a thin gold ring. Vintage: a slowly turning gold ring. */}
+        {evolved >= 1 && (
+          <div
+            className={`absolute rounded-full pointer-events-none ${evolved >= 3 ? "crest-vintage-ring" : ""}`}
+            style={
+              evolved >= 3
+                ? {
+                    inset: -Math.max(3, size * 0.05),
+                    background: `conic-gradient(from 0deg, ${GOLD}, transparent 35%, ${GOLD} 55%, transparent 80%, ${GOLD})`,
+                    WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))",
+                    mask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))",
+                    animation: "crest-spin 7s linear infinite",
+                    filter: `drop-shadow(0 0 ${Math.max(4, size * 0.08)}px ${GOLD}aa)`,
+                  }
+                : {
+                    inset: -Math.max(3, size * 0.05),
+                    border: `2px solid ${GOLD}`,
+                    opacity: 0.85,
+                    boxShadow: `0 0 ${Math.max(6, size * 0.14)}px ${GOLD}66`,
+                  }
+            }
+          />
+        )}
+
         {/* Inner dashed ring */}
         <div
           className="absolute rounded-full border border-dashed opacity-50"
@@ -276,6 +313,9 @@ export default function ScentCrest({
         @keyframes crest-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .crest-vintage-ring { animation: none !important; }
         }
       `}</style>
     </div>
