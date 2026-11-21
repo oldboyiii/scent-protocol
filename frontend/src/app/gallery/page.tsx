@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract } from "@/utils/contract";
 import ScentCrest from "@/components/ScentCrest";
+import EvolutionBadge from "@/components/EvolutionBadge";
+import { evolve } from "@/utils/evolution";
 import FitTitle from "@/components/FitTitle"; // 
 
 // --- CONTRACT ADDRESSES ---
@@ -142,7 +144,15 @@ interface GalleryItem {
   creator: string;
 }
 
-type SortOption = "newest" | "oldest" | "name" | "rarity";
+type SortOption = "newest" | "oldest" | "name" | "rarity" | "evolved";
+type StageFilter = "any" | "aged" | "matured" | "vintage";
+
+const STAGE_OPTIONS: Array<{ value: StageFilter; label: string; min: number }> = [
+  { value: "any", label: "Any stage", min: 0 },
+  { value: "aged", label: "Aged or older", min: 1 },
+  { value: "matured", label: "Matured or older", min: 2 },
+  { value: "vintage", label: "Vintage only", min: 3 },
+];
 type CollectionFilter = "all" | "scents" | "genesis" | "mfw" | "viral" | "hybrid";
 
 const RARITY_STYLE: Record<number, { 
@@ -225,6 +235,8 @@ export default function GalleryPage() {
   const [filterBy, setFilterBy] = useState<CollectionFilter>("all");
   const [showSort, setShowSort] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
+  const [stageFilter, setStageFilter] = useState<StageFilter>("any");
+  const [showStage, setShowStage] = useState(false);
 
   useEffect(() => {
     async function fetchGallery() {
@@ -441,13 +453,19 @@ export default function GalleryPage() {
       if (!target.closest('.dropdown-container')) {
         setShowSort(false);
         setShowFilter(false);
+        setShowStage(false);
       }
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  // Evolution is worked out from each NFT's creation time (the same rules as the ScentEvolution contract).
+  const evolutionOf = (item: GalleryItem) => evolve(item.contractAddress, item.tokenId, item.rarity, item.createdAt);
+  const minStage = STAGE_OPTIONS.find((o) => o.value === stageFilter)?.min ?? 0;
+
   const filteredItems = items.filter(item => {
+    if (minStage > 0 && (evolutionOf(item)?.stage ?? 0) < minStage) return false;
     if (filterBy === "all") return true;
     if (filterBy === "genesis") return item.contractAddress === GENESIS_CONTRACT_ADDRESS;
     if (filterBy === "mfw") return item.contractAddress === MFW_CONTRACT_ADDRESS;
@@ -462,6 +480,15 @@ export default function GalleryPage() {
       case "oldest": return a.createdAt - b.createdAt;
       case "name": return a.name.localeCompare(b.name);
       case "rarity": return b.rarity - a.rarity;
+      case "evolved": {
+        const ea = evolutionOf(a);
+        const eb = evolutionOf(b);
+        return (
+          (eb?.effectiveRarity ?? b.rarity) - (ea?.effectiveRarity ?? a.rarity) ||
+          (eb?.stage ?? 0) - (ea?.stage ?? 0) ||
+          b.createdAt - a.createdAt
+        );
+      }
       default: return 0;
     }
   });
@@ -471,6 +498,7 @@ export default function GalleryPage() {
     { value: "oldest", label: "Oldest First" },
     { value: "name", label: "Name (A-Z)" },
     { value: "rarity", label: "Rarity (High to Low)" },
+    { value: "evolved", label: "Evolved rarity (High to Low)" },
   ];
 
   return (
@@ -493,7 +521,7 @@ export default function GalleryPage() {
       <div className="mb-6 flex flex-wrap items-center gap-3 dropdown-container">
         <div className="relative">
           <button 
-            onClick={() => { setShowFilter(!showFilter); setShowSort(false); }} 
+            onClick={() => { setShowFilter(!showFilter); setShowSort(false); setShowStage(false); }} 
             className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
           >
             <span>
@@ -522,8 +550,35 @@ export default function GalleryPage() {
         </div>
 
         <div className="relative">
+          <button
+            onClick={() => { setShowStage(!showStage); setShowFilter(false); setShowSort(false); }}
+            aria-haspopup="listbox"
+            aria-expanded={showStage}
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
+          >
+            <span>{STAGE_OPTIONS.find((o) => o.value === stageFilter)?.label}</span>
+            <svg className={`w-4 h-4 transition-transform ${showStage ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          {showStage && (
+            <div role="listbox" className="absolute top-full mt-1 left-0 w-full bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden z-50 shadow-xl min-w-[180px]">
+              {STAGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  role="option"
+                  aria-selected={stageFilter === option.value}
+                  onClick={() => { setStageFilter(option.value); setShowStage(false); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 ${stageFilter === option.value ? "text-amber-400 bg-white/5" : "text-white/70"}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
           <button 
-            onClick={() => { setShowSort(!showSort); setShowFilter(false); }} 
+            onClick={() => { setShowSort(!showSort); setShowFilter(false); setShowStage(false); }} 
             className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm flex items-center gap-2 hover:bg-white/10 transition-colors min-w-[160px] justify-between"
           >
             <span>
@@ -531,6 +586,7 @@ export default function GalleryPage() {
               {sortBy === "oldest" && "Oldest First"}
               {sortBy === "name" && "Name (A-Z)"}
               {sortBy === "rarity" && "Rarity (High to Low)"}
+              {sortBy === "evolved" && "Evolved rarity (High to Low)"}
             </span>
             <svg className={`w-4 h-4 transition-transform ${showSort ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -557,7 +613,20 @@ export default function GalleryPage() {
         </div>
       ) : sortedItems.length === 0 ? (
         <div className="text-center text-white/40 py-20">
-          <p className="text-lg mb-4">No NFTs found in the gallery yet.</p>
+          {items.length > 0 ? (
+            <>
+              <p className="text-lg mb-4">No NFTs match these filters.</p>
+              <button
+                type="button"
+                onClick={() => { setStageFilter("any"); setFilterBy("all"); }}
+                className="inline-block px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
+                Clear filters
+              </button>
+            </>
+          ) : (
+            <p className="text-lg mb-4">No NFTs found in the gallery yet.</p>
+          )}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -656,6 +725,7 @@ export default function GalleryPage() {
                           name={item.name}
                           rarity={rarity}
                           size={60}
+                          stage={evolve(item.contractAddress, item.tokenId, rarity, item.createdAt)?.stage ?? 0}
                         />
                       </div>
 
@@ -702,9 +772,12 @@ export default function GalleryPage() {
                       </div>
                     </div>
                     
-                    <span className={`relative text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge} flex-shrink-0`}>
-                      {RARITY_LABELS[rarity]}
-                    </span>
+                    <div className="relative flex flex-shrink-0 flex-col items-end gap-1.5">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full border backdrop-blur-md ${style.badge}`}>
+                        {RARITY_LABELS[rarity]}
+                      </span>
+                      <EvolutionBadge compact evolution={evolve(item.contractAddress, item.tokenId, rarity, item.createdAt)} />
+                    </div>
                   </div>
 
                   <div className="relative flex flex-wrap gap-2 text-xs mb-4">
