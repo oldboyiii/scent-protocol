@@ -8,6 +8,7 @@ import Link from "next/link";
 import { NOTE_COLORS, CREATIVE_DESCRIPTIONS, TYPE_NAMES, GENDER_NAMES } from "@/utils/advisorData";
 import { analyzeMood, rankListings, seedFor } from "@/utils/advisorMatch";
 import type { RankedListing } from "@/utils/advisorMatch";
+import EvolutionBadge from "@/components/EvolutionBadge";
 import { loadMarketListings } from "@/utils/marketListings";
 
 // --- INTERFACES ---
@@ -555,8 +556,11 @@ export default function AIAdvisor({ onSelect }: AIAdvisorProps) {
                         <Link key={`${m.collection}-${m.tokenId}`} href={m.href} className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 transition-all hover:border-amber-400/40 hover:bg-white/[0.08]">
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-xs font-bold text-white/60 tabular-nums">{idx + 1}</span>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-white transition-colors group-hover:text-amber-300">{m.name}</p>
-                            <p className="truncate text-xs text-white/50">Fits with {m.matchedNotes.slice(0, 3).join(", ") || "its overall character"}</p>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-white transition-colors group-hover:text-amber-300">{m.name}</p>
+                              <EvolutionBadge compact evolution={m.evolution} />
+                            </div>
+                            <p className="truncate text-xs text-white/50">Fits with {m.matchedNotes.slice(0, 3).join(", ") || "its overall character"}{m.evolution?.evolvedNote ? `. Evolved note: ${m.evolution.evolvedNote}` : ""}</p>
                             <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
                               <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500" style={{ width: `${Math.round(m.score * 100)}%` }} />
                             </div>
