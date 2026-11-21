@@ -71,6 +71,7 @@ export async function loadMarketListings(): Promise<AdvisorListing[]> {
               tokenId,
               name: String(p.name),
               rarity: Number(p.rarity),
+              createdAt: Number(p.createdAt),
               gender: Number(p.gender),
               pType: Number(p.pType),
               notes: [...Array.from(p.topNotes as string[]), ...Array.from(p.heartNotes as string[]), ...Array.from(p.baseNotes as string[])].map(String),
