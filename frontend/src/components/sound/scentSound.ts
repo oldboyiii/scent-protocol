@@ -58,6 +58,10 @@ export interface ScentSoundInput {
   topNotes: string[];
   heartNotes: string[];
   baseNotes: string[];
+  /** Evolution stage 0-3. Aged adds a warm bass layer, Matured a richer pad, Vintage a shimmering top. */
+  stage?: number;
+  /** The evolved note, once Aged. It colours the pad. */
+  evolvedNote?: string | null;
 }
 
 interface Profile {
@@ -190,12 +194,16 @@ export class ScentSoundEngine {
   private readonly ambient: AmbientContext;
   onStop: (() => void) | null = null;
 
+  private get stage(): number {
+    return Math.max(0, Math.min(3, Math.floor(this.input.stage ?? 0)));
+  }
+
   constructor(private readonly input: ScentSoundInput, tuning: Partial<Tuning> = {}, ambient?: Partial<AmbientContext>) {
     this.tuning = { ...DEFAULT_TUNING, ...tuning };
     this.ambient = { ...NEUTRAL_AMBIENCE, ...ambient };
     this.rand = makeRng(hash(input.seed));
     this.top = average(input.topNotes);
-    this.heart = average(input.heartNotes);
+    this.heart = average([...input.heartNotes, ...(input.evolvedNote && (input.stage ?? 0) >= 1 ? [input.evolvedNote] : [])]);
     this.base = average(input.baseNotes);
     
     const mood = (this.top.bright + this.top.sparkle) - (this.base.warm + this.base.rumble);
@@ -248,7 +256,7 @@ export class ScentSoundEngine {
     this.send = ctx.createGain();
     this.send.gain.value = this.tuning.reverbSend;
     const reverb = ctx.createConvolver();
-    reverb.buffer = this.impulse(ctx, (2.5 + rarity * 0.8) * this.tuning.reverbLength);
+    reverb.buffer = this.impulse(ctx, (2.5 + rarity * 0.8 + this.stage * 0.4) * this.tuning.reverbLength);
     const wet = ctx.createGain();
     wet.gain.value = this.tuning.reverbWet;
     this.wet = wet;
@@ -388,12 +396,29 @@ export class ScentSoundEngine {
       g.connect(this.dry);
       src.start();
     }
-    if (rarity >= 2) {
+    if (this.stage >= 1) {
+      // Aged: a warm fifth and an octave-down body under the drone.
+      const warmBody = ctx.createGain();
+      warmBody.gain.value = 0.1 * this.tuning.drone;
+      const warmLp = ctx.createBiquadFilter();
+      warmLp.type = "lowpass";
+      warmLp.frequency.value = 320;
+      for (const [type, mult] of [["triangle", 1.5], ["sine", 0.5]] as Array<[OscillatorType, number]>) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = f0 * mult;
+        o.connect(warmLp);
+        o.start();
+      }
+      warmLp.connect(warmBody);
+      warmBody.connect(this.dry);
+    }
+    if (rarity >= 2 || this.stage >= 3) {
       const sh = ctx.createOscillator();
       const shg = ctx.createGain();
       sh.type = "sine";
       sh.frequency.value = f0 * 4;
-      shg.gain.value = 0.015 * rarity;
+      shg.gain.value = 0.015 * Math.max(rarity, 2);
       sh.connect(shg);
       shg.connect(this.send);
       sh.start();
@@ -406,15 +431,17 @@ export class ScentSoundEngine {
     const progression = [0, 3, 4, 2];
     const root = progression[index % progression.length];
     const lift = this.heart.bright > 0.55 ? 12 : 0;
-    const steps = [root, root + 2, root + 4, ...(rarity >= 2 ? [root + 7] : [])];
+    const steps = [root, root + 2, root + 4, ...(rarity >= 2 || this.stage >= 3 ? [root + 7] : [])];
     
     const dur = (9 + this.rand() * 5) * this.tuning.tempo * this.tempoMod;
     const now = ctx.currentTime;
-    const level = (0.05 + 0.05 * this.heart.warm) * this.tuning.pad;
+    // Matured and Vintage: a wider, richer chorus. The level is shared so the loudness stays the same.
+    const detunes = this.stage >= 2 ? [-9, -3, 3, 9] : [-7, 7];
+    const level = (0.05 + 0.05 * this.heart.warm) * this.tuning.pad * (2 / detunes.length);
 
     for (const s of steps) {
       const freq = mtof(this.rootMidi + 12 + lift + this.step(s));
-      for (const detune of [-7, 7]) {
+      for (const detune of detunes) {
         const osc = ctx.createOscillator();
         osc.type = this.heart.warm > 0.55 ? "triangle" : "sawtooth";
         osc.frequency.value = freq;
@@ -447,7 +474,7 @@ export class ScentSoundEngine {
   }
 
   private intro(rarity: number): void {
-    const count = 3 + rarity;
+    const count = 3 + rarity + (this.stage >= 3 ? 2 : 0);
     for (let i = 0; i < count; i++) {
       this.timers.push(setTimeout(() => this.bell(this.step(i * 2) + 12, 0.07 * this.tuning.chimes), 700 + i * 450));
     }
