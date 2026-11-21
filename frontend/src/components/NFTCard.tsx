@@ -395,6 +395,8 @@ export default function NFTCard({
             perfume={{
               name,
               rarity,
+              stage: evolution?.stage ?? 0,
+              evolvedNote: evolution?.evolvedNote ?? null,
               creator,
               topNotes,
               heartNotes,
