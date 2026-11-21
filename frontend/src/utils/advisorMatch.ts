@@ -3,6 +3,7 @@
 // Mood analysis and NFT matching for the Scent Advisor. Pure functions, no network, easy to test.
 
 import { KNOWLEDGE_BASE, type KnowledgeEntry } from "./advisorData";
+import { evolve, type Evolution } from "./evolution";
 
 export type Family = "citrus" | "green" | "floral" | "woody" | "sweet" | "spicy" | "musk" | "aquatic" | "smoky";
 
@@ -19,6 +20,7 @@ const EXTRA_ENTRIES: Record<string, KnowledgeEntry> = {
   fog: { pType: 1, intensity: 2, tags: ["mysterious", "calm", "earthy"], notes: { top: ["Lavender"], heart: ["Iris"], base: ["Vetiver", "Cedarwood"] }, archetype: "The Philosopher" },
   wind: { pType: 2, intensity: 1, tags: ["fresh", "green", "aromatic"], notes: { top: ["Mint", "Eucalyptus"], heart: ["Lavender"], base: ["Vetiver"] }, archetype: "The Wanderer" },
   hot: { pType: 3, intensity: 1, tags: ["fresh", "citrus", "aquatic"], notes: { top: ["Grapefruit", "Lemon"], heart: ["Sea Notes"], base: ["White Musk"] }, archetype: "The Free Spirit" },
+  collector: { pType: 0, intensity: 3, tags: ["luxury", "bold", "smoky", "amber"], notes: { top: ["Bergamot"], heart: ["Rose", "Oud"], base: ["Oud", "Amber", "Sandalwood"] }, archetype: "The Collector" },
   cold: { pType: 0, intensity: 3, tags: ["warm", "spicy", "comforting"], notes: { top: ["Cinnamon"], heart: ["Rose", "Oud"], base: ["Vanilla", "Amber"] }, archetype: "The Mystic" },
 };
 
@@ -27,6 +29,7 @@ const EN_ALIASES: Array<[string[], string]> = [
   [["noon", "lunch"], "afternoon"], [["sun", "clear"], "sunny"], [["overcast", "grey", "gray"], "cloudy"], [["blizzard", "frost"], "snow"],
   [["mist", "haze", "foggy"], "fog"], [["breez", "gust"], "wind"], [["drizzl", "shower", "storm", "thunder", "wet"], "rain"],
   [["heat", "scorch", "warm"], "hot"], [["chill", "freez", "icy"], "cold"],
+  [["collect", "vintage", "heirloom"], "collector"],
 ];
 
 const SITUATIONAL = new Set(["morning", "afternoon", "evening", "night", "sunny", "cloudy", "snow", "fog", "wind", "hot", "cold", "rain"]);
@@ -178,18 +181,27 @@ export interface AdvisorListing {
   notes: string[];
   priceUsdc: number;
   href: string;
+  /** Creation time in seconds, used for the evolution stage. */
+  createdAt: number;
 }
 
 export interface RankedListing extends AdvisorListing {
   score: number;
   matchedNotes: string[];
+  /** How far this fragrance has aged. Null if its age cannot be read. */
+  evolution: Evolution | null;
 }
+
+// Moods that suit an aged scent. Vintage scents also lead when the mood is about collecting.
+const CONTEMPLATIVE_TAGS = new Set(["calm", "mysterious", "earthy", "smoky", "dark", "comforting", "soft", "amber"]);
 
 export function rankListings(mood: MoodAnalysis, listings: AdvisorListing[], selectedGender = 0, limit = 3): RankedListing[] {
   const wanted = Object.entries(mood.families) as Array<[Family, number]>;
   const total = wanted.reduce((s, [, w]) => s + w, 0);
   if (total === 0) return [];
   const weight = new Map(wanted);
+  const collector = mood.keywords.includes("collector");
+  const contemplative = !collector && mood.tags.some((t) => CONTEMPLATIVE_TAGS.has(t));
   
   return listings
     .map((l) => {
@@ -203,8 +215,14 @@ export function rankListings(mood: MoodAnalysis, listings: AdvisorListing[], sel
       let score = Math.min(1, fit / 3);
       if (selectedGender !== 0 && l.gender === selectedGender) score += 0.1;
       if (Math.abs(l.pType - mood.pType) <= 1) score += 0.05;
-      score += l.rarity * 0.01;
-      return { ...l, score: Math.min(1, score), matchedNotes: matched.slice(0, 4) };
+      // Evolution: a gentle lift for aged scents in contemplative moods, a stronger one for collectors.
+      const evolution = evolve(l.collection, l.tokenId, l.rarity, l.createdAt);
+      const stage = evolution?.stage ?? 0;
+      score += (evolution?.effectiveRarity ?? l.rarity) * 0.01;
+      if (collector) score += stage * 0.04;
+      else if (contemplative) score += stage * 0.03;
+      else score += stage * 0.005;
+      return { ...l, score: Math.min(1, score), matchedNotes: matched.slice(0, 4), evolution };
     })
     .filter((l) => l.matchedNotes.length > 0)
     .sort((a, b) => b.score - a.score)
