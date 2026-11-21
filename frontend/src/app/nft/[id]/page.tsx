@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import { getContract, CONTRACT_ADDRESS } from "@/utils/contract";
 import EvolutionPanel from "@/components/EvolutionPanel";
+import { evolve } from "@/utils/evolution";
 import { useAccount } from "wagmi";
 import ShareCard from "@/components/ShareCard";
 import ScentCrest from "@/components/ScentCrest";
@@ -672,6 +673,7 @@ export default function NFTDetailPage() {
                 name={perfume.name} 
                 rarity={perfume.rarity} 
                 size={64} 
+                stage={evolve(contractParam || CONTRACT_ADDRESS, id, perfume.rarity, perfume.createdAt)?.stage ?? 0}
               />
               <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover/crest:opacity-100 transition-opacity flex items-center justify-center">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -780,6 +782,8 @@ export default function NFTDetailPage() {
             perfume={{
               name: perfume.name,
               rarity: perfume.rarity,
+              stage: evolve(contractParam || CONTRACT_ADDRESS, id, perfume.rarity, perfume.createdAt)?.stage ?? 0,
+              evolvedNote: evolve(contractParam || CONTRACT_ADDRESS, id, perfume.rarity, perfume.createdAt)?.evolvedNote ?? null,
               creator: perfume.creator || "",
               topNotes: perfume.topNotes || [],
               heartNotes: perfume.heartNotes || [],
@@ -981,6 +985,7 @@ export default function NFTDetailPage() {
                 name={perfume.name} 
                 rarity={perfume.rarity} 
                 size={320} 
+                stage={evolve(contractParam || CONTRACT_ADDRESS, id, perfume.rarity, perfume.createdAt)?.stage ?? 0}
               />
               
               <div className="mt-10 text-center space-y-3">
